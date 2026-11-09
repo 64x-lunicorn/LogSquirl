@@ -47,6 +47,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 #include <vector>
 
 // The Dashboard uses readable type and shows its lists as cards (#266).
@@ -672,8 +673,7 @@ SCENARIO( "The Dashboard's star request is one quiet line above the footer, with
         THEN( "it says so in one line that links to the repository" )
         {
             CHECK( plainTextOf( *text )
-                   == QStringLiteral(
-                       "Find LogSquirl useful? A star on GitHub helps others find it." ) );
+                   == QStringLiteral( "Find LogSquirl useful? Leave a star on GitHub." ) );
             CHECK( linksOf( *text ).values()
                    == QStringList{ QString( logsquirl::versioncheck::ProjectPageUrl ) } );
             CHECK_FALSE( text->wordWrap() );
@@ -769,6 +769,61 @@ SCENARIO( "The Dashboard's star request is one quiet line above the footer, with
     }
 }
 
+SCENARIO( "A star request dismissed in one window is gone from every window's Dashboard",
+          "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "two windows' Dashboards that ask for a star" )
+    {
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        WelcomeDashboard first;
+        prepare( first, StarToday );
+        WelcomeDashboard second;
+        prepare( second, StarToday );
+        REQUIRE( asksForStar( first ) );
+        REQUIRE( asksForStar( second ) );
+
+        WHEN( "the line is closed in the first" )
+        {
+            REQUIRE( starRequestClose( first ) != nullptr );
+            starRequestClose( first )->click();
+
+            THEN( "the second shows it no more either, without being refreshed" )
+            {
+                CHECK_FALSE( asksForStar( first ) );
+                CHECK_FALSE( asksForStar( second ) );
+            }
+        }
+
+        WHEN( "the link is followed in the second" )
+        {
+            DashboardWebPages pages;
+            auto* text = starRequestText( second );
+            REQUIRE( text != nullptr );
+            Q_EMIT text->linkActivated( linksOf( *text ).values().value( 0 ) );
+
+            THEN( "the first shows it no more either" )
+            {
+                CHECK_FALSE( asksForStar( second ) );
+                CHECK_FALSE( asksForStar( first ) );
+            }
+        }
+
+        WHEN( "one of them is destroyed and the other dismisses" )
+        {
+            auto third = std::make_unique<WelcomeDashboard>();
+            prepare( *third, StarToday );
+            third.reset();
+            starRequestClose( first )->click();
+
+            THEN( "the other hides its line, and nothing touches the destroyed one" )
+            {
+                CHECK_FALSE( asksForStar( first ) );
+                CHECK_FALSE( asksForStar( second ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "The Dashboard's star request is translated", "[ui][dashboard][starrequest]" )
 {
     GIVEN( "a translation of the Dashboard and a Dashboard that asks for a star" )
@@ -789,8 +844,7 @@ SCENARIO( "The Dashboard's star request is translated", "[ui][dashboard][starreq
             THEN( "its line and its close button are shown translated" )
             {
                 CHECK( plainTextOf( *text )
-                       == QStringLiteral(
-                           "[Find LogSquirl useful? A star on GitHub helps others find it.]" ) );
+                       == QStringLiteral( "[Find LogSquirl useful? Leave a star on GitHub.]" ) );
                 CHECK( close->toolTip() == QStringLiteral( "[Dismiss]" ) );
                 CHECK( close->accessibleName() == QStringLiteral( "[Dismiss]" ) );
             }
@@ -922,8 +976,7 @@ void checkDashboardTexts( WelcomeDashboard& dashboard,
     REQUIRE( text != nullptr );
     REQUIRE( close != nullptr );
     CHECK( plainTextOf( *text )
-           == mark( QStringLiteral(
-               "Find LogSquirl useful? A star on GitHub helps others find it." ) ) );
+           == mark( QStringLiteral( "Find LogSquirl useful? Leave a star on GitHub." ) ) );
     CHECK( linksOf( *text ).values()
            == QStringList{ QString( logsquirl::versioncheck::ProjectPageUrl ) } );
     CHECK( linkColorsOf( *text ) == QStringList{ secondary } );

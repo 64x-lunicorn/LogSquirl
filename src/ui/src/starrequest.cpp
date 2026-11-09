@@ -19,21 +19,40 @@
 
 #include "starrequest.h"
 
+#include <QPointer>
 #include <QSettings>
 
 #include <algorithm>
 #include <limits>
+#include <utility>
+#include <vector>
 
 namespace {
 
 // A group no other setting writes to: neither a change of other settings nor
-// the settings migration of an update (PersistentInfo::UpdateSettings, which
+// the settings migration of an update (PersistentInfo::updateSettings, which
 // removes named keys and the top-level keys of old session settings) touches
 // it.
 const QString Group = QStringLiteral( "StarRequest" );
 const QString FirstStartKey = QStringLiteral( "firstStart" );
 const QString StartsKey = QStringLiteral( "starts" );
 const QString DismissedKey = QStringLiteral( "dismissed" );
+
+QSettings& store()
+{
+    return PersistentInfo::getSettings( app_settings{} );
+}
+
+struct Hide {
+    QPointer<QObject> context;
+    std::function<void()> hide;
+};
+
+std::vector<Hide>& hides()
+{
+    static std::vector<Hide> list;
+    return list;
+}
 
 } // namespace
 
@@ -46,16 +65,37 @@ bool starRequestDue( const StarRequestUse& use, QDate today )
            && use.starts >= StarRequestMinStarts;
 }
 
+void StarRequest::countStart( QDate today )
+{
+    if ( !use_.firstStart.isValid() || ( today.isValid() && use_.firstStart > today ) ) {
+        use_.firstStart = today;
+    }
+    if ( use_.starts < std::numeric_limits<int>::max() ) {
+        ++use_.starts;
+    }
+
+    auto& settings = store();
+    settings.beginGroup( Group );
+    if ( use_.firstStart.isValid() ) {
+        settings.setValue( FirstStartKey, use_.firstStart.toString( Qt::ISODate ) );
+    }
+    settings.setValue( StartsKey, use_.starts );
+    settings.endGroup();
+}
+
+void StarRequest::dismiss()
+{
+    use_.dismissed = true;
+
+    auto& settings = store();
+    settings.beginGroup( Group );
+    settings.setValue( DismissedKey, true );
+    settings.endGroup();
+}
+
 void StarRequest::countApplicationStart( QDate today )
 {
-    auto& request = getSynced();
-    if ( !request.use_.firstStart.isValid() ) {
-        request.use_.firstStart = today;
-    }
-    if ( request.use_.starts < std::numeric_limits<int>::max() ) {
-        ++request.use_.starts;
-    }
-    request.save();
+    getSynced().countStart( today );
 }
 
 bool StarRequest::dueOn( QDate today )
@@ -65,9 +105,24 @@ bool StarRequest::dueOn( QDate today )
 
 void StarRequest::dismissForGood()
 {
-    auto& request = getSynced();
-    request.use_.dismissed = true;
-    request.save();
+    getSynced().dismiss();
+
+    auto& list = hides();
+    list.erase( std::remove_if( list.begin(), list.end(),
+                                []( const Hide& entry ) { return entry.context.isNull(); } ),
+                list.end() );
+    // A hide may register further hides or destroy other contexts.
+    const auto current = list;
+    for ( const auto& entry : current ) {
+        if ( entry.context ) {
+            entry.hide();
+        }
+    }
+}
+
+void StarRequest::whenDismissed( QObject* context, std::function<void()> hide )
+{
+    hides().push_back( { context, std::move( hide ) } );
 }
 
 void StarRequest::saveToStorage( QSettings& settings ) const

@@ -22,8 +22,11 @@
 
 #include <QDate>
 
+#include <functional>
+
 #include "persistable.h"
 
+class QObject;
 class QSettings;
 
 /// How long and how often LogSquirl has been used, and whether the user is
@@ -57,22 +60,37 @@ public:
         return use_;
     }
 
-    /// Replaces what is kept; save() stores it.
+    /// Replaces what is kept; save() stores all of it.
     void setUse( const StarRequestUse& use )
     {
         use_ = use;
     }
 
-    /// Counts one start of the application on today, in the settings store.
-    /// The first start counted is the first start. Called once per process,
-    /// never per window or Dashboard.
+    /// Counts one start on today in what is kept, and stores the first start
+    /// and the starts, never whether the request is dismissed: another
+    /// LogSquirl may have stored a dismissal since this was read. A first
+    /// start after today, kept while the clock was wrong, becomes today.
+    void countStart( QDate today );
+
+    /// Keeps the request as dismissed, and stores only that.
+    void dismiss();
+
+    /// Counts one start of the application on today, in the settings store,
+    /// as it says now. The first start counted is the first start. Called
+    /// once per process, never per window or Dashboard.
     static void countApplicationStart( QDate today );
 
     /// Whether the Dashboard asks on today, as the settings store says now.
     static bool dueOn( QDate today );
 
-    /// The user followed the link or closed the line: never again.
+    /// The user followed the link or closed the line: never again. Stores
+    /// the dismissal and runs every hide registered with whenDismissed(), so
+    /// the line goes from the Dashboards of every window at once.
     static void dismissForGood();
+
+    /// Runs hide whenever the request is dismissed for good, as long as
+    /// context exists.
+    static void whenDismissed( QObject* context, std::function<void()> hide );
 
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );

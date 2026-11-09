@@ -81,7 +81,7 @@ PersistentInfo::PersistentInfo()
         PrepareOsSettings();
     }
 
-    UpdateSettings();
+    updateSettings( *appSettings_, *sessionSettings_ );
 }
 
 void PersistentInfo::PreparePortableSettings( const QString& portableConfigPath )
@@ -128,17 +128,17 @@ void PersistentInfo::PrepareOsSettings()
 #endif
 }
 
-void PersistentInfo::UpdateSettings()
+void PersistentInfo::updateSettings( QSettings& appSettings, QSettings& sessionSettings )
 {
-    const auto oldAppSettingsVersion = appSettings_->value( "version", 0 ).toUInt();
+    const auto oldAppSettingsVersion = appSettings.value( "version", 0 ).toUInt();
     LOG_INFO << "App settings version" << oldAppSettingsVersion;
 
     if ( oldAppSettingsVersion != AppSettingsVersion ) {
-        appSettings_->remove( "geometry" );
-        appSettings_->remove( "versionchecker.nextDeadline" );
-        appSettings_->remove( "OpenFiles" );
-        appSettings_->remove( "RecentFiles" );
-        appSettings_->remove( "SavedSearches" );
+        appSettings.remove( "geometry" );
+        appSettings.remove( "versionchecker.nextDeadline" );
+        appSettings.remove( "OpenFiles" );
+        appSettings.remove( "RecentFiles" );
+        appSettings.remove( "SavedSearches" );
     }
 
     std::pair<QString, QString> keysToMoveAround[] = {
@@ -148,71 +148,71 @@ void PersistentInfo::UpdateSettings()
     };
 
     for ( const auto& keyToMove : keysToMoveAround ) {
-        if ( appSettings_->contains( keyToMove.first ) ) {
-            appSettings_->setValue( keyToMove.second, appSettings_->value( keyToMove.first ) );
-            appSettings_->remove( keyToMove.first );
+        if ( appSettings.contains( keyToMove.first ) ) {
+            appSettings.setValue( keyToMove.second, appSettings.value( keyToMove.first ) );
+            appSettings.remove( keyToMove.first );
         }
     }
 
-    const auto oldSessionSettingsVersion = sessionSettings_->value( "version", 0 ).toUInt();
+    const auto oldSessionSettingsVersion = sessionSettings.value( "version", 0 ).toUInt();
     LOG_INFO << "Session settings version" << oldSessionSettingsVersion;
 
     if ( oldSessionSettingsVersion < 1 ) {
-        sessionSettings_->setValue( "Window/geometry", sessionSettings_->value( "geometry" ) );
-        sessionSettings_->setValue( "VersionChecker/nextDeadline",
-                                    sessionSettings_->value( "versionchecker.nextDeadline" ) );
-        sessionSettings_->remove( "HighlighterSet" );
-        for ( const auto& key : sessionSettings_->childKeys() ) {
-            sessionSettings_->remove( key );
+        sessionSettings.setValue( "Window/geometry", sessionSettings.value( "geometry" ) );
+        sessionSettings.setValue( "VersionChecker/nextDeadline",
+                                  sessionSettings.value( "versionchecker.nextDeadline" ) );
+        sessionSettings.remove( "HighlighterSet" );
+        for ( const auto& key : sessionSettings.childKeys() ) {
+            sessionSettings.remove( key );
         }
     }
     if ( oldSessionSettingsVersion < SessionSettingsVersion ) {
-        const auto geometry = sessionSettings_->value( "Window/geometry" );
-        sessionSettings_->remove( "Window/geometry" );
+        const auto geometry = sessionSettings.value( "Window/geometry" );
+        sessionSettings.remove( "Window/geometry" );
 
         if ( geometry.isValid() ) {
             const auto id = generateIdFromUuid();
-            sessionSettings_->beginGroup( "OpenFiles" );
+            sessionSettings.beginGroup( "OpenFiles" );
             // The top line stored beside each is left behind (#559).
             std::vector<std::pair<QString, QString>> openFiles;
-            int size = sessionSettings_->beginReadArray( "openFiles" );
+            int size = sessionSettings.beginReadArray( "openFiles" );
             LOG_INFO << "OpenFiles" << size;
 
             for ( int i = 0; i < size; ++i ) {
-                sessionSettings_->setArrayIndex( i );
-                QString fileName = sessionSettings_->value( "fileName" ).toString();
-                QString viewContext = sessionSettings_->value( "viewContext" ).toString();
+                sessionSettings.setArrayIndex( i );
+                QString fileName = sessionSettings.value( "fileName" ).toString();
+                QString viewContext = sessionSettings.value( "viewContext" ).toString();
                 openFiles.emplace_back( fileName, viewContext );
             }
-            sessionSettings_->endArray();
-            sessionSettings_->endGroup(); // OpenFiles
+            sessionSettings.endArray();
+            sessionSettings.endGroup(); // OpenFiles
 
-            sessionSettings_->beginGroup( "Window" );
-            sessionSettings_->setValue( "version", 1 );
+            sessionSettings.beginGroup( "Window" );
+            sessionSettings.setValue( "version", 1 );
 
-            sessionSettings_->beginWriteArray( "windows" );
-            sessionSettings_->setArrayIndex( 0 );
-            sessionSettings_->setValue( "id", id );
-            sessionSettings_->setValue( "geometry", geometry );
+            sessionSettings.beginWriteArray( "windows" );
+            sessionSettings.setArrayIndex( 0 );
+            sessionSettings.setValue( "id", id );
+            sessionSettings.setValue( "geometry", geometry );
 
-            sessionSettings_->beginGroup( "OpenFiles" );
-            sessionSettings_->setValue( "version", 1 );
-            sessionSettings_->beginWriteArray( "openFiles" );
+            sessionSettings.beginGroup( "OpenFiles" );
+            sessionSettings.setValue( "version", 1 );
+            sessionSettings.beginWriteArray( "openFiles" );
             for ( unsigned i = 0; i < openFiles.size(); ++i ) {
-                sessionSettings_->setArrayIndex( static_cast<int>( i ) );
+                sessionSettings.setArrayIndex( static_cast<int>( i ) );
 
-                sessionSettings_->setValue( "fileName", openFiles.at( i ).first );
-                sessionSettings_->setValue( "viewContext", openFiles.at( i ).second );
+                sessionSettings.setValue( "fileName", openFiles.at( i ).first );
+                sessionSettings.setValue( "viewContext", openFiles.at( i ).second );
             }
-            sessionSettings_->endArray(); // openfiles
-            sessionSettings_->endGroup(); // OpenFiles
-            sessionSettings_->endArray(); // windows
-            sessionSettings_->endGroup(); // Window
+            sessionSettings.endArray(); // openfiles
+            sessionSettings.endGroup(); // OpenFiles
+            sessionSettings.endArray(); // windows
+            sessionSettings.endGroup(); // Window
         }
     }
 
-    appSettings_->setValue( "version", AppSettingsVersion );
-    sessionSettings_->setValue( "version", SessionSettingsVersion );
+    appSettings.setValue( "version", AppSettingsVersion );
+    sessionSettings.setValue( "version", SessionSettingsVersion );
 }
 
 PersistentInfo& PersistentInfo::getInstance()

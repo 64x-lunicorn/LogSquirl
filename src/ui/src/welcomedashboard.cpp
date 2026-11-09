@@ -78,6 +78,14 @@ const QString kLinkButtonStyle
 const QString kReportIssueLink = QStringLiteral( "logsquirl:report-issue" );
 const QString kDocumentationLink = QStringLiteral( "logsquirl:documentation" );
 
+/// Opens the repository on GitHub if target is the link to it.
+void openIfProjectPage( const QString& target )
+{
+    if ( target == QLatin1String( logsquirl::versioncheck::ProjectPageUrl ) ) {
+        QDesktopServices::openUrl( QUrl( target ) );
+    }
+}
+
 /// The image a Theme's CloseIcon Token names: the path in its "url(...)".
 QString closeIconPath( const Theme& theme )
 {
@@ -345,8 +353,8 @@ void WelcomeDashboard::activateFooterLink( const QString& target )
     else if ( target == kDocumentationLink ) {
         Q_EMIT documentationRequested();
     }
-    else if ( target == QString( logsquirl::versioncheck::ProjectPageUrl ) ) {
-        QDesktopServices::openUrl( QUrl( target ) );
+    else {
+        openIfProjectPage( target );
     }
 }
 
@@ -368,9 +376,7 @@ void WelcomeDashboard::buildStarRequest()
     starRequestText_->setTextInteractionFlags( Qt::LinksAccessibleByMouse
                                                | Qt::LinksAccessibleByKeyboard );
     connect( starRequestText_, &QLabel::linkActivated, this, [ this ]( const QString& target ) {
-        if ( target == QString( logsquirl::versioncheck::ProjectPageUrl ) ) {
-            QDesktopServices::openUrl( QUrl( target ) );
-        }
+        openIfProjectPage( target );
         dismissStarRequest();
     } );
     line->addWidget( starRequestText_ );
@@ -387,6 +393,8 @@ void WelcomeDashboard::buildStarRequest()
 
     starRequest_->hide();
     footerLayout_->insertWidget( 0, starRequest_ );
+    // Dismissed in any window, the line goes from every Dashboard at once.
+    StarRequest::whenDismissed( starRequest_, [ this ] { starRequest_->hide(); } );
 }
 
 void WelcomeDashboard::updateStarRequest()
@@ -395,7 +403,7 @@ void WelcomeDashboard::updateStarRequest()
     const auto color = theme.color( ColorToken::SecondaryText ).name( QColor::HexRgb );
     starRequestText_->setText(
         coloredLink( QString( logsquirl::versioncheck::ProjectPageUrl ), color,
-                     tr( "Find LogSquirl useful? A star on GitHub helps others find it." ) ) );
+                     tr( "Find LogSquirl useful? Leave a star on GitHub." ) ) );
     starRequestClose_->setIcon( QIcon( closeIconPath( theme ) ) );
     const auto dismiss = tr( "Dismiss" );
     starRequestClose_->setToolTip( dismiss );
@@ -409,8 +417,8 @@ void WelcomeDashboard::refreshStarRequest()
 
 void WelcomeDashboard::dismissStarRequest()
 {
+    // Hides the line here and in every other Dashboard.
     StarRequest::dismissForGood();
-    starRequest_->hide();
 }
 
 void WelcomeDashboard::setToday( std::function<QDate()> today )

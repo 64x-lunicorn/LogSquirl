@@ -19,6 +19,15 @@
 
 #include "starrequest.h"
 
+#include "configuration.h"
+#include "persistentinfo.h"
+
+#include <QObject>
+#include <QSettings>
+#include <QTemporaryDir>
+
+#include <memory>
+
 #include <catch2/catch_test_macros.hpp>
 
 // The Welcome Dashboard asks for a star on GitHub once LogSquirl has been used
@@ -161,6 +170,166 @@ SCENARIO( "Each start of the application is counted in the settings", "[starrequ
                     CHECK( stored.starts == 50 );
                     CHECK_FALSE( StarRequest::dueOn( Today.addDays( 400 ) ) );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "A start counted by another LogSquirl keeps a dismissal it has not read",
+          "[starrequest]" )
+{
+    GIVEN( "a request due, read by a second LogSquirl before the first one dismisses it" )
+    {
+        const ForgetsStarRequest forgets;
+        auto& request = StarRequest::getSynced();
+        request.setUse( usedFor( 30, 30 ) );
+        request.save();
+
+        StarRequest secondInstance;
+        secondInstance.retrieveFromStorage( PersistentInfo::getSettings( app_settings{} ) );
+        REQUIRE_FALSE( secondInstance.use().dismissed );
+
+        WHEN( "the first dismisses it and then the second counts its start" )
+        {
+            StarRequest::dismissForGood();
+            secondInstance.countStart( Today );
+
+            THEN( "the dismissal stays, and the start is counted" )
+            {
+                const auto stored = StarRequest::getSynced().use();
+                CHECK( stored.dismissed );
+                CHECK( stored.starts == 31 );
+                CHECK_FALSE( StarRequest::dueOn( Today ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A first start after today, kept while the clock was wrong, becomes today",
+          "[starrequest]" )
+{
+    GIVEN( "a first start stored years ahead of today" )
+    {
+        const ForgetsStarRequest forgets;
+        auto& request = StarRequest::getSynced();
+        request.setUse(
+            StarRequestUse{ .firstStart = Today.addYears( 3 ), .starts = 40, .dismissed = false } );
+        request.save();
+
+        WHEN( "the application starts today" )
+        {
+            StarRequest::countApplicationStart( Today );
+
+            THEN( "the first start is today, and the request is due two weeks later" )
+            {
+                const auto stored = StarRequest::getSynced().use();
+                CHECK( stored.firstStart == Today );
+                CHECK( stored.starts == 41 );
+                CHECK_FALSE( StarRequest::dueOn( Today.addDays( 13 ) ) );
+                CHECK( StarRequest::dueOn( Today.addDays( 14 ) ) );
+            }
+        }
+
+        WHEN( "the application starts on a day before an earlier first start" )
+        {
+            request.setUse( usedFor( 5, 3 ) );
+            request.save();
+            StarRequest::countApplicationStart( Today );
+
+            THEN( "a first start before today stays" )
+            {
+                CHECK( StarRequest::getSynced().use().firstStart == Today.addDays( -5 ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A dismissal survives an update's settings migration and the saving of other settings",
+          "[starrequest]" )
+{
+    GIVEN( "settings of an older version in which the request is dismissed" )
+    {
+        QTemporaryDir directory;
+        REQUIRE( directory.isValid() );
+        QSettings appSettings( directory.filePath( QStringLiteral( "logsquirl.conf" ) ),
+                               QSettings::IniFormat );
+        QSettings sessionSettings( directory.filePath( QStringLiteral( "logsquirl_session.conf" ) ),
+                                   QSettings::IniFormat );
+        // Version 0: every step of the migration runs.
+        appSettings.setValue( QStringLiteral( "RecentFiles/files" ), QStringLiteral( "a.log" ) );
+        appSettings.setValue( QStringLiteral( "geometry" ), QStringLiteral( "kept" ) );
+        sessionSettings.setValue( QStringLiteral( "geometry" ), QStringLiteral( "kept" ) );
+
+        StarRequest dismissed;
+        dismissed.setUse(
+            StarRequestUse{ .firstStart = Today.addDays( -40 ), .starts = 60, .dismissed = true } );
+        dismissed.saveToStorage( appSettings );
+
+        WHEN( "the settings are migrated" )
+        {
+            PersistentInfo::updateSettings( appSettings, sessionSettings );
+            appSettings.sync();
+            REQUIRE_FALSE( appSettings.contains( QStringLiteral( "geometry" ) ) );
+
+            THEN( "the request stays dismissed, with its first start and its starts" )
+            {
+                QSettings reread( directory.filePath( QStringLiteral( "logsquirl.conf" ) ),
+                                  QSettings::IniFormat );
+                StarRequest migrated;
+                migrated.retrieveFromStorage( reread );
+                CHECK( migrated.use().dismissed );
+                CHECK( migrated.use().firstStart == Today.addDays( -40 ) );
+                CHECK( migrated.use().starts == 60 );
+            }
+        }
+    }
+
+    GIVEN( "a request dismissed in the settings store" )
+    {
+        const ForgetsStarRequest forgets;
+        for ( int start = 0; start < 20; ++start ) {
+            StarRequest::countApplicationStart( Today.addDays( start ) );
+        }
+        StarRequest::dismissForGood();
+
+        WHEN( "other settings of the same store are saved" )
+        {
+            auto& configuration = Configuration::getSynced();
+            configuration.save();
+
+            THEN( "the request stays dismissed" )
+            {
+                const auto stored = StarRequest::getSynced().use();
+                CHECK( stored.dismissed );
+                CHECK( stored.starts == 20 );
+                CHECK_FALSE( StarRequest::dueOn( Today.addDays( 100 ) ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Dismissing the request tells everyone who listens", "[starrequest]" )
+{
+    GIVEN( "two listeners, one of them gone before the dismissal" )
+    {
+        const ForgetsStarRequest forgets;
+        QObject listener;
+        auto gone = std::make_unique<QObject>();
+        int hidden = 0;
+        int hiddenGone = 0;
+        StarRequest::whenDismissed( &listener, [ &hidden ] { ++hidden; } );
+        StarRequest::whenDismissed( gone.get(), [ &hiddenGone ] { ++hiddenGone; } );
+        gone.reset();
+
+        WHEN( "the request is dismissed for good" )
+        {
+            StarRequest::dismissForGood();
+
+            THEN( "the listener that still exists hides, once" )
+            {
+                CHECK( hidden == 1 );
+                CHECK( hiddenGone == 0 );
+                CHECK( StarRequest::getSynced().use().dismissed );
             }
         }
     }
