@@ -375,6 +375,10 @@ MainWindow::MainWindow( WindowSession session,
     if ( config.showDashboard() ) {
         welcomeDashboard_ = new WelcomeDashboard();
         welcomeDashboard_->setPlugins( &plugins_->catalog(), &plugins_->host() );
+        // Its line of shortcut hints names these entries with the keys the
+        // Shortcuts list gives them, and follows when either changes (#936).
+        welcomeDashboard_->setShortcutHints(
+            { openAction, closeAction, findAction, reloadAction } );
 
         // Insert dashboard as the permanent first tab (index 0)
         mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Dashboard" ) );

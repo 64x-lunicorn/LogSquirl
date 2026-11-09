@@ -115,8 +115,11 @@ catalog replaces the copy it came with.
 When *Show dashboard on startup* is enabled (`Settings->General`, it is by
 default), the first tab is the Dashboard, which cannot be closed. It shows the
 buttons *Open File* and *Load Session*, cards for your recent files, your
-favorites and the status of your plugins, and the hint that log files can be
-dropped on it to open them. Selecting a file in a card opens it.
+favorites and the status of your plugins, a line with the keys of
+`File->Open...`, `File->Close`, `Edit->Find...` and `View->Reload` as the
+Shortcuts list sets them (one without a key is left out), and the hint that
+log files can be dropped on it to open them. Selecting a file in a card opens
+it.
 
 A quiet line at its bottom edge links to the project: *GitHub* opens
 LogSquirl's repository, *Report an Issue* does what `Help->Report Issue...`

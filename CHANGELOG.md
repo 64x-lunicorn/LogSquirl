@@ -34,6 +34,12 @@
   language in Preferences, its buttons, card titles, empty lists, drop hint,
   footer links and star request are shown in the new language at once,
   without a restart. (#935)
+- **The Welcome Dashboard's shortcut line names your keys, in your
+  language**: it was a fixed English line. It now names *Open*, *Close*,
+  *Find* and *Reload* as their menu entries do, with the key each has in the
+  Shortcuts list, in the platform's notation (⌘O on macOS); a command without
+  a key is left out. It follows a change of keys in Preferences and a change
+  of language at once. (#936)
 
 # v26.12.0-beta2 (2026-11-06)
 

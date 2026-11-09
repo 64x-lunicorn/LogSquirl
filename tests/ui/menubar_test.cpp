@@ -1365,6 +1365,108 @@ SCENARIO( "The Dashboard's footer is not shown while a Log File is open", "[ui][
     }
 }
 
+namespace {
+
+/// The line of shortcut hints of the window's Dashboard.
+QLabel* dashboardShortcutHints( MainWindow& window )
+{
+    return window.findChild<QLabel*>( QStringLiteral( "dashboardShortcutHints" ) );
+}
+
+/// The line of shortcut hints for these commands, each a key and a name, in
+/// the platform's notation of the language now.
+QString shortcutHintsLine( const std::vector<std::pair<QString, QString>>& commands )
+{
+    QStringList hints;
+    for ( const auto& [ key, name ] : commands ) {
+        hints.append( QKeySequence( key ).toString( QKeySequence::NativeText ) + u' ' + name );
+    }
+    return hints.join( QStringLiteral( "  |  " ) );
+}
+
+} // namespace
+
+// The Dashboard's line of shortcut hints names Open..., Close, Find... and
+// Reload as their menu entries, with the keys the Shortcuts list gives them
+// now; it was a fixed English line before (#936).
+SCENARIO( "The Dashboard's shortcut hints name the menu entries with the keys of the Shortcuts "
+          "list",
+          "[ui][menubar][dashboard][shortcuts]" )
+{
+    GIVEN( "keys of their own for the four commands, and a shown window" )
+    {
+        const ConfiguredShortcuts configured(
+            { { ShortcutAction::MainWindowOpenFile, { "Ctrl+Shift+O", "Ctrl+Alt+O" } },
+              { ShortcutAction::MainWindowCloseFile, { "Ctrl+Shift+W" } },
+              { ShortcutAction::MainWindowOpenQf, { "Alt+F3" } },
+              { ShortcutAction::MainWindowReload, { "F6" } } } );
+        const ShownWindow shown;
+        auto* line = dashboardShortcutHints( *shown.window );
+        REQUIRE( line != nullptr );
+
+        THEN( "the line shows each command's first key and its menu name" )
+        {
+            CHECK( line->isVisible() );
+            CHECK( line->text()
+                   == shortcutHintsLine( { { QStringLiteral( "Ctrl+Shift+O" ), "Open" },
+                                           { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                           { QStringLiteral( "Alt+F3" ), "Find" },
+                                           { QStringLiteral( "F6" ), "Reload" } } ) );
+        }
+
+        WHEN( "Preferences give Open... another key and take Find...'s away" )
+        {
+            const ConfiguredShortcuts changed(
+                { { ShortcutAction::MainWindowOpenFile, { "Ctrl+Alt+P" } },
+                  { ShortcutAction::MainWindowCloseFile, { "Ctrl+Shift+W" } },
+                  { ShortcutAction::MainWindowOpenQf, {} },
+                  { ShortcutAction::MainWindowReload, { "F6" } } } );
+            shown.session->applyChange( Changed::Settings );
+
+            THEN( "the line shows Open...'s new key and leaves Find... out" )
+            {
+                CHECK( line->text()
+                       == shortcutHintsLine( { { QStringLiteral( "Ctrl+Alt+P" ), "Open" },
+                                               { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                               { QStringLiteral( "F6" ), "Reload" } } ) );
+            }
+        }
+
+        WHEN( "the language changes" )
+        {
+            MarkingTranslator translator;
+            REQUIRE( QCoreApplication::installTranslator( &translator ) );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "the names are the menu entries' translations, the keys in its notation" )
+            {
+                CHECK(
+                    line->text()
+                    == shortcutHintsLine(
+                        { { QStringLiteral( "Ctrl+Shift+O" ), MarkingTranslator::marked( "Open" ) },
+                          { QStringLiteral( "Ctrl+Shift+W" ),
+                            MarkingTranslator::marked( "Close" ) },
+                          { QStringLiteral( "Alt+F3" ), MarkingTranslator::marked( "Find" ) },
+                          { QStringLiteral( "F6" ), MarkingTranslator::marked( "Reload" ) } } ) );
+            }
+
+            QCoreApplication::removeTranslator( &translator );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "going back names them in English again" )
+            {
+                CHECK( line->text()
+                       == shortcutHintsLine( { { QStringLiteral( "Ctrl+Shift+O" ), "Open" },
+                                               { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                               { QStringLiteral( "Alt+F3" ), "Find" },
+                                               { QStringLiteral( "F6" ), "Reload" } } ) );
+            }
+        }
+    }
+}
+
 // The Encoding menu is owned, so it goes with the window (#916).
 SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encoding]" )
 {

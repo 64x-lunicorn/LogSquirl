@@ -24,10 +24,12 @@
 #include "theme.h"
 #include "welcomedashboard.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QDesktopServices>
 #include <QFrame>
 #include <QImage>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMap>
 #include <QPushButton>
@@ -973,6 +975,98 @@ SCENARIO( "The Dashboard follows a language change", "[ui][dashboard][starreques
 
             QCoreApplication::removeTranslator( &translator );
             changeLanguage();
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+namespace {
+
+/// The Dashboard's line of shortcut hints.
+QLabel* shortcutHints( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QLabel*>( QStringLiteral( "dashboardShortcutHints" ) );
+}
+
+/// What the line of hints shows for a key and the name of its command.
+QString hint( const QString& key, const QString& name )
+{
+    return QKeySequence( key ).toString( QKeySequence::NativeText ) + u' ' + name;
+}
+
+} // namespace
+
+// The line of shortcut hints names the commands as their menu entries and
+// shows the keys they have now, in the platform's notation (#936).
+SCENARIO( "The Dashboard's shortcut hints show the actions' names and keys", "[ui][dashboard]" )
+{
+    GIVEN( "a Dashboard given four actions, one of them without a key" )
+    {
+        Theme::apply( Theme::LightKey );
+        QAction open( QStringLiteral( "&Open..." ) );
+        open.setShortcuts( { QKeySequence( QStringLiteral( "Ctrl+O" ) ),
+                             QKeySequence( QStringLiteral( "Ctrl+Alt+O" ) ) } );
+        // A mnemonic written after the name, as the Chinese entries do.
+        QAction close( QStringLiteral( "关闭(&C)" ) );
+        close.setShortcut( QKeySequence( QStringLiteral( "Ctrl+W" ) ) );
+        QAction find( QStringLiteral( "&Find…" ) );
+        QAction reload( QStringLiteral( "Save && &Reload" ) );
+        reload.setShortcut( QKeySequence( QStringLiteral( "F5" ) ) );
+
+        WelcomeDashboard dashboard;
+        dashboard.setShortcutHints( { &open, &close, &find, &reload } );
+        dashboard.resize( 1200, 900 );
+        dashboard.refresh();
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+        auto* line = shortcutHints( dashboard );
+        REQUIRE( line != nullptr );
+
+        const auto separator = QStringLiteral( "  |  " );
+
+        THEN( "each command with a key shows its first key and its menu name, without mnemonic "
+              "and dots" )
+        {
+            CHECK( line->isVisible() );
+            CHECK(
+                line->text()
+                == QStringList{ hint( QStringLiteral( "Ctrl+O" ), QStringLiteral( "Open" ) ),
+                                hint( QStringLiteral( "Ctrl+W" ), QStringLiteral( "关闭" ) ),
+                                hint( QStringLiteral( "F5" ), QStringLiteral( "Save & Reload" ) ) }
+                       .join( separator ) );
+        }
+
+        WHEN( "a command gets a key, another loses it and a third is renamed" )
+        {
+            find.setShortcut( QKeySequence( QStringLiteral( "Ctrl+Shift+F" ) ) );
+            close.setShortcuts( QList<QKeySequence>{} );
+            open.setText( QStringLiteral( "&Open File..." ) );
+
+            THEN( "the line follows" )
+            {
+                CHECK( line->text()
+                       == QStringList{ hint( QStringLiteral( "Ctrl+O" ),
+                                             QStringLiteral( "Open File" ) ),
+                                       hint( QStringLiteral( "Ctrl+Shift+F" ),
+                                             QStringLiteral( "Find" ) ),
+                                       hint( QStringLiteral( "F5" ),
+                                             QStringLiteral( "Save & Reload" ) ) }
+                              .join( separator ) );
+            }
+        }
+
+        WHEN( "no command has a key" )
+        {
+            for ( auto* action : { &open, &close, &find, &reload } ) {
+                action->setShortcuts( QList<QKeySequence>{} );
+            }
+
+            THEN( "the line is hidden" )
+            {
+                CHECK( line->text().isEmpty() );
+                CHECK_FALSE( line->isVisible() );
+            }
         }
 
         Theme::apply( Theme::defaultTheme() );

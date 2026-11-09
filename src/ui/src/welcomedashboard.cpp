@@ -30,6 +30,7 @@
 #include "starrequest.h"
 #include "theme.h"
 
+#include <QAction>
 #include <QDesktopServices>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -39,9 +40,11 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMimeData>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QStringList>
 #include <QToolButton>
@@ -90,6 +93,28 @@ QString coloredLink( const QString& target, const QString& color, const QString&
 {
     return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
         .arg( target, color, text.toHtmlEscaped() );
+}
+
+/// The name of the command of a menu entry with this text: without its
+/// mnemonic, also one written after it as a Chinese entry does ("(&O)"), and
+/// without the
+/// dots of an entry that opens a dialog.
+QString commandName( QString text )
+{
+    static const QRegularExpression mnemonicAfter( QStringLiteral( "\\s*\\(&[^&]\\)" ) );
+    text.remove( mnemonicAfter );
+    // A doubled '&' is the character itself.
+    text.replace( QStringLiteral( "&&" ), QStringLiteral( "\x01" ) );
+    text.remove( u'&' );
+    text.replace( u'\x01', u'&' );
+    text = text.trimmed();
+    if ( text.endsWith( QStringLiteral( "..." ) ) ) {
+        text.chop( 3 );
+    }
+    else if ( text.endsWith( u'…' ) ) {
+        text.chop( 1 );
+    }
+    return text.trimmed();
 }
 
 /// Gives label the Theme's secondary text color.
@@ -256,14 +281,15 @@ void WelcomeDashboard::buildUi()
 
     column->addSpacing( 6 );
 
-    // ---- Keyboard shortcut hints ----
-    auto* shortcutsLabel = new QLabel(
-        QStringLiteral( "Ctrl+O Open File  |  Ctrl+W Close Tab  |  Ctrl+F Find  |  F5 Reload" ),
-        columnWidget );
-    markAsSecondaryText( shortcutsLabel );
-    shortcutsLabel->setAlignment( Qt::AlignCenter );
-    shortcutsLabel->setWordWrap( true );
-    column->addWidget( shortcutsLabel );
+    // ---- Keyboard shortcut hints: written from the window's actions ----
+    shortcutHints_ = new QLabel( columnWidget );
+    shortcutHints_->setObjectName( QStringLiteral( "dashboardShortcutHints" ) );
+    markAsSecondaryText( shortcutHints_ );
+    shortcutHints_->setTextFormat( Qt::PlainText );
+    shortcutHints_->setAlignment( Qt::AlignCenter );
+    shortcutHints_->setWordWrap( true );
+    shortcutHints_->hide();
+    column->addWidget( shortcutHints_ );
 
     // ---- Drop hint ----
     dropHint_ = new QLabel( columnWidget );
@@ -308,6 +334,9 @@ void WelcomeDashboard::retranslate()
     favoritesTitle_->setText( tr( "Favorites" ) );
     pluginsTitle_->setText( tr( "Plugins" ) );
     dropHint_->setText( tr( "Drop log files here to open them" ) );
+    // The window retranslates the actions, which rewrites the line; the
+    // names of keys are written in the new language here too.
+    updateShortcutHints();
     // The rich-text lines are written anew, in the Theme's colors.
     updateFooterLinks();
     updateStarRequest();
@@ -409,6 +438,37 @@ void WelcomeDashboard::dismissStarRequest()
 void WelcomeDashboard::setToday( std::function<QDate()> today )
 {
     today_ = std::move( today );
+}
+
+void WelcomeDashboard::setShortcutHints( const QList<QAction*>& actions )
+{
+    for ( const auto& action : std::as_const( shortcutHintActions_ ) ) {
+        if ( action ) {
+            disconnect( action, nullptr, this, nullptr );
+        }
+    }
+    shortcutHintActions_.clear();
+    for ( auto* action : actions ) {
+        shortcutHintActions_.append( action );
+        // Emitted when its keys or its text change, by Preferences or by a
+        // change of language.
+        connect( action, &QAction::changed, this, &WelcomeDashboard::updateShortcutHints );
+    }
+    updateShortcutHints();
+}
+
+void WelcomeDashboard::updateShortcutHints()
+{
+    QStringList hints;
+    for ( const auto& action : std::as_const( shortcutHintActions_ ) ) {
+        if ( !action || action->shortcut().isEmpty() ) {
+            continue;
+        }
+        hints.append( action->shortcut().toString( QKeySequence::NativeText ) + u' '
+                      + commandName( action->text() ) );
+    }
+    shortcutHints_->setText( hints.join( QStringLiteral( "  |  " ) ) );
+    shortcutHints_->setVisible( !hints.isEmpty() );
 }
 
 void WelcomeDashboard::updateTitleFonts()

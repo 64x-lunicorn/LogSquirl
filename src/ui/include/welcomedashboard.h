@@ -22,10 +22,12 @@
 
 #include <QDate>
 #include <QList>
+#include <QPointer>
 #include <QWidget>
 
 #include <functional>
 
+class QAction;
 class QLabel;
 class QPushButton;
 class QToolButton;
@@ -63,6 +65,14 @@ public:
     /// Where refresh() takes the day from to decide whether to ask for a
     /// star: the system's date unless a test hands in its own.
     void setToday( std::function<QDate()> today );
+
+    /// The commands the line of shortcut hints names, in this order: each
+    /// with its key and named as its menu entry, without its mnemonic and
+    /// trailing dots; one without a key is left out (#936). The line follows
+    /// the actions' changes, of their keys and of their texts in another
+    /// language. The actions must be the window's, which outlives the
+    /// dashboard, or be destroyed before it.
+    void setShortcutHints( const QList<QAction*>& actions );
 
 Q_SIGNALS:
     /// Emitted when the user clicks a recent or favorite file entry.
@@ -108,6 +118,9 @@ private:
     /// Write the footer's links in the Theme's secondary text color.
     void updateFooterLinks();
 
+    /// Write the line of shortcut hints from its actions' texts and keys.
+    void updateShortcutHints();
+
     /// Do what the footer's link to target stands for.
     void activateFooterLink( const QString& target );
 
@@ -134,6 +147,8 @@ private:
     QLabel* favoritesTitle_ = nullptr;
     QLabel* pluginsTitle_ = nullptr;
     QLabel* dropHint_ = nullptr;
+    QLabel* shortcutHints_ = nullptr;
+    QList<QPointer<QAction>> shortcutHintActions_;
 
     /// The footer at the bottom edge, below the scrolled content: one line
     /// per entry, the links line last. A line added above the links goes in
