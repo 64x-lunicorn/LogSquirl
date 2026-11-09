@@ -21,29 +21,21 @@
 
 #include <cstdint>
 
-#include <QWidget>
+#include <QList>
 
-class QLabel;
-class QLineEdit;
-class QPushButton;
-class SoloSelection;
-class QTimer;
-class QTreeWidget;
-class QTreeWidgetItem;
+#include "sidebartab.h"
 
-// The sidebar's "Value Names" tab (#647), built like the Filters Panel: the
-// Naming Groups as a tree, each with a check per Naming Rule. The checks
+// The sidebar's "Value Names" tab (#647), built on the SidebarTab like the
+// Filters tab (#924): the Naming Groups as a tree, each with a check per
+// Naming Rule, and a check of its own for a group without rules. The checks
 // are those of ValueNamesCollection: global for every tab, and kept across
 // restarts. Team groups are listed last.
 //
 // A check changed here is written to the collection and stored at once;
 // valueNamesChanged() then asks for the views to be told
 // (Changed::ValueNames). refresh() shows what the collection holds now.
-//
-// A double-click on a rule or group, or "Show only this" of its context
-// menu, checks only it; "Restore previous selection" brings back the checks
-// from before (#889).
-class ValueNamesPanel : public QWidget {
+// Edit... is told by SidebarTab::editRequested().
+class ValueNamesPanel : public SidebarTab {
     Q_OBJECT
 
 public:
@@ -57,38 +49,12 @@ Q_SIGNALS:
     // The checks of the collection were changed here: the views are to be told.
     void valueNamesChanged();
 
-    // "Edit..." was clicked.
-    void editRequested();
-
-private Q_SLOTS:
-    void onItemChanged( QTreeWidgetItem* item, int column );
-    void onItemDoubleClicked( QTreeWidgetItem* item, int column );
-    void onSearchTextChanged( const QString& text );
-    void selectAll();
-    void deselectAll();
-
 private:
-    void populateTree();
-    void applySearch();
-    // Writes the checks of the tree to the collection.
+    // The collection's groups as the SidebarTab shows them, with their checks.
+    static QList<SidebarTab::Group> shownGroups();
+    // Writes the checks of the tab to the collection.
     void commitChecks();
-    // Checks or unchecks what the search shows.
-    void setShownChecked( bool checked );
 
-    QLineEdit* searchBox_ = nullptr;
-    QTreeWidget* tree_ = nullptr;
-    // "Show only this" and the way back.
-    SoloSelection* solo_ = nullptr;
-    QLabel* emptyHint_ = nullptr;
-    QPushButton* selectAllButton_ = nullptr;
-    QPushButton* deselectAllButton_ = nullptr;
-    QPushButton* editButton_ = nullptr;
-
-    // Gathers the itemChanged() a group toggle gives for every rule into one
-    // commit.
-    QTimer* commitTimer_ = nullptr;
-
-    // The collection's generation the tree shows; 0 before it shows any.
+    // The collection's generation the tab shows; 0 before it shows any.
     uint64_t shownGeneration_ = 0;
-    bool updatingTree_ = false;
 };

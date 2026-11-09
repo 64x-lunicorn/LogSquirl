@@ -1441,39 +1441,9 @@ Möchten Sie die Datei ersetzen?</translation>
 <context>
     <name>FiltersPanel</name>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="48"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="37"/>
         <source>Search filters...</source>
         <translation>Filter durchsuchen...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="71"/>
-        <source>Select All</source>
-        <translation>Alle auswählen</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="72"/>
-        <source>Deselect All</source>
-        <translation>Alle abwählen</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="73"/>
-        <source>Edit...</source>
-        <translation>Bearbeiten...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="153"/>
-        <source>Shipped by the plugin %1</source>
-        <translation>Mitgeliefert vom Plugin %1</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="156"/>
-        <source>%1 (Team)</source>
-        <translation>%1 (Team)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="158"/>
-        <source>A Team group, shared through the Team Folder</source>
-        <translation>Eine Team-Gruppe, geteilt über den Team-Ordner</translation>
     </message>
 </context>
 <context>
@@ -5263,6 +5233,39 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     </message>
 </context>
 <context>
+    <name>SidebarTab</name>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="88"/>
+        <source>Select All</source>
+        <translation>Alle auswählen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="89"/>
+        <source>Deselect All</source>
+        <translation>Alle abwählen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="90"/>
+        <source>Edit...</source>
+        <translation>Bearbeiten...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="127"/>
+        <source>Shipped by the plugin %1</source>
+        <translation>Mitgeliefert vom Plugin %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="130"/>
+        <source>%1 (Team)</source>
+        <translation>%1 (Team)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="132"/>
+        <source>A Team group, shared through the Team Folder</source>
+        <translation>Eine Team-Gruppe, geteilt über den Team-Ordner</translation>
+    </message>
+</context>
+<context>
     <name>SoloSelection</name>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="113"/>
@@ -6212,39 +6215,14 @@ Ohne Datum wird %1 verwendet.</translation>
 <context>
     <name>ValueNamesPanel</name>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="50"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="29"/>
         <source>Search Value Names...</source>
         <translation>Wertnamen durchsuchen...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="71"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="31"/>
         <source>No Naming Groups yet: Edit... adds one.</source>
         <translation>Noch keine Namensgruppen: Bearbeiten... fügt eine hinzu.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="76"/>
-        <source>Select All</source>
-        <translation>Alle auswählen</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="77"/>
-        <source>Deselect All</source>
-        <translation>Alle abwählen</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="78"/>
-        <source>Edit...</source>
-        <translation>Bearbeiten...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="128"/>
-        <source>%1 (Team)</source>
-        <translation>%1 (Team)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="130"/>
-        <source>A Team group, shared through the Team Folder</source>
-        <translation>Eine Team-Gruppe, geteilt über den Team-Ordner</translation>
     </message>
 </context>
 <context>
