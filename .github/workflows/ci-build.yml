@@ -855,9 +855,10 @@ jobs:
             pgo: false
 
     runs-on: ${{ matrix.config.runner }}
-    # Slowest successful run 25 min, when master builds still waited on
-    # notarization, which moved to CI Release (#203, #218).
-    timeout-minutes: 60
+    # The build alone takes 40 to 45 min on macos-26 (November 2026), and a
+    # slow runner pushed whole runs past 60 min with the tests half done
+    # (#938); 75 min as for the other build jobs.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
