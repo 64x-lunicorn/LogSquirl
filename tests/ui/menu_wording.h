@@ -29,15 +29,15 @@
 #include <QString>
 #include <QStringList>
 
+#include "menuentryname.h"
+
 namespace menuwording {
 
-/// The text of the entry without its mnemonic marker.
-inline QString withoutMnemonic( QString text )
+/// The text of the entry without its mnemonic marker, as the application
+/// reads it (#937).
+inline QString withoutMnemonic( const QString& text )
 {
-    text.replace( QStringLiteral( "&&" ), QStringLiteral( "\x01" ) );
-    text.remove( u'&' );
-    text.replace( u'\x01', u'&' );
-    return text;
+    return logsquirl::menuentry::withoutMnemonic( text );
 }
 
 /// Whether the title has a mnemonic: a '&' not doubled.
@@ -54,14 +54,11 @@ inline bool hasMnemonic( const QString& title )
     return false;
 }
 
-/// The name the entry gives its action: no mnemonic, no trailing dots.
+/// The name the entry gives its action: no mnemonic, no trailing dots, as
+/// the Command Palette and the Dashboard name it (#937).
 inline QString actionName( const QString& text )
 {
-    auto name = withoutMnemonic( text );
-    if ( name.endsWith( QStringLiteral( "..." ) ) ) {
-        name.chop( 3 );
-    }
-    return name;
+    return logsquirl::menuentry::commandName( text );
 }
 
 /// Whether the text is in title case: every word capitalized, but for the

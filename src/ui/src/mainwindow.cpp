@@ -123,6 +123,7 @@
 #include "lostfileassociationshint.h"
 #include "mainwindowtext.h"
 #include "menu.h"
+#include "menuentryname.h"
 #include "mergecontroller.h"
 #include "namevaluedialog.h"
 #include "openfilehelper.h"
@@ -2715,11 +2716,14 @@ void MainWindow::showCommandPalette()
                 continue;
             }
             if ( action->menu() ) {
-                self( action->menu(), category + " › " + action->text().remove( '&' ), self );
+                self( action->menu(),
+                      category + " › " + logsquirl::menuentry::withoutMnemonic( action->text() ),
+                      self );
                 continue;
             }
             CommandEntry entry;
-            entry.name = action->text().remove( '&' );
+            // Named as the Shortcuts list names its commands (#937).
+            entry.name = logsquirl::menuentry::commandName( action->text() );
             entry.category = category;
             entry.shortcut = action->shortcut().toString( QKeySequence::NativeText );
             // Capture a QPointer so the action firing path is safe if the
@@ -2736,7 +2740,7 @@ void MainWindow::showCommandPalette()
 
     for ( QAction* topAction : menuBar()->actions() ) {
         if ( topAction->menu() ) {
-            const auto category = topAction->text().remove( '&' );
+            const auto category = logsquirl::menuentry::withoutMnemonic( topAction->text() );
             collectFromMenu( topAction->menu(), category, collectFromMenu );
         }
     }

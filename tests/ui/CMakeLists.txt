@@ -70,6 +70,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plaintext_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/menuentryname_test.cpp
 )
 
 if(NOT APPLE)

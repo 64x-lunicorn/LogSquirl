@@ -40,6 +40,12 @@
   Shortcuts list, in the platform's notation (⌘O on macOS); a command without
   a key is left out. It follows a change of keys in Preferences and a change
   of language at once. (#936)
+- **The Command Palette names its entries without mnemonic leftovers**: in
+  Chinese it showed a stray *(O)* after a name, and an ampersand written
+  `&&` in a menu entry disappeared. It now names its entries as the
+  Shortcuts list does, without the mnemonic in any form, with the ampersand
+  kept and without the dots of an entry that opens a dialog (*Open* instead
+  of *Open...*). (#937)
 
 # v26.12.0-beta2 (2026-11-06)
 

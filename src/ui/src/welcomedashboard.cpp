@@ -22,6 +22,7 @@
 #include "displayfilepath.h"
 #include "favoritefiles.h"
 #include "logsquirl_version.h"
+#include "menuentryname.h"
 #include "plaintext.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
@@ -44,7 +45,6 @@
 #include <QLabel>
 #include <QMimeData>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QScrollArea>
 #include <QStringList>
 #include <QToolButton>
@@ -93,28 +93,6 @@ QString coloredLink( const QString& target, const QString& color, const QString&
 {
     return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
         .arg( target, color, text.toHtmlEscaped() );
-}
-
-/// The name of the command of a menu entry with this text: without its
-/// mnemonic, also one written after it as a Chinese entry does ("(&O)"), and
-/// without the
-/// dots of an entry that opens a dialog.
-QString commandName( QString text )
-{
-    static const QRegularExpression mnemonicAfter( QStringLiteral( "\\s*\\(&[^&]\\)" ) );
-    text.remove( mnemonicAfter );
-    // A doubled '&' is the character itself.
-    text.replace( QStringLiteral( "&&" ), QStringLiteral( "\x01" ) );
-    text.remove( u'&' );
-    text.replace( u'\x01', u'&' );
-    text = text.trimmed();
-    if ( text.endsWith( QStringLiteral( "..." ) ) ) {
-        text.chop( 3 );
-    }
-    else if ( text.endsWith( u'…' ) ) {
-        text.chop( 1 );
-    }
-    return text.trimmed();
 }
 
 /// Gives label the Theme's secondary text color.
@@ -465,7 +443,7 @@ void WelcomeDashboard::updateShortcutHints()
             continue;
         }
         hints.append( action->shortcut().toString( QKeySequence::NativeText ) + u' '
-                      + commandName( action->text() ) );
+                      + logsquirl::menuentry::commandName( action->text() ) );
     }
     shortcutHints_->setText( hints.join( QStringLiteral( "  |  " ) ) );
     shortcutHints_->setVisible( !hints.isEmpty() );

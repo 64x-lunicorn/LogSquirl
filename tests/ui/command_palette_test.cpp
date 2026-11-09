@@ -28,6 +28,7 @@
 #include <QApplication>
 #include <QDialog>
 #include <QKeySequence>
+#include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
 #include <QTest>
@@ -159,5 +160,84 @@ SCENARIO( "The Command Palette opens from the Tools menu and its shortcut",
     }
 
     hidePalette( window );
+    window.close();
+}
+
+namespace {
+
+/// The names the shown palette lists, each with its category.
+QStringList paletteEntries( QDialog& palette )
+{
+    QStringList entries;
+    auto* list = palette.findChild<QListWidget*>();
+    REQUIRE( list != nullptr );
+    for ( int row = 0; row < list->count(); ++row ) {
+        const auto* item = list->item( row );
+        entries.append( item->data( Qt::UserRole + 1 ).toString() + u'/' + item->text() );
+    }
+    return entries;
+}
+
+} // namespace
+
+// The palette names its entries as the Shortcuts list names its commands:
+// without the mnemonic, however a translation writes it, and without the
+// dots of an entry that opens a dialog (#937).
+SCENARIO( "The Command Palette names its entries without mnemonic leftovers",
+          "[mainwindow][palette]" )
+{
+    auto session
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    MainWindow window( WindowSession{ session, "Main", 0 },
+                       std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
+    window.resize( 900, 600 );
+    window.show();
+    window.activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( &window ) );
+
+    GIVEN( "Tools entries written as a Chinese translation and with a doubled ampersand" )
+    {
+        auto* palette = toolsPaletteAction( window );
+        REQUIRE( palette != nullptr );
+        QMenu* tools = nullptr;
+        for ( auto* top : window.menuBar()->actions() ) {
+            if ( top->menu() && top->text().remove( '&' ) == QStringLiteral( "Tools" ) ) {
+                tools = top->menu();
+            }
+        }
+        REQUIRE( tools != nullptr );
+        auto* chinese = tools->addAction( QStringLiteral( "关闭(&C)..." ) );
+        auto* ampersand = tools->addAction( QStringLiteral( "Save && &Reload" ) );
+
+        WHEN( "the palette opens" )
+        {
+            palette->trigger();
+            QTest::qWait( 50 );
+            auto* shown = visiblePalette( window );
+            REQUIRE( shown != nullptr );
+            const auto entries = paletteEntries( *shown );
+
+            THEN( "each is named without its mnemonic and dots, the ampersand kept" )
+            {
+                CHECK( entries.contains( QStringLiteral( "Tools/关闭" ) ) );
+                CHECK( entries.contains( QStringLiteral( "Tools/Save & Reload" ) ) );
+                CHECK( entries.contains( QStringLiteral( "Tools/Preferences" ) ) );
+                for ( const auto& entry : entries ) {
+                    INFO( entry.toStdString() );
+                    if ( entry != QStringLiteral( "Tools/Save & Reload" ) ) {
+                        CHECK_FALSE( entry.contains( u'&' ) );
+                    }
+                    CHECK_FALSE( entry.endsWith( QStringLiteral( "..." ) ) );
+                }
+            }
+        }
+
+        hidePalette( window );
+        tools->removeAction( chinese );
+        tools->removeAction( ampersand );
+        delete chinese;
+        delete ampersand;
+    }
+
     window.close();
 }
