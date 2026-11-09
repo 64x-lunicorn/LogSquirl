@@ -30,6 +30,10 @@
 - **The Value Names dialog keeps its group list visible**: dragging the
   splitter stops at the group list's minimum width, as in the Predefined
   Filters and Highlighters dialogs, instead of hiding the list. (#926)
+- **The Welcome Dashboard follows a language change**: after switching the
+  language in Preferences, its buttons, card titles, empty lists, drop hint,
+  footer links and star request are shown in the new language at once,
+  without a restart. (#935)
 
 # v26.12.0-beta2 (2026-11-06)
 

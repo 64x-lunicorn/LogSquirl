@@ -100,9 +100,9 @@ void markAsSecondaryText( QLabel* label )
 
 /// A card: a titled frame in the Theme's surface color, styled by the
 /// Theme's stylesheet (QFrame#dashboardCard). Its entries go into the
-/// returned layout, below the title; the title label is added to titles.
-QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column,
-                      QList<QLabel*>& titles )
+/// returned layout, below the title; the title label, still without text,
+/// is added to titles.
+QVBoxLayout* addCard( QWidget* parent, QVBoxLayout* column, QList<QLabel*>& titles )
 {
     auto* card = new QFrame( parent );
     card->setObjectName( QStringLiteral( "dashboardCard" ) );
@@ -111,7 +111,7 @@ QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column
     cardLayout->setContentsMargins( 16, 12, 16, 12 );
     cardLayout->setSpacing( 6 );
 
-    auto* heading = new QLabel( title, card );
+    auto* heading = new QLabel( card );
     heading->setObjectName( QStringLiteral( "dashboardCardTitle" ) );
     cardLayout->addWidget( heading );
     titles.push_back( heading );
@@ -227,25 +227,31 @@ void WelcomeDashboard::buildUi()
     actionsLayout->setAlignment( Qt::AlignCenter );
     actionsLayout->setSpacing( 12 );
 
-    auto* openBtn = new QPushButton( tr( "Open File" ), columnWidget );
-    openBtn->setMinimumWidth( 110 );
+    openFileButton_ = new QPushButton( columnWidget );
+    openFileButton_->setMinimumWidth( 110 );
     // Drawn in the accent color by the Theme's stylesheet.
-    openBtn->setProperty( "primaryAction", true );
-    connect( openBtn, &QPushButton::clicked, this, &WelcomeDashboard::openFileDialogRequested );
-    actionsLayout->addWidget( openBtn );
+    openFileButton_->setProperty( "primaryAction", true );
+    connect( openFileButton_, &QPushButton::clicked, this,
+             &WelcomeDashboard::openFileDialogRequested );
+    actionsLayout->addWidget( openFileButton_ );
 
-    auto* sessionBtn = new QPushButton( tr( "Load Session" ), columnWidget );
-    sessionBtn->setMinimumWidth( 110 );
-    connect( sessionBtn, &QPushButton::clicked, this, &WelcomeDashboard::loadSessionRequested );
-    actionsLayout->addWidget( sessionBtn );
+    loadSessionButton_ = new QPushButton( columnWidget );
+    loadSessionButton_->setMinimumWidth( 110 );
+    connect( loadSessionButton_, &QPushButton::clicked, this,
+             &WelcomeDashboard::loadSessionRequested );
+    actionsLayout->addWidget( loadSessionButton_ );
 
     column->addLayout( actionsLayout );
     column->addSpacing( 6 );
 
     // ---- Cards: Recent Files, Favorites, Plugins ----
-    recentFilesLayout_ = addCard( tr( "Recent Files" ), columnWidget, column, titleLabels_ );
-    favoritesLayout_ = addCard( tr( "Favorites" ), columnWidget, column, titleLabels_ );
-    pluginStatusLayout_ = addCard( tr( "Plugins" ), columnWidget, column, titleLabels_ );
+    // Their titles are written by retranslate().
+    recentFilesLayout_ = addCard( columnWidget, column, titleLabels_ );
+    recentFilesTitle_ = titleLabels_.back();
+    favoritesLayout_ = addCard( columnWidget, column, titleLabels_ );
+    favoritesTitle_ = titleLabels_.back();
+    pluginStatusLayout_ = addCard( columnWidget, column, titleLabels_ );
+    pluginsTitle_ = titleLabels_.back();
     pluginStatusLayout_->setSpacing( 2 );
 
     column->addSpacing( 6 );
@@ -260,13 +266,13 @@ void WelcomeDashboard::buildUi()
     column->addWidget( shortcutsLabel );
 
     // ---- Drop hint ----
-    auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), columnWidget );
-    markAsSecondaryText( dropHint );
-    auto hintFont = dropHint->font();
+    dropHint_ = new QLabel( columnWidget );
+    markAsSecondaryText( dropHint_ );
+    auto hintFont = dropHint_->font();
     hintFont.setItalic( true );
-    dropHint->setFont( hintFont );
-    dropHint->setAlignment( Qt::AlignCenter );
-    column->addWidget( dropHint );
+    dropHint_->setFont( hintFont );
+    dropHint_->setAlignment( Qt::AlignCenter );
+    column->addWidget( dropHint_ );
 
     column->addStretch();
 
@@ -288,10 +294,23 @@ void WelcomeDashboard::buildUi()
     connect( footerLinks_, &QLabel::linkActivated, this, &WelcomeDashboard::activateFooterLink );
     footerLayout_->addWidget( footerLinks_ );
     outerLayout->addWidget( footer );
-    updateFooterLinks();
     buildStarRequest();
 
+    retranslate();
     updateTitleFonts();
+}
+
+void WelcomeDashboard::retranslate()
+{
+    openFileButton_->setText( tr( "Open File" ) );
+    loadSessionButton_->setText( tr( "Load Session" ) );
+    recentFilesTitle_->setText( tr( "Recent Files" ) );
+    favoritesTitle_->setText( tr( "Favorites" ) );
+    pluginsTitle_->setText( tr( "Plugins" ) );
+    dropHint_->setText( tr( "Drop log files here to open them" ) );
+    // The rich-text lines are written anew, in the Theme's colors.
+    updateFooterLinks();
+    updateStarRequest();
 }
 
 void WelcomeDashboard::updateFooterLinks()
@@ -361,7 +380,6 @@ void WelcomeDashboard::buildStarRequest()
 
     starRequest_->hide();
     footerLayout_->insertWidget( 0, starRequest_ );
-    updateStarRequest();
 }
 
 void WelcomeDashboard::updateStarRequest()
@@ -414,6 +432,14 @@ void WelcomeDashboard::changeEvent( QEvent* event )
     // The titles follow a changed application font.
     if ( event->type() == QEvent::FontChange ) {
         updateTitleFonts();
+    }
+    // Every text follows a changed language (#935); the lists' empty texts
+    // are in the entries written anew.
+    else if ( event->type() == QEvent::LanguageChange ) {
+        retranslate();
+        refreshRecentFiles();
+        refreshFavorites();
+        refreshPluginStatus();
     }
 }
 

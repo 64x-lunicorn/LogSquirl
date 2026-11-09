@@ -27,6 +27,7 @@
 #include <functional>
 
 class QLabel;
+class QPushButton;
 class QToolButton;
 class QVBoxLayout;
 
@@ -92,6 +93,9 @@ private:
     /// larger.
     void updateTitleFonts();
 
+    /// Write every text of the Dashboard in the current language (#935).
+    void retranslate();
+
     /// Populate the recent-files section.
     void refreshRecentFiles();
 
@@ -124,6 +128,12 @@ private:
     QVBoxLayout* pluginStatusLayout_ = nullptr;
     QLabel* logoLabel_ = nullptr;
     QList<QLabel*> titleLabels_;
+    QPushButton* openFileButton_ = nullptr;
+    QPushButton* loadSessionButton_ = nullptr;
+    QLabel* recentFilesTitle_ = nullptr;
+    QLabel* favoritesTitle_ = nullptr;
+    QLabel* pluginsTitle_ = nullptr;
+    QLabel* dropHint_ = nullptr;
 
     /// The footer at the bottom edge, below the scrolled content: one line
     /// per entry, the links line last. A line added above the links goes in

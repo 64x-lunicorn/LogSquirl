@@ -17,6 +17,8 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "favoritefiles.h"
+#include "recentfiles.h"
 #include "releasepages.h"
 #include "starrequest.h"
 #include "theme.h"
@@ -42,6 +44,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 // The Dashboard uses readable type and shows its lists as cards (#266).
@@ -792,6 +795,187 @@ SCENARIO( "The Dashboard's star request is translated", "[ui][dashboard][starreq
         }
 
         QCoreApplication::removeTranslator( &translator );
+    }
+}
+
+// The Dashboard follows a language change, without a restart (#935).
+
+namespace {
+
+/// The Dashboard shows no recent files and no favorites for its lifetime.
+class EmptyDashboardLists {
+public:
+    EmptyDashboardLists()
+        : storedRecent_( RecentFiles::getSynced().recentFiles() )
+    {
+        for ( const auto& favorite : FavoriteFiles::getSynced().favorites() ) {
+            storedFavorites_.append( favorite.fullPath() );
+        }
+        set( {}, {} );
+    }
+    ~EmptyDashboardLists()
+    {
+        set( storedRecent_, storedFavorites_ );
+    }
+    EmptyDashboardLists( const EmptyDashboardLists& ) = delete;
+    EmptyDashboardLists& operator=( const EmptyDashboardLists& ) = delete;
+    EmptyDashboardLists( EmptyDashboardLists&& ) = delete;
+    EmptyDashboardLists& operator=( EmptyDashboardLists&& ) = delete;
+
+private:
+    static void set( const QStringList& recent, const QStringList& favorites )
+    {
+        auto& recentFiles = RecentFiles::getSynced();
+        recentFiles.removeAll();
+        for ( auto file = recent.crbegin(); file != recent.crend(); ++file ) {
+            recentFiles.addRecent( *file );
+        }
+        recentFiles.save();
+
+        auto& favoriteFiles = FavoriteFiles::getSynced();
+        for ( const auto& favorite : favoriteFiles.favorites() ) {
+            favoriteFiles.remove( favorite.fullPath() );
+        }
+        for ( const auto& favorite : favorites ) {
+            favoriteFiles.add( favorite );
+        }
+        favoriteFiles.save();
+    }
+
+    QStringList storedRecent_;
+    QStringList storedFavorites_;
+};
+
+/// The language changes as the application changes it: the translators
+/// change and every widget gets a LanguageChange event.
+void changeLanguage()
+{
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+    // Replaced entries are deleted later.
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+}
+
+/// The texts of a card's entries below its title.
+QStringList entryTextsOf( const QFrame& card )
+{
+    QStringList result;
+    for ( const auto* label : card.findChildren<QLabel*>() ) {
+        if ( label->objectName() != QStringLiteral( "dashboardCardTitle" ) ) {
+            result.append( label->text() );
+        }
+    }
+    return result;
+}
+
+/// Every text shown on a Dashboard with empty lists that asks for a star,
+/// written with mark, which leaves a text as it is or marks it translated.
+void checkDashboardTexts( WelcomeDashboard& dashboard,
+                          const std::function<QString( const QString& )>& mark )
+{
+    const auto found = cards( dashboard );
+    REQUIRE( found.size() == 3 );
+    CHECK( cardTitle( found[ 0 ] )->text() == mark( QStringLiteral( "Recent Files" ) ) );
+    CHECK( cardTitle( found[ 1 ] )->text() == mark( QStringLiteral( "Favorites" ) ) );
+    CHECK( cardTitle( found[ 2 ] )->text() == mark( QStringLiteral( "Plugins" ) ) );
+    CHECK( entryTextsOf( *found[ 0 ] )
+           == QStringList{ mark( QStringLiteral( "No recent files" ) ) } );
+    CHECK( entryTextsOf( *found[ 1 ] ) == QStringList{ mark( QStringLiteral( "No favorites" ) ) } );
+    CHECK( entryTextsOf( *found[ 2 ] )
+           == QStringList{ mark( QStringLiteral( "No plugins available" ) ) } );
+
+    QStringList buttons;
+    for ( const auto* button : dashboard.findChildren<QPushButton*>() ) {
+        buttons.append( button->text() );
+    }
+    buttons.sort();
+    QStringList expectedButtons{ mark( QStringLiteral( "Load Session" ) ),
+                                 mark( QStringLiteral( "Open File" ) ) };
+    expectedButtons.sort();
+    CHECK( buttons == expectedButtons );
+
+    QStringList labels;
+    for ( const auto* label : dashboard.findChildren<QLabel*>() ) {
+        labels.append( label->text() );
+    }
+    CHECK( labels.contains( mark( QStringLiteral( "Drop log files here to open them" ) ) ) );
+
+    auto* footer = footerLinks( dashboard );
+    REQUIRE( footer != nullptr );
+    CHECK( plainTextOf( *footer )
+           == mark( QStringLiteral( "LogSquirl is open source" ) )
+                  + QStringLiteral( " · GitHub · " ) + mark( QStringLiteral( "Report an Issue" ) )
+                  + QStringLiteral( " · " ) + mark( QStringLiteral( "Documentation" ) ) );
+    // The links keep their targets and their color.
+    const auto links = linksOf( *footer );
+    CHECK( links.value( mark( QStringLiteral( "Report an Issue" ) ) )
+           == QStringLiteral( "logsquirl:report-issue" ) );
+    CHECK( links.value( mark( QStringLiteral( "Documentation" ) ) )
+           == QStringLiteral( "logsquirl:documentation" ) );
+    const auto secondary = Theme::active().color( ColorToken::SecondaryText ).name();
+    CHECK( linkColorsOf( *footer ) == QStringList{ secondary, secondary, secondary } );
+
+    REQUIRE( asksForStar( dashboard ) );
+    auto* text = starRequestText( dashboard );
+    auto* close = starRequestClose( dashboard );
+    REQUIRE( text != nullptr );
+    REQUIRE( close != nullptr );
+    CHECK( plainTextOf( *text )
+           == mark( QStringLiteral(
+               "Find LogSquirl useful? A star on GitHub helps others find it." ) ) );
+    CHECK( linksOf( *text ).values()
+           == QStringList{ QString( logsquirl::versioncheck::ProjectPageUrl ) } );
+    CHECK( linkColorsOf( *text ) == QStringList{ secondary } );
+    CHECK( close->toolTip() == mark( QStringLiteral( "Dismiss" ) ) );
+    CHECK( close->accessibleName() == mark( QStringLiteral( "Dismiss" ) ) );
+}
+
+} // namespace
+
+SCENARIO( "The Dashboard follows a language change", "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "a Dashboard shown in English that asks for a star" )
+    {
+        Theme::apply( Theme::DarkKey );
+        const EmptyDashboardLists lists;
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        WelcomeDashboard dashboard;
+        dashboard.resize( 1200, 900 );
+        prepare( dashboard, StarToday );
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+
+        const auto english = []( const QString& text ) { return text; };
+        const auto translated = []( const QString& text ) { return u'[' + text + u']'; };
+        checkDashboardTexts( dashboard, english );
+
+        WHEN( "the language changes" )
+        {
+            MarkingDashboardTranslator translator;
+            REQUIRE( QCoreApplication::installTranslator( &translator ) );
+            changeLanguage();
+
+            THEN( "every text of the Dashboard is in the new language, the footer and the star "
+                  "request included" )
+            {
+                checkDashboardTexts( dashboard, translated );
+            }
+
+            AND_WHEN( "the language changes back" )
+            {
+                QCoreApplication::removeTranslator( &translator );
+                changeLanguage();
+
+                THEN( "every text of the Dashboard is in English again" )
+                {
+                    checkDashboardTexts( dashboard, english );
+                }
+            }
+
+            QCoreApplication::removeTranslator( &translator );
+            changeLanguage();
+        }
+
+        Theme::apply( Theme::defaultTheme() );
     }
 }
 
