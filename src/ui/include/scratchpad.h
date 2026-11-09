@@ -25,9 +25,11 @@
 #include <functional>
 #include <qobjectdefs.h>
 
+class QAction;
 class QPlainTextEdit;
-class QStatusBar;
 class QLineEdit;
+class QSplitter;
+class QToolBar;
 
 namespace logsquirl {
 class DateTimeBox;
@@ -73,9 +75,18 @@ private:
 
     void transformTextInPlace( const std::function<QString( QString )>& transform );
 
+    // A button of the toolbar that runs the transformation.
+    void addTransformation( const QString& text, void ( ScratchPad::*transformation )() );
+
+    // Shows the message of a transformation as a tooltip at its button, so it
+    // takes no row of its own (#925).
+    void showMessage( const QString& message );
+
 private:
     QPlainTextEdit* textEdit_;
-    QStatusBar* statusBar_;
+    QToolBar* toolBar_;
+    QSplitter* splitter_;
+    QAction* runningTransformation_{ nullptr };
 
     QLineEdit* crc32HexBox_;
     QLineEdit* crc32DecBox_;

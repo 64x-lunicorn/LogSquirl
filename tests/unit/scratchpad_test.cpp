@@ -31,9 +31,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QSizeGrip>
+#include <QSplitter>
 #include <QStatusBar>
+#include <QTest>
 #include <QTextCursor>
 #include <QToolBar>
+#include <QToolTip>
 
 namespace {
 
@@ -68,6 +72,9 @@ public:
 
     void press( const QString& button )
     {
+        // A tooltip left from an earlier press must not pass for the message
+        // of this one.
+        QToolTip::showText( QPoint{}, QStringLiteral( "-" ) );
         const auto actions = pad_.findChild<QToolBar*>()->actions();
         for ( auto* action : actions ) {
             if ( action->text() == button ) {
@@ -78,9 +85,16 @@ public:
         FAIL( "no toolbar button " << button.toStdString() );
     }
 
+    /// The message the last transformation showed, as a tooltip at its
+    /// button: the Scratchpad has no status bar of its own (#925).
     QString status() const
     {
-        return pad_.findChild<QStatusBar*>()->currentMessage();
+        return QToolTip::isVisible() ? QToolTip::text() : QString{};
+    }
+
+    ScratchPad& widget()
+    {
+        return pad_;
     }
 
     /// The read-only box beside the text that carries this label.
@@ -487,6 +501,127 @@ SCENARIO( "The Scratchpad shows what its text stands for in numbers", "[scratchp
         THEN( "The boxes follow the selection" )
         {
             REQUIRE( pad.box( "Dec->Hex" ) == "00000007" );
+        }
+    }
+}
+
+// The text and the fields beside it share the width by a splitter (#925).
+SCENARIO( "The Scratchpad's text and fields share the width by a splitter", "[scratchpad][layout]" )
+{
+    ScratchPad pad;
+    pad.resize( 1200, 600 );
+    pad.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &pad ) );
+
+    auto* splitter = pad.findChild<QSplitter*>();
+    REQUIRE( splitter != nullptr );
+    REQUIRE( splitter->orientation() == Qt::Horizontal );
+    REQUIRE( splitter->count() == 2 );
+
+    auto* text = splitter->widget( 0 );
+    auto* fields = splitter->widget( 1 );
+    REQUIRE( qobject_cast<QPlainTextEdit*>( text ) != nullptr );
+    REQUIRE( fields->findChild<QLineEdit*>() != nullptr );
+    REQUIRE( !splitter->isCollapsible( 0 ) );
+    REQUIRE( !splitter->isCollapsible( 1 ) );
+
+    const auto minimumFields = fields->minimumSizeHint().width();
+    const auto minimumText = text->minimumSizeHint().width();
+
+    GIVEN( "A Scratchpad as it opens" )
+    {
+        THEN( "The text has the larger share" )
+        {
+            REQUIRE( text->width() > fields->width() );
+            REQUIRE( fields->width() >= minimumFields );
+        }
+    }
+
+    GIVEN( "The splitter is dragged to the right" )
+    {
+        const auto textBefore = text->width();
+        const auto fieldsBefore = fields->width();
+        auto* handle = splitter->handle( 1 );
+        const auto start = handle->rect().center();
+        QTest::mousePress( handle, Qt::LeftButton, {}, start );
+        QTest::mouseMove( handle, start + QPoint( 60, 0 ) );
+        QTest::mouseRelease( handle, Qt::LeftButton, {}, start + QPoint( 60, 0 ) );
+
+        THEN( "The text grows and the fields shrink" )
+        {
+            REQUIRE( text->width() > textBefore );
+            REQUIRE( fields->width() < fieldsBefore );
+        }
+    }
+
+    GIVEN( "The fields are made as narrow as possible" )
+    {
+        splitter->setSizes( { 10000, 0 } );
+
+        THEN( "They keep their usable width" )
+        {
+            REQUIRE( fields->width() >= minimumFields );
+            REQUIRE( fields->isVisible() );
+        }
+    }
+
+    GIVEN( "The text is made as narrow as possible" )
+    {
+        splitter->setSizes( { 0, 10000 } );
+
+        THEN( "It keeps its minimum and the fields take the rest" )
+        {
+            REQUIRE( text->width() >= minimumText );
+            REQUIRE( text->width() > 0 );
+            REQUIRE( fields->width() > minimumFields );
+        }
+    }
+
+    GIVEN( "The splitter was moved in one Scratchpad" )
+    {
+        auto* handle = splitter->handle( 1 );
+        const auto start = handle->rect().center();
+        QTest::mousePress( handle, Qt::LeftButton, {}, start );
+        QTest::mouseMove( handle, start + QPoint( -40, 0 ) );
+        QTest::mouseRelease( handle, Qt::LeftButton, {}, start + QPoint( -40, 0 ) );
+        const auto fieldsWidth = fields->width();
+
+        WHEN( "Another Scratchpad opens" )
+        {
+            ScratchPad other;
+            other.resize( 1200, 600 );
+            other.show();
+            REQUIRE( QTest::qWaitForWindowExposed( &other ) );
+
+            THEN( "Its splitter stands where the user left it" )
+            {
+                const auto* otherSplitter = other.findChild<QSplitter*>();
+                REQUIRE( otherSplitter->widget( 1 )->width() == fieldsWidth );
+            }
+        }
+    }
+}
+
+// Below the text there is no empty bar: the message of a transformation does
+// not take a row of its own (#925).
+SCENARIO( "The Scratchpad has no status bar", "[scratchpad][layout]" )
+{
+    ScratchPadDriver pad;
+
+    THEN( "Neither a status bar nor a size grip is there" )
+    {
+        REQUIRE( pad.widget().findChild<QStatusBar*>() == nullptr );
+        REQUIRE( pad.widget().findChild<QSizeGrip*>() == nullptr );
+    }
+
+    GIVEN( "A transformation" )
+    {
+        pad.setText( "hello" );
+        pad.press( "To base64" );
+
+        THEN( "Its message still reaches the user" )
+        {
+            REQUIRE( pad.status() == "Copied to clipboard" );
         }
     }
 }

@@ -1,3 +1,16 @@
+# Unreleased
+
+## Bug fixes
+
+- **The Scratchpad's text and fields share the width by a splitter**: the
+  splitter between the text and the conversion fields (CRC32, File time,
+  Dec->Hex, Hex->Dec, Time) gives either side more width, the fields keep the
+  width their rows need, and every Scratchpad tab keeps the position until
+  LogSquirl is closed. The empty bar with a size grip below is gone; *Copied
+  to clipboard* or *Empty transformation* shows as a tooltip at the button.
+  The Scratchpad's buttons, field labels, messages and tab names are
+  translated. (#925)
+
 # v26.12.0-beta2 (2026-11-06)
 
 ## Changes
