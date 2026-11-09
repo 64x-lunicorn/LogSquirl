@@ -6215,39 +6215,14 @@ Sin fecha, se usa %1.</translation>
 <context>
     <name>ValueNamesPanel</name>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="50"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="29"/>
         <source>Search Value Names...</source>
         <translation>Buscar nombres de valores...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="71"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="31"/>
         <source>No Naming Groups yet: Edit... adds one.</source>
         <translation>Aún no hay grupos de nombres: Editar... añade uno.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="76"/>
-        <source>Select All</source>
-        <translation>Seleccionar todo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="77"/>
-        <source>Deselect All</source>
-        <translation>Deseleccionar todo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="78"/>
-        <source>Edit...</source>
-        <translation>Editar...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="128"/>
-        <source>%1 (Team)</source>
-        <translation>%1 (Equipo)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="130"/>
-        <source>A Team group, shared through the Team Folder</source>
-        <translation>Un grupo de equipo, compartido mediante la carpeta de equipo</translation>
     </message>
 </context>
 <context>

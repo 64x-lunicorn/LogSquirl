@@ -6217,39 +6217,14 @@ Without a date, %1 is used.</source>
 <context>
     <name>ValueNamesPanel</name>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="50"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="29"/>
         <source>Search Value Names...</source>
         <translation>Пошук назв значень...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="71"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="31"/>
         <source>No Naming Groups yet: Edit... adds one.</source>
         <translation>Груп іменування ще немає: Редагувати... додає одну.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="76"/>
-        <source>Select All</source>
-        <translation>Вибрати все</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="77"/>
-        <source>Deselect All</source>
-        <translation>Зняти вибір</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="78"/>
-        <source>Edit...</source>
-        <translation>Редагувати...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="128"/>
-        <source>%1 (Team)</source>
-        <translation>%1 (командна)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="130"/>
-        <source>A Team group, shared through the Team Folder</source>
-        <translation>Командна група, спільна через командну теку</translation>
     </message>
 </context>
 <context>

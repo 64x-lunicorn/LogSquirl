@@ -1,5 +1,14 @@
 # Unreleased
 
+## Bug fixes
+
+- **The Value Names tab of the sidebar looks like the Filters tab again**:
+  its rows are as tall as those of the Filters tab, and it is built on the
+  same sidebar tab module, so the two share their search field, tree and
+  buttons. Its search now matches a Naming Rule's name and regex, and shows
+  a rule named like its regex by the regex alone, as the Filters tab does.
+  (#924)
+
 ## Internal
 
 - **The Filters tab of the sidebar is built on a shared sidebar tab module**:
