@@ -1,5 +1,14 @@
 # Unreleased
 
+## Changes
+
+- **The Help menu opens LogSquirl on GitHub and the release notes**: after
+  *Documentation...*, *LogSquirl on GitHub* opens the project's page, and
+  *What's New in*, followed by the running version, opens that version's
+  release notes, or the list of all releases for a build that is not a
+  release. Both can be
+  given keys in the Shortcuts list. (#932)
+
 ## Bug fixes
 
 - **The group list of the Predefined Filters, Highlighters and Value Names

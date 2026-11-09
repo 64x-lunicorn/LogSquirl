@@ -28,6 +28,7 @@
 #include <QVersionNumber>
 
 #include "log.h"
+#include "releasepages.h"
 
 namespace logsquirl::versioncheck {
 
@@ -45,9 +46,8 @@ bool isPrerelease( const QString& releaseName )
     return releaseName.contains( u'-' );
 }
 
-// Every release page of LogSquirl lies below this; an update is only offered
-// for one of them (#222, ADR 0005).
-constexpr auto ReleasePagesPrefix = "https://github.com/64x-lunicorn/LogSquirl/releases/";
+// An update is only offered for a page below ReleasePagesPrefix (#222, ADR
+// 0005).
 constexpr auto ReleasePagesPath = "/64x-lunicorn/LogSquirl/releases/";
 
 // The url must begin with exactly the prefix, and what a browser makes of it

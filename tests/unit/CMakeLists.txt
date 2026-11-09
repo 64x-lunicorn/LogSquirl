@@ -397,6 +397,7 @@ add_executable(logsquirl_versioncheck_tests
     versioncheck_tests_main.cpp
     installoptout_test.cpp
     installsource_test.cpp
+    releasepages_test.cpp
     updateoffer_test.cpp
     updateschedule_test.cpp
     versionchecker_test.cpp

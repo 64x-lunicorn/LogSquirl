@@ -62,6 +62,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -135,6 +136,7 @@
 #include "recentfiles.h"
 #include "regexlabsource.h"
 #include "regexlabwindow.h"
+#include "releasepages.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
@@ -903,6 +905,12 @@ void MainWindow::reTranslateUI()
     showDocumentationAction->setText( transAction( action::showDocumentationText ) );
     showDocumentationAction->setStatusTip( transAction( action::showDocumentationStatusTip ) );
 
+    projectPageAction->setText( transAction( action::projectPageText ) );
+    projectPageAction->setStatusTip( transAction( action::projectPageStatusTip ) );
+
+    whatsNewAction->setText( transAction( action::whatsNewText ).arg( logsquirlVersion() ) );
+    whatsNewAction->setStatusTip( transAction( action::whatsNewStatusTip ) );
+
     aboutAction->setText( transAction( action::aboutText ) );
     aboutAction->setStatusTip( transAction( action::aboutStatusTip ) );
 
@@ -1218,6 +1226,19 @@ void MainWindow::createActions()
     connect( showDocumentationAction, &QAction::triggered, this,
              [ this ]( auto ) { this->documentation(); } );
 
+    projectPageAction = new QAction( tr( action::projectPageText ), this );
+    projectPageAction->setStatusTip( tr( action::projectPageStatusTip ) );
+    connect( projectPageAction, &QAction::triggered, this, []( auto ) {
+        QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::ProjectPageUrl ) );
+    } );
+
+    whatsNewAction = new QAction( tr( action::whatsNewText ).arg( logsquirlVersion() ), this );
+    whatsNewAction->setStatusTip( tr( action::whatsNewStatusTip ) );
+    connect( whatsNewAction, &QAction::triggered, this, []( auto ) {
+        QDesktopServices::openUrl(
+            QUrl( logsquirl::versioncheck::releaseNotesUrl( logsquirlVersion() ) ) );
+    } );
+
     aboutAction = new QAction( tr( action::aboutText ), this );
     aboutAction->setStatusTip( tr( action::aboutStatusTip ) );
     connect( aboutAction, &QAction::triggered, this, [ this ]( auto ) { this->about(); } );
@@ -1412,6 +1433,8 @@ void MainWindow::updateShortcuts()
     setShortcuts( searchLimitsTimeRangeAction, ShortcutAction::LogViewSearchLimitsTimeRange );
     setShortcuts( searchLimitsAroundLineAction, ShortcutAction::LogViewSearchLimitsAroundLine );
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
+    setShortcuts( projectPageAction, ShortcutAction::MainWindowProjectPage );
+    setShortcuts( whatsNewAction, ShortcutAction::MainWindowWhatsNew );
 }
 
 // Whether the tab at `index` is the welcome dashboard itself, for what only
@@ -1571,6 +1594,8 @@ void MainWindow::createMenus()
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );
+    helpMenu->addAction( projectPageAction );
+    helpMenu->addAction( whatsNewAction );
     helpMenu->addSeparator();
     helpMenu->addAction( reportIssueAction );
     helpMenu->addSeparator();

@@ -30,9 +30,11 @@
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
+#include "logsquirl_version.h"
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "menu_wording.h"
+#include "releasepages.h"
 #include "session.h"
 #include "shortcuts.h"
 #include "shown_widget.h"
@@ -42,6 +44,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
@@ -1030,6 +1033,136 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
     }
 }
 
+namespace {
+
+// Takes the web pages the window asks to open, instead of a browser.
+class WebPageRecorder : public QObject {
+    Q_OBJECT
+public:
+    WebPageRecorder()
+    {
+        QDesktopServices::setUrlHandler( "https", this, "open" );
+    }
+    ~WebPageRecorder() override
+    {
+        QDesktopServices::unsetUrlHandler( "https" );
+    }
+
+    WebPageRecorder( const WebPageRecorder& ) = delete;
+    WebPageRecorder& operator=( const WebPageRecorder& ) = delete;
+
+    QList<QUrl> opened;
+
+public Q_SLOTS:
+    void open( const QUrl& url )
+    {
+        opened.append( url );
+    }
+};
+
+/// The entries of the Help menu, in menu order.
+QStringList helpEntries( MainWindow& window )
+{
+    QStringList texts;
+    for ( const auto& entry : menuBarEntries( window ) ) {
+        if ( entry.path == QStringLiteral( "Help" ) ) {
+            texts.append( entry.text );
+        }
+    }
+    return texts;
+}
+
+} // namespace
+
+// The Help menu links to the project and to the release notes of the running
+// version (#932).
+SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's release notes",
+          "[ui][menubar][help]" )
+{
+    GIVEN( "a shown window, no keys configured" )
+    {
+        const ConfiguredShortcuts configured( ShortcutAction::ConfiguredShortcuts{} );
+        const ShownWindow shown;
+        const auto version = QString( logsquirlVersion() );
+        const auto whatsNew = QStringLiteral( "What's New in %1..." ).arg( version );
+
+        THEN( "Help lists LogSquirl on GitHub and What's New right after Documentation..." )
+        {
+            const auto entries = helpEntries( *shown.window );
+            const auto documentation = entries.indexOf( QStringLiteral( "Documentation..." ) );
+            REQUIRE( documentation >= 0 );
+            REQUIRE( documentation + 2 < entries.size() );
+            CHECK( entries.at( documentation + 1 ) == QStringLiteral( "LogSquirl on GitHub" ) );
+            CHECK( entries.at( documentation + 2 ) == whatsNew );
+        }
+
+        THEN( "each is listed in the Shortcuts list under its menu name, without a key" )
+        {
+            const auto& shortcutList = ShortcutAction::defaultShortcutList();
+            const std::vector<std::pair<const char*, QString>> listed = {
+                { ShortcutAction::MainWindowProjectPage, QStringLiteral( "LogSquirl on GitHub" ) },
+                { ShortcutAction::MainWindowWhatsNew, whatsNew },
+            };
+            for ( const auto& [ id, text ] : listed ) {
+                INFO( text.toStdString() );
+                REQUIRE( shortcutList.contains( id ) );
+                CHECK( shortcutList.at( id ).name == menuwording::actionName( text ) );
+                CHECK( shortcutList.at( id ).keySequence.isEmpty() );
+                CHECK( menuBarAction( *shown.window, text )->shortcuts().isEmpty() );
+            }
+        }
+
+        WHEN( "LogSquirl on GitHub is chosen" )
+        {
+            WebPageRecorder recorder;
+            menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->trigger();
+
+            THEN( "the project's repository opens" )
+            {
+                CHECK( recorder.opened
+                       == QList<QUrl>{ QUrl( "https://github.com/64x-lunicorn/LogSquirl" ) } );
+            }
+        }
+
+        WHEN( "What's New is chosen" )
+        {
+            WebPageRecorder recorder;
+            menuBarAction( *shown.window, whatsNew )->trigger();
+
+            THEN( "the release notes of the running version open" )
+            {
+                CHECK(
+                    recorder.opened
+                    == QList<QUrl>{ QUrl( logsquirl::versioncheck::releaseNotesUrl( version ) ) } );
+            }
+        }
+    }
+
+    GIVEN( "keys configured for both entries" )
+    {
+        const ConfiguredShortcuts configured(
+            { { ShortcutAction::MainWindowProjectPage, { "Ctrl+Alt+G" } },
+              { ShortcutAction::MainWindowWhatsNew, { "Ctrl+Alt+W" } } } );
+
+        WHEN( "a window is shown" )
+        {
+            const ShownWindow shown;
+
+            THEN( "each entry answers to its keys" )
+            {
+                CHECK( menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )
+                           ->shortcuts()
+                       == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+G" ) } );
+                CHECK( menuBarAction(
+                           *shown.window,
+                           QStringLiteral( "What's New in %1..." ).arg( logsquirlVersion() ) )
+                           ->shortcuts()
+                       == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+W" ) } );
+            }
+        }
+    }
+}
+
 // The Encoding menu is owned, so it goes with the window (#916).
 SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encoding]" )
 {
@@ -1055,3 +1188,5 @@ SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encod
         }
     }
 }
+
+#include "menubar_test.moc"

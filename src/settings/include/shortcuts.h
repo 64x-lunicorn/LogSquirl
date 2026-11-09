@@ -86,6 +86,10 @@ struct ShortcutAction {
     static constexpr auto MainWindowOpenFromUrl = "mainwindow.open_from_url";
     static constexpr auto MainWindowOpenCommandOutput = "mainwindow.open_command_output";
     static constexpr auto MainWindowCommandPalette = "mainwindow.command_palette";
+    // Help > LogSquirl on GitHub and Help > What's New (#932); no keys by
+    // default.
+    static constexpr auto MainWindowProjectPage = "mainwindow.project_page";
+    static constexpr auto MainWindowWhatsNew = "mainwindow.whats_new";
 
     static constexpr auto LogViewMark = "logview.mark";
     static constexpr auto LogViewNextMark = "logview.next_mark";

@@ -5,6 +5,8 @@ add_library(
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/installoptout.cpp
                             ${CMAKE_CURRENT_SOURCE_DIR}/include/installsource.h
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/installsource.cpp
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include/releasepages.h
+                            ${CMAKE_CURRENT_SOURCE_DIR}/src/releasepages.cpp
                             ${CMAKE_CURRENT_SOURCE_DIR}/include/updateoffer.h
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/updateoffer.cpp
                             ${CMAKE_CURRENT_SOURCE_DIR}/include/updateschedule.h

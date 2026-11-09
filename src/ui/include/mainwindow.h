@@ -614,6 +614,8 @@ private:
     QAction* showFilterFrequencyAction;
     QAction* importChipmunkFiltersAction;
     QAction* showDocumentationAction;
+    QAction* projectPageAction;
+    QAction* whatsNewAction;
     QAction* aboutAction;
     QAction* aboutQtAction;
     QAction* predefinedFiltersDialogAction;
