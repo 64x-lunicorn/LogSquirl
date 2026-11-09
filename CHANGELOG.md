@@ -2,6 +2,14 @@
 
 ## Bug fixes
 
+- **The group list of the Predefined Filters, Highlighters and Value Names
+  dialogs is narrow again**: its buttons wrap onto short rows (New, Delete,
+  Move up and Move down; Share with team and Copy to my groups; Export... and
+  Import...), so the list no longer needs about 510 px and the selected
+  group's side gets the rest of the dialog. (#922)
+- **The Value Names dialog keeps its group list visible**: dragging the
+  splitter stops at the group list's minimum width, as in the Predefined
+  Filters and Highlighters dialogs, instead of hiding the list. (#926)
 - **The Scratchpad's text and fields share the width by a splitter**: the
   splitter between the text and the conversion fields (CRC32, File time,
   Dec->Hex, Hex->Dec, Time) gives either side more width, the fields keep the
