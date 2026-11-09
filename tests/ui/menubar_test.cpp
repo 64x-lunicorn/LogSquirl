@@ -26,6 +26,7 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "csvexportdialog.h"
+#include "favoritefiles.h"
 #include "filteredview.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
@@ -34,6 +35,7 @@
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "menu_wording.h"
+#include "recentfiles.h"
 #include "releasepages.h"
 #include "session.h"
 #include "shortcuts.h"
@@ -41,6 +43,7 @@
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "welcomedashboard.h"
 
 #include <QAction>
 #include <QApplication>
@@ -48,10 +51,14 @@
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -1165,6 +1172,194 @@ SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's rel
                                .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ) )
                            ->shortcuts()
                        == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+W" ) } );
+            }
+        }
+    }
+}
+
+namespace {
+
+/// The links line of the footer of the window's Dashboard.
+QLabel* dashboardFooter( MainWindow& window )
+{
+    return window.findChild<QLabel*>( QStringLiteral( "dashboardFooterLinks" ) );
+}
+
+/// The target of the footer's link with the text.
+QString footerLink( const QLabel& footer, const QString& text )
+{
+    const QRegularExpression anchor( QStringLiteral( "<a\\s+href=\"([^\"]*)\"[^>]*>%1</a>" )
+                                         .arg( QRegularExpression::escape( text ) ) );
+    const auto match = anchor.match( footer.text() );
+    REQUIRE( match.hasMatch() );
+    return match.captured( 1 );
+}
+
+/// The Dashboard shows these recent files and favorites for its lifetime.
+class DashboardLists {
+public:
+    DashboardLists( const QStringList& recent, const QStringList& favorites )
+        : storedRecent_( RecentFiles::getSynced().recentFiles() )
+    {
+        for ( const auto& favorite : FavoriteFiles::getSynced().favorites() ) {
+            storedFavorites_.append( favorite.fullPath() );
+        }
+        set( recent, favorites );
+    }
+    ~DashboardLists()
+    {
+        set( storedRecent_, storedFavorites_ );
+    }
+    DashboardLists( const DashboardLists& ) = delete;
+    DashboardLists& operator=( const DashboardLists& ) = delete;
+
+private:
+    static void set( const QStringList& recent, const QStringList& favorites )
+    {
+        auto& recentFiles = RecentFiles::getSynced();
+        recentFiles.removeAll();
+        // Each is added in front of the ones before.
+        for ( auto file = recent.crbegin(); file != recent.crend(); ++file ) {
+            recentFiles.addRecent( *file );
+        }
+        recentFiles.save();
+
+        auto& favoriteFiles = FavoriteFiles::getSynced();
+        for ( const auto& favorite : favoriteFiles.favorites() ) {
+            favoriteFiles.remove( favorite.fullPath() );
+        }
+        for ( const auto& favorite : favorites ) {
+            favoriteFiles.add( favorite );
+        }
+        favoriteFiles.save();
+    }
+
+    QStringList storedRecent_;
+    QStringList storedFavorites_;
+};
+
+} // namespace
+
+// The Dashboard's footer links to the project; its Report an Issue and
+// Documentation do what the Help menu's entries do (#933).
+SCENARIO( "The Dashboard's footer reports an issue and shows the documentation as the Help menu "
+          "does",
+          "[ui][menubar][help][dashboard]" )
+{
+    GIVEN( "a shown window with its Dashboard in front" )
+    {
+        const ShownWindow shown;
+        auto* footer = dashboardFooter( *shown.window );
+        REQUIRE( footer != nullptr );
+        REQUIRE( footer->isVisible() );
+
+        WHEN( "Report an Issue is clicked in the footer, then Help > Report Issue... is chosen" )
+        {
+            WebPageRecorder recorder;
+            Q_EMIT footer->linkActivated(
+                footerLink( *footer, QStringLiteral( "Report an Issue" ) ) );
+            menuBarAction( *shown.window, QStringLiteral( "Report Issue..." ) )->trigger();
+
+            THEN( "both open the same page for a new issue of the project" )
+            {
+                REQUIRE( recorder.opened.size() == 2 );
+                CHECK( recorder.opened.at( 0 ) == recorder.opened.at( 1 ) );
+                CHECK( recorder.opened.at( 0 ).toString().startsWith(
+                    QString( logsquirl::versioncheck::ProjectPageUrl ) + u'/' ) );
+            }
+        }
+
+        WHEN( "GitHub is clicked in the footer" )
+        {
+            WebPageRecorder recorder;
+            Q_EMIT footer->linkActivated( footerLink( *footer, QStringLiteral( "GitHub" ) ) );
+
+            THEN( "it opens the page Help > LogSquirl on GitHub opens" )
+            {
+                menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->trigger();
+                REQUIRE( recorder.opened.size() == 2 );
+                CHECK( recorder.opened.at( 0 ) == recorder.opened.at( 1 ) );
+            }
+        }
+
+        WHEN( "Documentation is clicked in the footer" )
+        {
+            // The test binary carries no documentation to show: the entry
+            // of the Help menu is what the footer reuses.
+            const QSignalSpy documentation(
+                menuBarAction( *shown.window, QStringLiteral( "Documentation..." ) ),
+                &QAction::triggered );
+            const QSignalSpy reportIssue(
+                menuBarAction( *shown.window, QStringLiteral( "Report Issue..." ) ),
+                &QAction::triggered );
+            Q_EMIT footer->linkActivated(
+                footerLink( *footer, QStringLiteral( "Documentation" ) ) );
+
+            THEN( "Help > Documentation... is triggered, and nothing else" )
+            {
+                CHECK( documentation.size() == 1 );
+                CHECK( reportIssue.isEmpty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard fits a 1366 x 768 window with its footer, without scrolling",
+          "[ui][dashboard]" )
+{
+    GIVEN( "a few recent files and favorites" )
+    {
+        const DashboardLists lists( { QStringLiteral( "/var/log/app/server.log" ),
+                                      QStringLiteral( "/var/log/app/worker.log" ),
+                                      QStringLiteral( "/var/log/system.log" ) },
+                                    { QStringLiteral( "/var/log/app/server.log" ) } );
+
+        WHEN( "a window of 1366 x 768 shows the Dashboard" )
+        {
+            const ShownWindow shown;
+            shown.window->resize( 1366, 768 );
+            QTest::qWait( 50 );
+            REQUIRE( shown.window->size() == QSize( 1366, 768 ) );
+            auto* dashboard = shown.window->findChild<WelcomeDashboard*>();
+            REQUIRE( dashboard != nullptr );
+            REQUIRE( dashboard->isVisible() );
+            auto* scrollArea = dashboard->findChild<QScrollArea*>();
+            REQUIRE( scrollArea != nullptr );
+            auto* footer = dashboardFooter( *shown.window );
+            REQUIRE( footer != nullptr );
+
+            THEN( "the Dashboard does not scroll, and its footer shows whole at its bottom edge" )
+            {
+                INFO( "window " << shown.window->height() << ", Dashboard " << dashboard->height()
+                                << ", content "
+                                << scrollArea->widget()->minimumSizeHint().height() );
+                CHECK( scrollArea->verticalScrollBar()->maximum() == 0 );
+                CHECK_FALSE( scrollArea->verticalScrollBar()->isVisible() );
+                CHECK( footer->isVisible() );
+                const auto bottom = footer->mapTo( dashboard, QPoint( 0, footer->height() ) ).y();
+                CHECK( bottom <= dashboard->height() );
+                CHECK( bottom >= dashboard->height() - 24 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's footer is not shown while a Log File is open", "[ui][dashboard]" )
+{
+    GIVEN( "a window showing its Dashboard" )
+    {
+        FormatWindow window;
+        auto* footer = dashboardFooter( *window.window );
+        REQUIRE( footer != nullptr );
+        REQUIRE( footer->isVisible() );
+
+        WHEN( "a Log File is opened" )
+        {
+            window.open( window.logFile( "plain.log", "just a line\nanother line\n" ) );
+
+            THEN( "the footer is gone with the Dashboard" )
+            {
+                CHECK_FALSE( footer->isVisible() );
             }
         }
     }

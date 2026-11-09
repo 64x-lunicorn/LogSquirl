@@ -403,6 +403,11 @@ MainWindow::MainWindow( WindowSession session,
                  &MainWindow::open );
         connect( welcomeDashboard_, &WelcomeDashboard::loadSessionRequested, this,
                  &MainWindow::reloadSession );
+        // The footer's links do what the Help menu's entries do (#933).
+        connect( welcomeDashboard_, &WelcomeDashboard::reportIssueRequested, reportIssueAction,
+                 &QAction::trigger );
+        connect( welcomeDashboard_, &WelcomeDashboard::documentationRequested,
+                 showDocumentationAction, &QAction::trigger );
 
         welcomeDashboard_->refresh();
     }

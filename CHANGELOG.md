@@ -9,6 +9,10 @@
   LogSquirl website; a build of your own opens the list of all releases on
   GitHub. Both can be
   given keys in the Shortcuts list. (#932)
+- **The Dashboard has a footer with links to the project**: a quiet line at
+  the bottom edge of the Dashboard, in the Theme's secondary text color,
+  links to LogSquirl on GitHub, to reporting an issue and to the
+  documentation. It stays at the bottom when the window is resized. (#933)
 
 ## Bug fixes
 

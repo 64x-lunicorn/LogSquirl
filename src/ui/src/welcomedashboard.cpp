@@ -26,8 +26,10 @@
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "recentfiles.h"
+#include "releasepages.h"
 #include "theme.h"
 
+#include <QDesktopServices>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
@@ -39,6 +41,8 @@
 #include <QMimeData>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QStringList>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <QPixmap>
@@ -60,6 +64,11 @@ const QString kLinkButtonStyle
     = QStringLiteral( "QPushButton { color: palette(link); background: transparent; border: none;"
                       " text-align: left; padding: 3px 0px; }"
                       "QPushButton:hover { text-decoration: underline; }" );
+
+/// The targets of the footer's links that the main window acts on: they are
+/// handled in code, never opened as URLs.
+const QString kReportIssueLink = QStringLiteral( "logsquirl:report-issue" );
+const QString kDocumentationLink = QStringLiteral( "logsquirl:documentation" );
 
 /// Gives label the Theme's secondary text color.
 void markAsSecondaryText( QLabel* label )
@@ -130,8 +139,11 @@ WelcomeDashboard::WelcomeDashboard( QWidget* parent )
 {
     setAcceptDrops( true );
     buildUi();
-    // The plugin status colors come from Tokens.
-    Theme::whenApplied( this, [ this ] { refresh(); } );
+    // The plugin status colors and the footer's link color come from Tokens.
+    Theme::whenApplied( this, [ this ] {
+        refresh();
+        updateFooterLinks();
+    } );
 }
 
 void WelcomeDashboard::buildUi()
@@ -234,7 +246,58 @@ void WelcomeDashboard::buildUi()
 
     column->addStretch();
 
+    // ---- Footer: at the bottom edge, below the scrolled content ----
+    auto* footer = new QWidget( this );
+    footer->setObjectName( QStringLiteral( "dashboardFooter" ) );
+    footerLayout_ = new QVBoxLayout( footer );
+    footerLayout_->setContentsMargins( 24, 6, 24, 10 );
+    footerLayout_->setSpacing( 4 );
+
+    footerLinks_ = new QLabel( footer );
+    footerLinks_->setObjectName( QStringLiteral( "dashboardFooterLinks" ) );
+    markAsSecondaryText( footerLinks_ );
+    footerLinks_->setAlignment( Qt::AlignCenter );
+    footerLinks_->setTextFormat( Qt::RichText );
+    footerLinks_->setTextInteractionFlags( Qt::LinksAccessibleByMouse
+                                           | Qt::LinksAccessibleByKeyboard );
+    // Handled here, so Report an Issue and Documentation reach the main window.
+    connect( footerLinks_, &QLabel::linkActivated, this, &WelcomeDashboard::activateFooterLink );
+    footerLayout_->addWidget( footerLinks_ );
+    outerLayout->addWidget( footer );
+    updateFooterLinks();
+
     updateTitleFonts();
+}
+
+void WelcomeDashboard::updateFooterLinks()
+{
+    // A link is drawn in the link color of the palette unless it names its
+    // own, so each names the secondary text color of the rest of the line.
+    const auto color = Theme::active().color( ColorToken::SecondaryText ).name( QColor::HexRgb );
+    const auto link = [ &color ]( const QString& target, const QString& text ) {
+        return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
+            .arg( target, color, text.toHtmlEscaped() );
+    };
+    const QStringList parts = {
+        tr( "LogSquirl is open source" ).toHtmlEscaped(),
+        link( QString( logsquirl::versioncheck::ProjectPageUrl ), QStringLiteral( "GitHub" ) ),
+        link( kReportIssueLink, tr( "Report an Issue" ) ),
+        link( kDocumentationLink, tr( "Documentation" ) ),
+    };
+    footerLinks_->setText( parts.join( QStringLiteral( " \u00B7 " ) ) );
+}
+
+void WelcomeDashboard::activateFooterLink( const QString& target )
+{
+    if ( target == kReportIssueLink ) {
+        Q_EMIT reportIssueRequested();
+    }
+    else if ( target == kDocumentationLink ) {
+        Q_EMIT documentationRequested();
+    }
+    else if ( target == QString( logsquirl::versioncheck::ProjectPageUrl ) ) {
+        QDesktopServices::openUrl( QUrl( target ) );
+    }
 }
 
 void WelcomeDashboard::updateTitleFonts()

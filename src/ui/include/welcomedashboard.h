@@ -34,8 +34,8 @@ class PluginHost;
 /// Dashboard widget shown in the main window when no log tabs are open.
 ///
 /// Displays the application logo, version info, quick-action buttons, cards
-/// for recent files, favorites and plugin status in one column, and keyboard
-/// shortcut hints.
+/// for recent files, favorites and plugin status in one column, keyboard
+/// shortcut hints, and a footer with links to the project at its bottom edge.
 /// Emits signals when the user clicks an item so MainWindow can open files.
 class WelcomeDashboard : public QWidget {
     Q_OBJECT
@@ -63,6 +63,12 @@ Q_SIGNALS:
     /// Emitted when the user clicks the "Load Session" button.
     void loadSessionRequested();
 
+    /// Emitted when the user clicks "Report an Issue" in the footer.
+    void reportIssueRequested();
+
+    /// Emitted when the user clicks "Documentation" in the footer.
+    void documentationRequested();
+
 protected:
     void dragEnterEvent( QDragEnterEvent* event ) override;
     void dropEvent( QDropEvent* event ) override;
@@ -85,11 +91,23 @@ private:
     /// Populate the plugin-status section.
     void refreshPluginStatus();
 
+    /// Write the footer's links in the Theme's secondary text color.
+    void updateFooterLinks();
+
+    /// Do what the footer's link to target stands for.
+    void activateFooterLink( const QString& target );
+
     QVBoxLayout* recentFilesLayout_ = nullptr;
     QVBoxLayout* favoritesLayout_ = nullptr;
     QVBoxLayout* pluginStatusLayout_ = nullptr;
     QLabel* logoLabel_ = nullptr;
     QList<QLabel*> titleLabels_;
+
+    /// The footer at the bottom edge, below the scrolled content: one line
+    /// per entry, the links line last. A line added above the links goes in
+    /// at index 0.
+    QVBoxLayout* footerLayout_ = nullptr;
+    QLabel* footerLinks_ = nullptr;
 
     const logsquirl::plugins::PluginCatalog* pluginCatalog_ = nullptr;
     const logsquirl::plugins::PluginHost* pluginHost_ = nullptr;

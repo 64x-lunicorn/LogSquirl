@@ -118,6 +118,11 @@ buttons *Open File* and *Load Session*, cards for your recent files, your
 favorites and the status of your plugins, and the hint that log files can be
 dropped on it to open them. Selecting a file in a card opens it.
 
+A quiet line at its bottom edge links to the project: *GitHub* opens
+LogSquirl's repository, *Report an Issue* does what `Help->Report Issue...`
+does, and *Documentation* shows this documentation, as
+`Help->Documentation...` does.
+
 ## Exploring log files
 
 Regular expressions are a powerful way to extract the information you
