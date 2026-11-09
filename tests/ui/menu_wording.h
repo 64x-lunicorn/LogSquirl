@@ -29,15 +29,26 @@
 #include <QString>
 #include <QStringList>
 
-#include "menuentryname.h"
-
 namespace menuwording {
 
-/// The text of the entry without its mnemonic marker, as the application
-/// reads it (#937).
+/// The text of the entry without its mnemonic marker: a '&' is dropped, but
+/// the second of two. The tests' own reading, written apart from the
+/// application's (menuentryname.h), so the wording tests catch a mistake in
+/// either; the entries checked here are English, with no mnemonic in
+/// parentheses after them.
 inline QString withoutMnemonic( const QString& text )
 {
-    return logsquirl::menuentry::withoutMnemonic( text );
+    QString result;
+    bool afterMarker = false;
+    for ( const auto character : text ) {
+        if ( character == u'&' && !afterMarker ) {
+            afterMarker = true;
+            continue;
+        }
+        afterMarker = false;
+        result.append( character );
+    }
+    return result;
 }
 
 /// Whether the title has a mnemonic: a '&' not doubled.
@@ -54,11 +65,15 @@ inline bool hasMnemonic( const QString& title )
     return false;
 }
 
-/// The name the entry gives its action: no mnemonic, no trailing dots, as
-/// the Command Palette and the Dashboard name it (#937).
+/// The name the entry gives its action: no mnemonic, no trailing dots. The
+/// Command Palette and the Dashboard must name it so too (#937).
 inline QString actionName( const QString& text )
 {
-    return logsquirl::menuentry::commandName( text );
+    auto name = withoutMnemonic( text );
+    if ( name.endsWith( QStringLiteral( "..." ) ) ) {
+        name.chop( 3 );
+    }
+    return name;
 }
 
 /// Whether the text is in title case: every word capitalized, but for the
