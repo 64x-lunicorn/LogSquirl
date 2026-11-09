@@ -24,6 +24,7 @@
 #include <QWidget>
 
 #include "logsquirl_version.h"
+#include "releasepages.h"
 #include "shortcuts.h"
 
 QStringList getKeyBindings( QKeySequence::StandardKey standardKey )
@@ -359,7 +360,9 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowWhatsNew,
             {
-                QApplication::tr( "What's New in %1" ).arg( logsquirlVersion() ),
+                //: %1 is the version, e.g. 26.12
+                QApplication::tr( "What's New in %1" )
+                    .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ),
                 QStringList{},
             },
         },

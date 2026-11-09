@@ -33,11 +33,19 @@ inline constexpr auto ReleasePagesPrefix = "https://github.com/64x-lunicorn/LogS
 // The page with every release, newest first.
 inline constexpr auto ReleasesOverviewUrl = "https://github.com/64x-lunicorn/LogSquirl/releases";
 
+// The project's website, the `site` of website/astro.config.mjs.
+inline constexpr auto WebsiteUrl = "https://logsquirl.lunicorn-lab.de";
+
+// The month a version belongs to, YY.MM: "26.12" for the build 26.12.0.1638
+// and for the release 26.12.0-beta2. A version without one is returned as it
+// is. Help > What's New is named with it (#932).
+QString versionMonth( const QString& version );
+
 // The page Help > What's New opens for a build running version (#932): the
-// release page of its tag, v<version>, when version is the name of a
-// release -- "26.10.0", "26.12.0-beta2", or the older "26.03.1-beta.2".
-// Any other version, a build YY.MM.PATCH.BUILD among them, names no tag, and
-// opens the overview of the releases.
+// website's release page of its month, news/release-YY-MM/, which is
+// deployed with that month's first release. A version without a month, and a
+// local build (build number 0), whose month may have no release yet, open the
+// overview of the releases on GitHub instead.
 QString releaseNotesUrl( const QString& version );
 
 } // namespace logsquirl::versioncheck

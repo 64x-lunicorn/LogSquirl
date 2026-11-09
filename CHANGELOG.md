@@ -4,9 +4,10 @@
 
 - **The Help menu opens LogSquirl on GitHub and the release notes**: after
   *Documentation...*, *LogSquirl on GitHub* opens the project's page, and
-  *What's New in*, followed by the running version, opens that version's
-  release notes, or the list of all releases for a build that is not a
-  release. Both can be
+  *What's New in*, followed by the month of the running version (for
+  example *What's New in 26.12...*), opens that month's release page on the
+  LogSquirl website; a build of your own opens the list of all releases on
+  GitHub. Both can be
   given keys in the Shortcuts list. (#932)
 
 ## Bug fixes

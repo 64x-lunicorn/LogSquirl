@@ -22,40 +22,63 @@
 #include "releasepages.h"
 
 using logsquirl::versioncheck::releaseNotesUrl;
+using logsquirl::versioncheck::versionMonth;
 
 namespace {
 
 const auto Overview = QStringLiteral( "https://github.com/64x-lunicorn/LogSquirl/releases" );
 
-QString tagPage( const QString& tag )
+QString monthPage( const QString& slug )
 {
-    return QStringLiteral( "https://github.com/64x-lunicorn/LogSquirl/releases/tag/" ) + tag;
+    return QStringLiteral( "https://logsquirl.lunicorn-lab.de/news/release-%1/" ).arg( slug );
 }
 
 } // namespace
 
-// Help > What's New opens the release notes of the running version (#932).
-TEST_CASE( "What's New opens the release page of a release and the overview otherwise",
-           "[releasepages]" )
+// Help > What's New opens the website's release page of the running version's
+// month (#932).
+TEST_CASE( "What's New opens the release page of the version's month", "[releasepages]" )
 {
-    SECTION( "a stable release opens the page of its tag" )
+    SECTION( "a CI build opens the page of its month" )
     {
-        CHECK( releaseNotesUrl( "26.10.0" ) == tagPage( "v26.10.0" ) );
+        CHECK( releaseNotesUrl( "26.12.0.1638" ) == monthPage( "26-12" ) );
+        CHECK( releaseNotesUrl( "26.10.0.1364" ) == monthPage( "26-10" ) );
+        CHECK( releaseNotesUrl( "26.10.1.1400" ) == monthPage( "26-10" ) );
     }
 
-    SECTION( "a beta opens the page of its tag" )
+    SECTION( "a release's name opens the page of its month" )
     {
-        CHECK( releaseNotesUrl( "26.12.0-beta2" ) == tagPage( "v26.12.0-beta2" ) );
-        CHECK( releaseNotesUrl( "26.03.1-beta.2" ) == tagPage( "v26.03.1-beta.2" ) );
-        CHECK( releaseNotesUrl( "27.01.0-rc1" ) == tagPage( "v27.01.0-rc1" ) );
+        CHECK( releaseNotesUrl( "26.10.0" ) == monthPage( "26-10" ) );
+        CHECK( releaseNotesUrl( "26.12.0-beta2" ) == monthPage( "26-12" ) );
+        CHECK( releaseNotesUrl( "26.03.1-beta.2" ) == monthPage( "26-03" ) );
+        CHECK( releaseNotesUrl( "27.01.0-rc1" ) == monthPage( "27-01" ) );
     }
 
-    SECTION( "a build without a tag of its own opens the overview" )
+    SECTION( "a one-digit month is written with two" )
+    {
+        CHECK( releaseNotesUrl( "26.7.0.741" ) == monthPage( "26-07" ) );
+    }
+
+    SECTION( "a local build, build number 0, opens the overview on GitHub" )
     {
         CHECK( releaseNotesUrl( "26.12.0.0" ) == Overview );
-        CHECK( releaseNotesUrl( "26.12.0.1638" ) == Overview );
+    }
+
+    SECTION( "a version without a month opens the overview on GitHub" )
+    {
         CHECK( releaseNotesUrl( "" ) == Overview );
+        CHECK( releaseNotesUrl( "dev" ) == Overview );
+        CHECK( releaseNotesUrl( "26.12" ) == Overview );
         CHECK( releaseNotesUrl( "26.12.0-dirty" ) == Overview );
         CHECK( releaseNotesUrl( "26.12.0-beta2/../../x" ) == Overview );
     }
+}
+
+TEST_CASE( "What's New is named with the version's month", "[releasepages]" )
+{
+    CHECK( versionMonth( "26.12.0.1638" ) == "26.12" );
+    CHECK( versionMonth( "26.12.0.0" ) == "26.12" );
+    CHECK( versionMonth( "26.12.0-beta2" ) == "26.12" );
+    CHECK( versionMonth( "26.7.0.741" ) == "26.07" );
+    CHECK( versionMonth( "dev" ) == "dev" );
 }

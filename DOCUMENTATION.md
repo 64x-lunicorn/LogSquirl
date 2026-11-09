@@ -1530,10 +1530,11 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   the favorite files, which open when chosen.
 - **Sources**: see [Plugins](#plugins).
 - **Help**: `Documentation...` (this guide), `LogSquirl on GitHub` (opens the
-  project's page on GitHub), `What's New in <version>...` (opens the release
-  notes of the running version on GitHub, or the list of all releases for a
-  build that is not a release), `Report Issue...` (opens a bug report on
-  GitHub), `Generate Crash Dump` (after a confirmation, shuts
+  project's page on GitHub), `What's New in <YY.MM>...`, named with the month
+  of the running version, for example `What's New in 26.12...` (opens that
+  month's release page on the LogSquirl website; a build of your own opens
+  the list of all releases on GitHub), `Report Issue...` (opens a bug report
+  on GitHub), `Generate Crash Dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
   [Crash reporting](#crash-reporting)), `About Qt` and `About`.
 

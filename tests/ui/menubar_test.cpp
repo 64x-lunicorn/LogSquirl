@@ -51,6 +51,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -1084,7 +1085,12 @@ SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's rel
         const ConfiguredShortcuts configured( ShortcutAction::ConfiguredShortcuts{} );
         const ShownWindow shown;
         const auto version = QString( logsquirlVersion() );
-        const auto whatsNew = QStringLiteral( "What's New in %1..." ).arg( version );
+        // Named with the month of the version, 26.12 for 26.12.0.1638.
+        const auto whatsNew = QStringLiteral( "What's New in %1..." )
+                                  .arg( logsquirl::versioncheck::versionMonth( version ) );
+        REQUIRE( QRegularExpression( R"(^What's New in [0-9]{2}\.[0-9]{2}\.\.\.$)" )
+                     .match( whatsNew )
+                     .hasMatch() );
 
         THEN( "Help lists LogSquirl on GitHub and What's New right after Documentation..." )
         {
@@ -1129,7 +1135,7 @@ SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's rel
             WebPageRecorder recorder;
             menuBarAction( *shown.window, whatsNew )->trigger();
 
-            THEN( "the release notes of the running version open" )
+            THEN( "the release page of the running version's month opens" )
             {
                 CHECK(
                     recorder.opened
@@ -1155,7 +1161,8 @@ SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's rel
                        == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+G" ) } );
                 CHECK( menuBarAction(
                            *shown.window,
-                           QStringLiteral( "What's New in %1..." ).arg( logsquirlVersion() ) )
+                           QStringLiteral( "What's New in %1..." )
+                               .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ) )
                            ->shortcuts()
                        == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+W" ) } );
             }
