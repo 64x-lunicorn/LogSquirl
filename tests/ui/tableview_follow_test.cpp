@@ -247,6 +247,14 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
 
         WHEN( "Page Up is pressed" )
         {
+            // The current Row in the middle of the page: from the last Row,
+            // Page Up may only move it to the top of the page, scrolling
+            // nothing, when the page leaves a gap below that Row.
+            const auto middleRow = table->rowAt( table->viewport()->height() / 2 );
+            REQUIRE( middleRow >= 0 );
+            table->selectionModel()->setCurrentIndex( table->model()->index( middleRow, 0 ),
+                                                      QItemSelectionModel::NoUpdate );
+            REQUIRE( isAtBottom( *table ) );
             table->setFocus();
             QTest::keyClick( table, Qt::Key_PageUp );
 
