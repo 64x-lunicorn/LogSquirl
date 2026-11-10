@@ -35,6 +35,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/highlightersdialog_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highlightthis_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/addpredefinedfilter_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_collections_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/chartthisvalue_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/grouplist_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/dialog_queued_work_test.cpp
@@ -55,6 +56,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_tabs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_load_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/menubar_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_actions_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp

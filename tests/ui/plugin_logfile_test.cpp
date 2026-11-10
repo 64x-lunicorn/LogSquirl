@@ -30,6 +30,7 @@
 #include "logsquirl_plugin_api.h"
 #include "mainwindow.h"
 #include "modal_answers.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "session.h"
 #include "shown_widget.h"
@@ -60,42 +61,31 @@
 #include <utility>
 #include <vector>
 
-struct PluginLogFileTest {};
-
-template <>
-struct CrawlerWidget::access_by<PluginLogFileTest> {
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
-
-    // The path the tab's Log File was opened under: a temporary file for one
-    // decompressed from an archive.
-    static QString pathOf( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->fileName();
-    }
-
-    // The Log Lines first up to last, numbered as the views number them, as
-    // the views read them, joined as get_log_lines joins them.
-    static QString textOf( const CrawlerWidget& crawler, int first, int last )
-    {
-        QStringList lines;
-        for ( int number = first; number <= last; ++number ) {
-            lines.append( crawler.openLogFile_->logData()->getLineString(
-                LineNumber( static_cast<LineNumber::UnderlyingType>( number - 1 ) ) ) );
-        }
-        return lines.join( '\n' );
-    }
-};
-
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 
 namespace {
 
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogFileTest>;
+// The path the Log File of the tab, open in session, was opened under: a
+// temporary file for one decompressed from an archive.
+QString pathOf( const Session& session, const CrawlerWidget& crawler )
+{
+    return openLogFileOf( session, crawler ).fileName();
+}
+
+// The Log Lines first up to last of the tab's Log File, numbered as the views
+// number them, as the views read them, joined as get_log_lines joins them.
+QString textOf( const Session& session, const CrawlerWidget& crawler, int first, int last )
+{
+    const auto& logData = openLogFileOf( session, crawler ).logData();
+    QStringList lines;
+    for ( int number = first; number <= last; ++number ) {
+        lines.append( logData->getLineString(
+            LineNumber( static_cast<LineNumber::UnderlyingType>( number - 1 ) ) ) );
+    }
+    return lines.join( '\n' );
+}
 
 const auto PluginId = QStringLiteral( "io.github.logsquirl.test.log-file-plugin" );
 
@@ -303,7 +293,7 @@ struct LogFileWindow {
                 crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
                 return crawler != nullptr
                        && crawler->state().loadStatus == LoadingStatus::Successful
-                       && CrawlerAccess::lineCount( *crawler ) == lines;
+                       && crawler->state().lineCount == lines;
             },
             10'000 ) );
         // The Encoding is settled, and the plugin told, once the tab heard
@@ -391,17 +381,17 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
                 const auto first = plugin.read( path, 1, 3 );
                 REQUIRE( first.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( first.lineCount == 3 );
-                REQUIRE( first.text == CrawlerAccess::textOf( crawler, 1, 3 ) );
+                REQUIRE( first.text == textOf( *window.session, crawler, 1, 3 ) );
                 REQUIRE( first.text.startsWith( QStringLiteral( "line number 1 ä\n" ) ) );
 
                 const auto middle = plugin.read( path, 1500, 4 );
                 REQUIRE( middle.result == LOGSQUIRL_LOG_LINES_OK );
-                REQUIRE( middle.text == CrawlerAccess::textOf( crawler, 1500, 1503 ) );
+                REQUIRE( middle.text == textOf( *window.session, crawler, 1500, 1503 ) );
 
                 const auto last = plugin.read( path, 2999, 10 );
                 REQUIRE( last.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( last.lineCount == 2 );
-                REQUIRE( last.text == CrawlerAccess::textOf( crawler, 2999, 3000 ) );
+                REQUIRE( last.text == textOf( *window.session, crawler, 2999, 3000 ) );
 
                 const auto pastEnd = plugin.read( path, 3001, 1 );
                 REQUIRE( pastEnd.result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
@@ -413,7 +403,7 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
                 const auto many = plugin.read( path, 1, 5000 );
                 REQUIRE( many.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
                 REQUIRE( many.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
-                REQUIRE( many.text == CrawlerAccess::textOf( crawler, 1, 1000 ) );
+                REQUIRE( many.text == textOf( *window.session, crawler, 1, 1000 ) );
             }
 
             WHEN( "the plugin reads on a thread of its own while the UI thread is busy" )
@@ -431,7 +421,7 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
                     REQUIRE( counted
                              == std::pair<int, uint64_t>{ LOGSQUIRL_LOG_LINES_OK, LogLineCount } );
                     REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
-                    REQUIRE( read.text == CrawlerAccess::textOf( crawler, 2000, 2001 ) );
+                    REQUIRE( read.text == textOf( *window.session, crawler, 2000, 2001 ) );
                 }
             }
 
@@ -483,7 +473,7 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
                 const auto read = plugin.read( path, 1, 10 );
                 REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( read.text == QStringLiteral( "first line ä\nVIN: X" ) );
-                REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 2 ) );
+                REQUIRE( read.text == textOf( *window.session, crawler, 1, 2 ) );
             }
         }
 
@@ -499,7 +489,7 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
             modals.click( QMessageBox::Yes ).answerWith( answerProgress() );
             window.window->loadFileNonInteractive( archivePath );
             auto& crawler = window.loadedInFront( 5_lcount );
-            const auto path = CrawlerAccess::pathOf( crawler );
+            const auto path = pathOf( *window.session, crawler );
 
             THEN( "the plugin reads the decompressed text by the path of the tab's Log File, and "
                   "nothing by the archive's" )
@@ -508,7 +498,7 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
                 const auto read = plugin.read( path, 1, 10 );
                 REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( read.text == QString::fromUtf8( numberedLogLines( 1, 5 ) ).chopped( 1 ) );
-                REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 5 ) );
+                REQUIRE( read.text == textOf( *window.session, crawler, 1, 5 ) );
                 REQUIRE( plugin.read( archivePath, 1, 10 ).result
                          == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
             }
@@ -602,7 +592,7 @@ SCENARIO( "A plugin hears when the Log Lines of an open Log File change",
                 const auto read = plugin.read( path, 1, 1 );
                 REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( read.text == QStringLiteral( "line number 1 Ã¤" ) );
-                REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 1 ) );
+                REQUIRE( read.text == textOf( *window.session, crawler, 1, 1 ) );
             }
         }
     }
@@ -639,7 +629,7 @@ SCENARIO( "A plugin hears when an open Log File reads under another Decoding Pol
                 const auto read = plugin.read( path, 1, 1 );
                 REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( read.text == QStringLiteral( "ERROR: disk full" ) );
-                REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 1 ) );
+                REQUIRE( read.text == textOf( *window.session, crawler, 1, 1 ) );
             }
         }
     }

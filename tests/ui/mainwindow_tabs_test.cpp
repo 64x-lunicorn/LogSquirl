@@ -90,20 +90,6 @@
 #include "command_process_probe.h"
 #endif
 
-// What the merge scenario reads from a Crawler Widget beyond its public face:
-// how many Log Lines its Log File holds.
-struct MainWindowTabsAccess {};
-
-template <>
-struct CrawlerWidget::access_by<MainWindowTabsAccess> {
-    CrawlerWidget& crawler;
-
-    LinesCount nbLines() const
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
-};
-
 namespace {
 
 constexpr int UiTimeoutMs = 10'000;
@@ -794,10 +780,7 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
                     const auto path = QDir::fromNativeSeparators( window.tabArea->tabToolTip( i ) );
                     auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( i ) );
                     if ( crawler != nullptr && path.contains( "logsquirl_merged_" )
-                         && CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }
-                                    .nbLines()
-                                    .get()
-                                == 4 ) {
+                         && crawler->state().lineCount.get() == 4 ) {
                         merged = crawler;
                         mergedPath = path;
                         return true;
@@ -821,14 +804,8 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
 
             THEN( "the merged tab is rebuilt with it" )
             {
-                REQUIRE( waitUiState(
-                    [ & ] {
-                        return CrawlerWidget::access_by<MainWindowTabsAccess>{ *merged }
-                                   .nbLines()
-                                   .get()
-                               == 5;
-                    },
-                    UiTimeoutMs ) );
+                REQUIRE( waitUiState( [ & ] { return merged->state().lineCount.get() == 5; },
+                                      UiTimeoutMs ) );
             }
         }
 
@@ -1369,9 +1346,9 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
                 UiTimeoutMs ) );
             const auto index = window.tabArea->indexOf( crawler );
             REQUIRE( window.tabArea->holdsTransientLogFile( index ) );
-            REQUIRE( waitUiState( [ & ] { return !crawler->isFollowEnabled(); }, UiTimeoutMs ) );
+            REQUIRE( waitUiState( [ & ] { return !crawler->state().follows; }, UiTimeoutMs ) );
             crawler->followSet( true );
-            REQUIRE_FALSE( crawler->isFollowEnabled() );
+            REQUIRE_FALSE( crawler->state().follows );
 
             const auto toolTip = window.tabArea->tabToolTip( index );
             REQUIRE( toolTip.startsWith( commandLine + "\n" ) );
@@ -1384,15 +1361,8 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
                      == "\"" + commandLine + "\" ended with exit code 4" );
 
             const auto linesLoaded = waitUiState(
-                [ & ] {
-                    return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }
-                               .nbLines()
-                               .get()
-                           == 2;
-                },
-                UiTimeoutMs );
-            INFO( "lines: "
-                  << CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() );
+                [ & ] { return crawler->state().lineCount.get() == 2; }, UiTimeoutMs );
+            INFO( "lines: " << crawler->state().lineCount.get() );
             REQUIRE( linesLoaded );
         }
     }
@@ -1597,11 +1567,7 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
 
     auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tabs[ 0 ] ) );
     REQUIRE( crawler != nullptr );
-    REQUIRE( waitUiState(
-        [ & ] {
-            return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() == 5;
-        },
-        UiTimeoutMs ) );
+    REQUIRE( waitUiState( [ & ] { return crawler->state().lineCount.get() == 5; }, UiTimeoutMs ) );
 
     WHEN( "a stdin tab is closed" )
     {
@@ -1671,7 +1637,8 @@ SCENARIO( "A command's tab is read in the Encoding its output decided", "[ui][ta
 
         THEN( "its tab reads it in IBM850 once the output held more than ASCII" )
         {
-            REQUIRE( waitUiState( [ & ] { return crawler->encodingMib() == 2009; }, UiTimeoutMs ) );
+            REQUIRE( waitUiState( [ & ] { return crawler->state().encodingMib == 2009; },
+                                  UiTimeoutMs ) );
             REQUIRE( crawler->encodingText() == "Displayed as IBM850" );
 
             AND_THEN( "the user can still read it in another Encoding" )
@@ -1684,7 +1651,7 @@ SCENARIO( "A command's tab is read in the Encoding its output decided", "[ui][ta
                                >= 0;
                     },
                     UiTimeoutMs ) );
-                REQUIRE_FALSE( crawler->encodingMib().has_value() );
+                REQUIRE_FALSE( crawler->state().encodingMib.has_value() );
             }
         }
     }
@@ -1761,8 +1728,8 @@ SCENARIO( "Show Value Names is switched per tab", "[ui][tabs][valuenames]" )
 
             THEN( "the first tab shows Value Names and the second does not" )
             {
-                REQUIRE( crawlerAt( 0 )->isValueNamesShownSet() );
-                REQUIRE_FALSE( crawlerAt( 1 )->isValueNamesShownSet() );
+                REQUIRE( crawlerAt( 0 )->state().valueNamesShown );
+                REQUIRE_FALSE( crawlerAt( 1 )->state().valueNamesShown );
             }
 
             AND_WHEN( "the second tab comes to the front, and then the first again" )
@@ -1775,8 +1742,8 @@ SCENARIO( "Show Value Names is switched per tab", "[ui][tabs][valuenames]" )
                 {
                     REQUIRE_FALSE( checkedForSecond );
                     REQUIRE( showValueNames->isChecked() );
-                    REQUIRE( crawlerAt( 0 )->isValueNamesShownSet() );
-                    REQUIRE_FALSE( crawlerAt( 1 )->isValueNamesShownSet() );
+                    REQUIRE( crawlerAt( 0 )->state().valueNamesShown );
+                    REQUIRE_FALSE( crawlerAt( 1 )->state().valueNamesShown );
                 }
             }
         }

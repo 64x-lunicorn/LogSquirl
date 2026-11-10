@@ -26,6 +26,7 @@
 // through a File Watch Port the test drives.
 
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "logformatcatalog.h"
@@ -56,24 +57,17 @@
 #include <thread>
 #include <vector>
 
-struct PluginLogFieldsTest {};
+using logsquirl::plugins::ApplicationPlugins;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
 
-template <>
-struct CrawlerWidget::access_by<PluginLogFieldsTest> {
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
+namespace {
 
-    // The name of the Log Format the Table View shows, empty for none.
-    static QString logFormatName( const CrawlerWidget& crawler )
-    {
-        return crawler.recognizedFormat_ ? crawler.recognizedFormat_->name() : QString{};
-    }
-
+// What the Table View of a tab shows.
+struct CrawlerAccess {
     static const LogFormatTableModel* tableModel( const CrawlerWidget& crawler )
     {
-        return qobject_cast<const LogFormatTableModel*>( crawler.logTableView_->model() );
+        return qobject_cast<const LogFormatTableModel*>( tableViewOf( crawler ).model() );
     }
 
     // The headers of the Table View's columns, but the elapsed time's.
@@ -111,14 +105,6 @@ struct CrawlerWidget::access_by<PluginLogFieldsTest> {
         return shown;
     }
 };
-
-using logsquirl::plugins::ApplicationPlugins;
-using logsquirl::plugins::PluginCatalog;
-using logsquirl::plugins::PluginHost;
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogFieldsTest>;
 
 const auto PluginId = QStringLiteral( "io.github.logsquirl.test.log-file-plugin" );
 
@@ -391,7 +377,7 @@ struct LogFieldsWindow {
                 crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
                 return crawler != nullptr
                        && crawler->state().loadStatus == LoadingStatus::Successful
-                       && CrawlerAccess::lineCount( *crawler ) == lines;
+                       && crawler->state().lineCount == lines;
             },
             10'000 ) );
         // The Log Format is recognized, and the plugin told, once the tab
@@ -446,8 +432,7 @@ SCENARIO( "A plugin reads the fields of Log Lines as the Table View shows them",
                                   "\xc3\xa9t\xc3\xa9\n"
                                   "FIELDS 000005 DEBUG [main] \n" );
             auto& crawler = window.open( path, 5_lcount );
-            REQUIRE( CrawlerAccess::logFormatName( crawler )
-                     == QStringLiteral( "fields_test_log" ) );
+            REQUIRE( crawler.state().logFormatName == QStringLiteral( "fields_test_log" ) );
             const auto shown = CrawlerAccess::rows( crawler );
             REQUIRE( shown.size() == 5 );
 
@@ -500,8 +485,7 @@ SCENARIO( "A plugin reads the fields of Log Lines as the Table View shows them",
                 R"({"ts":"2026-10-26T10:00:03Z","level":"ERROR","src":{"file":"b.c"},"msg":"x"})"
                 "\n" );
             auto& crawler = window.open( path, 4_lcount );
-            REQUIRE( CrawlerAccess::logFormatName( crawler )
-                     == QStringLiteral( "fields_json_log" ) );
+            REQUIRE( crawler.state().logFormatName == QStringLiteral( "fields_json_log" ) );
             const auto shown = CrawlerAccess::rows( crawler );
             REQUIRE( shown.size() == 4 );
 
@@ -531,7 +515,7 @@ SCENARIO( "A plugin reads the fields of Log Lines as the Table View shows them",
             const auto path = window.logFile( QStringLiteral( "plain.log" ),
                                               "just some text\nand more of it\n" );
             auto& crawler = window.open( path, 2_lcount );
-            REQUIRE( CrawlerAccess::logFormatName( crawler ).isEmpty() );
+            REQUIRE( crawler.state().logFormatName.isEmpty() );
 
             THEN( "the plugin is told there is no Log Format" )
             {
@@ -554,7 +538,7 @@ SCENARIO( "A plugin hears when another Log Format applies to an open Log File",
             = window.logFile( QStringLiteral( "growing.log" ), "starting up\nstill starting\n" );
         auto& crawler = window.open( path, 2_lcount );
         REQUIRE( waitUiState( [ & ] { return window.fileWatch->isWatched( path ); } ) );
-        REQUIRE( CrawlerAccess::logFormatName( crawler ).isEmpty() );
+        REQUIRE( crawler.state().logFormatName.isEmpty() );
         REQUIRE( plugin.format( path ).result == LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT );
         crawler.followSet( true );
         const auto toldBefore = plugin.changes().size();
@@ -563,8 +547,7 @@ SCENARIO( "A plugin hears when another Log Format applies to an open Log File",
         {
             REQUIRE( window.fileWatch->grow( path, regexLogLines( 3, 10 ) ) );
             REQUIRE( waitUiState(
-                [ & ] { return CrawlerAccess::logFormatName( crawler ) == "fields_test_log"; },
-                10'000 ) );
+                [ & ] { return crawler.state().logFormatName == "fields_test_log"; }, 10'000 ) );
 
             THEN( "the plugin is told the Log Lines were replaced, not appended, and reads "
                   "their fields" )

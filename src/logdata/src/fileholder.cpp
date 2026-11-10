@@ -9,6 +9,7 @@
 #endif
 
 #include "log.h"
+#include "sparselineread.h"
 #include <QtCore/QFileInfo>
 
 namespace {
@@ -158,6 +159,24 @@ void FileHolder::reOpenFile()
 QFile* FileHolder::getFile()
 {
     return attached_file_.get();
+}
+
+void FileHolder::beginRead()
+{
+    lock();
+    attachReader();
+}
+
+void FileHolder::endRead()
+{
+    unlock();
+    detachReader();
+}
+
+qint64 FileHolder::readAt( qint64 offset, char* out, qint64 size )
+{
+    auto* file = getFile();
+    return file ? readBytesAt( *file, offset, out, size ) : qint64{ -1 };
 }
 
 FileId FileId::getFileId( const QString& filename )

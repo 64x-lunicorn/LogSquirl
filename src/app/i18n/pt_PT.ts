@@ -980,12 +980,12 @@ Padrão: %2</translation>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="819"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="795"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="820"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="796"/>
         <source>Search history:</source>
         <translation>Histórico de pesquisa:</translation>
     </message>
@@ -1005,27 +1005,27 @@ Padrão: %2</translation>
         <translation> %1 correspondência encontrada até agora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1467"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Marks and matches</source>
         <translation>Marcações e correspondências</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1473"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marcações, correspondências + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1478"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1458"/>
         <source>Matches + breadcrumbs</source>
         <translation>Correspondências + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1483"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1463"/>
         <source>Marks</source>
         <translation>Marcações</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1487"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1467"/>
         <source>Matches</source>
         <translation>Correspondências</translation>
     </message>
@@ -1069,32 +1069,32 @@ Padrão: %2</translation>
         <translation>Padrão de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1529"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1510"/>
         <source>Clear search history</source>
         <translation>Limpar histórico de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1530"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1511"/>
         <source>Edit search history</source>
         <translation>Editar histórico de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1531"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1512"/>
         <source>Save as Filter</source>
         <translation>Guardar como filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1532"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1513"/>
         <source>Open in Regex Lab...</source>
         <translation>Abrir no Laboratório de regex...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1534"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1515"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Experimentar o padrão e as suas opções em linhas do registo no Laboratório de regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1540"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1521"/>
         <source>Count values of capture group</source>
         <translation>Contar valores do grupo de captura</translation>
     </message>
@@ -1119,37 +1119,37 @@ Padrão: %2</translation>
         <translation>Manter estes resultados e mostrar os resultados seguintes numa nova janela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1555"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1536"/>
         <source>Toggle table/text view</source>
         <translation>Alternar vista de tabela/texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1556"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1537"/>
         <source>Toggle table view</source>
         <translation>Alternar vista de tabela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1978"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1963"/>
         <source>Group %1</source>
         <translation>Grupo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1979"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1964"/>
         <source>Group %1 (%2)</source>
         <translation>Grupo %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2007"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1992"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>grupo %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2020"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2005"/>
         <source>Value</source>
         <translation>Valor</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2421"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2406"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Alternar vista de tabela/texto (%1)</translation>
     </message>
@@ -1189,12 +1189,12 @@ Padrão: %2</translation>
         <translation>Ficheiro truncado no disco</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2293"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2278"/>
         <source>Displayed as %1</source>
         <translation>Apresentado como %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2293"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2278"/>
         <source>Detected as %1</source>
         <translation>Detetado como %1</translation>
     </message>
@@ -2116,17 +2116,17 @@ Pretende substituí-lo?</translation>
 <context>
     <name>HighlightersMenu</name>
     <message>
-        <location filename="../../ui/src/highlightersmenu.cpp" line="49"/>
+        <location filename="../../ui/src/highlightersmenu.cpp" line="57"/>
         <source>None</source>
         <translation>Nenhum</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersmenu.cpp" line="67"/>
+        <location filename="../../ui/src/highlightersmenu.cpp" line="75"/>
         <source>Plugins</source>
         <translation>Plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersmenu.cpp" line="80"/>
+        <location filename="../../ui/src/highlightersmenu.cpp" line="88"/>
         <source>Team</source>
         <translation>Equipa</translation>
     </message>
@@ -2244,60 +2244,60 @@ Pretende substituí-lo?</translation>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2016"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1841"/>
         <source>Open URL as log file</source>
         <translation>Abrir URL como ficheiro de log</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1706"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1531"/>
         <source>Open window</source>
         <translation>Abrir janela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1707"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1532"/>
         <source>Quit</source>
         <translation>Sair</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1768"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1593"/>
         <source>Open file</source>
         <translation>Abrir ficheiro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1763"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3618"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1588"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3303"/>
         <source>All files (*)</source>
         <translation>Todos os ficheiros (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="231"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="248"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="232"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="249"/>
         <source>Sidebar</source>
         <translation>Barra lateral</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="236"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="237"/>
         <source>Filters</source>
         <translation>Filtros</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="237"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="238"/>
         <source>Scratchpad</source>
         <translation>Rascunho</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="261"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="262"/>
         <source>Float</source>
         <translation>Flutuar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="269"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="270"/>
         <source>Close</source>
         <translation>Fechar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="385"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3263"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3003"/>
         <source>Dashboard</source>
         <translation>Painel inicial</translation>
     </message>
@@ -2330,7 +2330,7 @@ Pretende substituí-lo?</translation>
         <translation>stdin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="238"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="239"/>
         <source>Value Names</source>
         <translation>Nomes de valores</translation>
     </message>
@@ -2354,259 +2354,259 @@ Pasta de trabalho: %2
         <translation>Entrada padrão fechada</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1616"/>
         <source>Downloading %1</source>
         <translation>A transferir %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1812"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1637"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1642"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl - Transferência de ficheiro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1818"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1643"/>
         <source>Failed to create temp file</source>
         <translation>Falha ao criar ficheiro temporário</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1843"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1668"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - remover dos recentes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1844"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1669"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>Não foi possível ler o ficheiro %1. Removê-lo dos ficheiros recentes?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1865"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1690"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - remover dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1866"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1691"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>Não foi possível ler o ficheiro %1. Removê-lo dos favoritos?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1957"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1782"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - limpar ficheiro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1958"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1783"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>Limpar o ficheiro %1? O conteúdo do ficheiro será removido do disco; esta ação é irreversível</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2016"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1841"/>
         <source>URL to download:</source>
         <translation>URL para transferir:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2398"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2220"/>
         <source>Team group changed</source>
         <translation>Grupo de equipa alterado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2399"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2221"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Outra pessoa alterou o grupo de equipa &quot;%1&quot; desde que começou a editá-lo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2406"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2228"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>Manter a sua versão e substituir a dela, ficar com a dela e descartar a sua alteração, ou guardar a sua como cópia ao lado da dela?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2408"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2230"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Alguém o eliminou. Manter a sua versão para o publicar novamente, ou aceitar a eliminação e descartar a sua alteração?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2410"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2232"/>
         <source>Keep mine</source>
         <translation>Manter a minha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2411"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2233"/>
         <source>Take theirs</source>
         <translation>Ficar com a dela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2412"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2234"/>
         <source>Save mine as a copy</source>
         <translation>Guardar a minha como cópia</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2497"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2263"/>
         <source>Click to sync now.</source>
         <translation>Clique para sincronizar agora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2291"/>
         <source>Start %1 data source</source>
         <translation>Iniciar a fonte de dados %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2533"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2299"/>
         <source>(no data source plugins)</source>
         <translation>(sem plugins de fonte de dados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2576"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2342"/>
         <source>Plugin Error</source>
         <translation>Erro de plugin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2577"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2343"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>Falha ao carregar o plugin:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2589"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2355"/>
         <source>DataSource Error</source>
         <translation>Erro da fonte de dados</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2604"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2370"/>
         <source>DataSource: %1
 %2</source>
         <translation>Fonte de dados: %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2611"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2377"/>
         <source>About LogSquirl</source>
         <translation>Acerca do LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2612"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2378"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;Um explorador de logs rápido e avançado.&lt;/p&gt;&lt;p&gt;Compilado em %2 a partir de %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este é um fork do &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; por Anton Filimonov, que é um fork do &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; por Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;A utilizar ícones do projeto &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov e outros colaboradores&lt;/p&gt;&lt;p&gt;Pode modificar e redistribuir o programa nos termos da GPL (versão 3 ou posterior).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2631"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2397"/>
         <source>About Qt</source>
         <translation>Acerca do Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2644"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2410"/>
         <source>logsquirl documentation</source>
         <translation>Documentação do logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2694"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2460"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Cache de índices limpa (%1 MB libertados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2763"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2529"/>
         <source>Merged (dedup)</source>
         <translation>Combinado (sem duplicados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2763"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2529"/>
         <source>Merged</source>
         <translation>Combinado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2801"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2567"/>
         <source>Import Chipmunk filters</source>
         <translation>Importar filtros do Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2802"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2568"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Filtros do Chipmunk (*.json);;Todos os ficheiros (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2810"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2576"/>
         <source>Import error</source>
         <translation>Erro de importação</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2811"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2577"/>
         <source>Could not open file: %1</source>
         <translation>Não foi possível abrir o ficheiro: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2819"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2831"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2863"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2585"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2597"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2631"/>
         <source>Import result</source>
         <translation>Resultado da importação</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2820"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2586"/>
         <source>No filters found in the selected file.</source>
         <translation>Não foram encontrados filtros no ficheiro selecionado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2832"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2598"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>Já existe um grupo de filtros chamado &apos;%1&apos;. A importação de filtros será ignorada.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2864"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2632"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>Importados %1 filtro(s) e %2 conjunto(s) de destacadores.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2951"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2715"/>
         <source>Ln:%1/%2</source>
         <translation>Ln:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2956"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2720"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Col:%3 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2965"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2729"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3005"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2769"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - A indexar linhas... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3058"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2814"/>
         <source>Not enough memory.</source>
         <translation>Memória insuficiente.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3060"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2816"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>O sistema não tem memória suficiente para manter o índice deste ficheiro. O ficheiro será fechado agora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3144"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2888"/>
         <source>Close Tab</source>
         <translation>Fechar separador</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3145"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2889"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>Fechar o separador &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3154"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2898"/>
         <source>Don&apos;t ask again</source>
         <translation>Não voltar a perguntar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3148"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2892"/>
         <source>Close Tabs</source>
         <translation>Fechar separadores</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="3149"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2893"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>Fechar %n separador?</numerusform>
@@ -2614,135 +2614,135 @@ Pasta de trabalho: %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3533"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3599"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3645"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3934"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4158"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3218"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3284"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3330"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3650"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3874"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3534"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3219"/>
         <source>Extract archive to temp folder?</source>
         <translation>Extrair arquivo comprimido para pasta temporária?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="638"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3568"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3253"/>
         <source>Extracting %1</source>
         <translation>A extrair %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3558"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3243"/>
         <source>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</source>
         <translation>%1 expande-se para além dos %2 MB que o LogSquirl descomprime no máximo, por isso não foi aberto. Aumente o limite na página Ficheiro das Preferências, em Arquivos comprimidos.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3600"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3285"/>
         <source>Failed to decompress %1</source>
         <translation>Falha ao descomprimir %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3617"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3302"/>
         <source>Open file from archive</source>
         <translation>Abrir ficheiro do arquivo comprimido</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3646"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3331"/>
         <source>Failed to extract %1</source>
         <translation>Falha ao extrair %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3935"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3651"/>
         <source>Failed to convert %1 with %2</source>
         <translation>Falha ao converter %1 com %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3971"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3687"/>
         <source>Converting %1 with %2</source>
         <translation>A converter %1 com %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4148"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3864"/>
         <source>Untitled</source>
         <translation>Sem título</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4158"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3874"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4159"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3875"/>
         <source> (build </source>
         <translation> (versão </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4185"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3901"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4283"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3956"/>
         <source>modified on %1</source>
         <translation>modificado em %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4409"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4082"/>
         <source>Remove from favorites</source>
         <translation>Remover dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4410"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4083"/>
         <source>Select item to remove from favorites</source>
         <translation>Selecione o item a remover dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4455"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4128"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- alternar para ficheiro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4571"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4595"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4244"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4268"/>
         <source>Save Session As</source>
         <translation>Guardar sessão como</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4572"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4607"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4245"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4280"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>Sessões do LogSquirl (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4596"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4269"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>Não foi possível guardar a sessão em %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4606"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4616"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4669"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4279"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4289"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4342"/>
         <source>Open Session</source>
         <translation>Abrir sessão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4622"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4295"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>Não foi possível ler o ficheiro de sessão %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4643"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4316"/>
         <source>The session holds no log files.</source>
         <translation>A sessão não contém ficheiros de registo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4644"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4317"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2751,7 +2751,7 @@ Pasta de trabalho: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4670"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4343"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2760,12 +2760,12 @@ Pasta de trabalho: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4735"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4408"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - gerar relatório de falha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4736"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4409"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>Isto irá encerrar o logsquirl e gerar um relatório de diagnóstico de falha. Continuar?</translation>
     </message>

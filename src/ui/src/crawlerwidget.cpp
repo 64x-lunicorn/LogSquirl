@@ -294,16 +294,6 @@ void CrawlerWidget::selectAll()
         logTableView_->selectAll();
 }
 
-std::optional<int> CrawlerWidget::encodingMib() const
-{
-    return openLogFile_->chosenEncoding();
-}
-
-bool CrawlerWidget::isFollowEnabled() const
-{
-    return viewSet_.follows();
-}
-
 void CrawlerWidget::followSet( bool follow )
 {
     const bool before = viewSet_.follows();
@@ -325,16 +315,6 @@ void CrawlerWidget::endFollowing()
         },
         Qt::SingleShotConnection );
     openLogFile_->stopWatching();
-}
-
-bool CrawlerWidget::isTextWrapEnabled() const
-{
-    return logMainView_->isTextWrapEnabled();
-}
-
-bool CrawlerWidget::isValueNamesShownSet() const
-{
-    return logMainView_->isValueNamesShownSet();
 }
 
 QString CrawlerWidget::getSelectedTextAsShown() const
@@ -390,15 +370,21 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.loadStatus = lastLoadStatus_;
     state.loadFailure = lastLoadFailure_;
     state.loadingProgress = loadingProgress_;
+    state.hasLoaded = hasLoaded_;
+    state.lineCount = openLogFile_->logData()->getNbLine();
+    state.logFormatName = recognizedFormat_ != nullptr ? recognizedFormat_->name() : QString{};
     state.selectedLine = currentLineNumber_;
-    state.follows = isFollowEnabled();
-    state.textWrap = isTextWrapEnabled();
-    state.valueNamesShown = isValueNamesShownSet();
+    state.follows = viewSet_.follows();
+    state.textWrap = logMainView_->isTextWrapEnabled();
+    state.valueNamesShown = logMainView_->isValueNamesShownSet();
     state.hasTableView = recognizedFormat_ != nullptr;
     state.matchesOnly = logTableView_->matchesOnly();
-    state.encodingMib = encodingMib();
-    state.goToTimestampUnavailable = goToTimestampUnavailableReason();
-    state.searchLimitsByTimeUnavailable = searchLimitsByTimeUnavailableReason();
+    state.encodingMib = openLogFile_->chosenEncoding();
+    state.goToTimestampUnavailable = timeNavigation_.goToTimestampUnavailableReason();
+    state.searchLimitsByTimeUnavailable = timeNavigation_.searchLimitsByTimeUnavailableReason();
+    state.lookingUpTime = timeNavigation_.isLookingUp();
+    state.filteredViewCount = tabbedFilteredView_->count();
+    state.frontFilteredView = tabbedFilteredView_->currentIndex();
     state.quickFindSearchable = doGetActiveSearchable();
     return state;
 }
@@ -482,16 +468,6 @@ bool CrawlerWidget::goToLogLine( LineNumber line )
     currentFilteredView()->trySelectLine( line );
     presentation_->showLogLine( line );
     return true;
-}
-
-QString CrawlerWidget::goToTimestampUnavailableReason() const
-{
-    return timeNavigation_.goToTimestampUnavailableReason();
-}
-
-QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
-{
-    return timeNavigation_.searchLimitsByTimeUnavailableReason();
 }
 
 void CrawlerWidget::exportAsCsv()
@@ -733,7 +709,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     state.sizes = sizes();
     state.ignoreCase = !flags.matchCase;
     state.autoRefresh = flags.autoRefresh;
-    state.followFile = isFollowEnabled();
+    state.followFile = viewSet_.follows();
     state.useRegexp = flags.useRegexp;
     state.inverseRegexp = flags.inverse;
     state.useBooleanCombination = flags.booleanCombination;
@@ -951,7 +927,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     // Limits, so a limits change while a search was in flight doesn't
     // apply a stale range to the just-finished (different-range) result.
     if ( isComplete && !state.isContinuation && state.startLine == openLogFile_->searchStartLine()
-         && !isFollowEnabled() ) {
+         && !viewSet_.follows() ) {
         LOG_DEBUG << "updateFilteredView: restoring selection: "
                   << " absolute line number (0based) " << currentLineNumber_;
         currentFilteredView()->selectAndDisplayLine( currentLineNumber_ );
@@ -1071,7 +1047,7 @@ void CrawlerWidget::broughtToFront()
 
     // The new data a followed Log File had while in the background has now
     // been seen.
-    if ( isFollowEnabled() ) {
+    if ( viewSet_.follows() ) {
         changeDataStatus( DataStatus::OLD_DATA );
     }
 }
@@ -1115,6 +1091,9 @@ void CrawlerWidget::reportChange( Changed change )
         break;
     case Changed::ValueNames:
         viewSet_.applyValueNamesChange();
+        break;
+    case Changed::PredefinedFilters:
+        // No Log File shows them.
         break;
     }
 }
@@ -1200,7 +1179,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     if ( load.status == LoadingStatus::Successful ) {
         hasLoaded_ = true;
         if ( const auto restored = std::exchange( scrollPositionToRestore_, {} );
-             restored.has_value() && !isFollowEnabled() ) {
+             restored.has_value() && !viewSet_.follows() ) {
             logMainView_->showAtTop( *restored );
         }
     }
@@ -1241,7 +1220,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+        logTableView_->updateData( viewSet_.follows(), openLogFile_->lastModified().date() );
     }
 
     Q_EMIT loadingFinished( load.status, load.failure );
@@ -1446,6 +1425,7 @@ void CrawlerWidget::setup()
     logMainView_
         = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
+    logMainView_->setObjectName( ChildName::TextView );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
     logMainView_->setPluginContextMenu( pluginContextMenuOfViews() );
     // A tab starts showing Value Names as the Presentation Policy says, and
@@ -1523,6 +1503,7 @@ void CrawlerWidget::setup()
 
     // The Search Line, which starts with the latest Search of the history.
     searchLine_ = new SearchLineWidget( quickFindPolicy_, savedSearches_->recentSearches(), this );
+    searchLine_->setObjectName( ChildName::SearchLine );
     setFocusProxy( searchLine_ );
 
     // Its context menu: the pattern edit's own entries, then this widget's.
@@ -1551,7 +1532,7 @@ void CrawlerWidget::setup()
     // Table view toggle button (hidden until a Log Format is recognized)
     tableViewToggle_ = new QToolButton();
     // Named, so the benchmark mode shows the Table View as a user does (#669).
-    tableViewToggle_->setObjectName( "tableViewToggle" );
+    tableViewToggle_->setObjectName( ChildName::TableViewToggle );
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
     tableViewToggle_->setCheckable( true );
@@ -1564,6 +1545,7 @@ void CrawlerWidget::setup()
 
     // Construct the bottom window
     tabbedFilteredView_ = new QTabWidget;
+    tabbedFilteredView_->setObjectName( ChildName::FilteredViewTabs );
     tabbedFilteredView_->setTabsClosable( true );
     tabbedFilteredView_->addTab( firstFilteredView, "" );
     tabbedFilteredView_->setDocumentMode( true );
@@ -1577,7 +1559,9 @@ void CrawlerWidget::setup()
 
     // Wrap main view and table view in a stacked widget for toggling
     mainViewStack_ = new QStackedWidget;
+    mainViewStack_->setObjectName( ChildName::Presentations );
     logTableView_ = new LogTableView;
+    logTableView_->setObjectName( ChildName::TableView );
     logTableView_->setQuickFindPattern( quickFindPattern_ );
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
@@ -1593,6 +1577,7 @@ void CrawlerWidget::setup()
 
     // Chart panel — third pane in the vertical splitter, hidden by default.
     chartPanel_ = new ChartPanel;
+    chartPanel_->setObjectName( ChildName::ChartPanel );
     chartPanel_->hide();
     addWidget( chartPanel_ );
 
@@ -2363,7 +2348,7 @@ void CrawlerWidget::toggleTableView()
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
         QTimer::singleShot( 0, this, [ this ]() {
-            logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+            logTableView_->updateData( viewSet_.follows(), openLogFile_->lastModified().date() );
         } );
     }
 }
@@ -2405,7 +2390,7 @@ void CrawlerWidget::showRecognizedFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+        logTableView_->updateData( viewSet_.follows(), openLogFile_->lastModified().date() );
         sortOrderAcrossTruncation_.reset();
         return;
     }
@@ -2425,7 +2410,7 @@ void CrawlerWidget::showRecognizedFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+    logTableView_->updateData( viewSet_.follows(), openLogFile_->lastModified().date() );
     // Truncated under a Sort Order: sorted by that column again, if the Log
     // Format recognized now has it.
     if ( sortOrderAcrossTruncation_ ) {

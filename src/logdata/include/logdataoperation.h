@@ -95,10 +95,6 @@ public:
     // The running index job is done: the one waiting, if any, starts.
     void finishJobAndStartNext();
 
-    // Whether the index job running is a Partial, which leaves the Log
-    // Lines indexed before it as they were.
-    bool isPartialReindexRunning() const;
-
 private:
     void tryStartWaitingJob();
 

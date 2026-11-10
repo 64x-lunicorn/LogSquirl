@@ -18,6 +18,32 @@ struct FileId {
     static FileId getFileId( const QString& filename );
 };
 
+// The bytes of a Log File as its Log Lines are read from them (LogLineReader):
+// a FileHolder holds those of a Log File on disk, a test may hold some in
+// memory instead.
+class LogFileBytes {
+public:
+    LogFileBytes() = default;
+    virtual ~LogFileBytes() = default;
+
+    LogFileBytes( const LogFileBytes& ) = delete;
+    LogFileBytes& operator=( const LogFileBytes& ) = delete;
+    LogFileBytes( LogFileBytes&& ) = delete;
+    LogFileBytes& operator=( LogFileBytes&& ) = delete;
+
+    // Bracket one read of Log Lines: the bytes stay readable -- a Log File
+    // kept closed is opened -- and no other read of them runs, from
+    // beginRead() until the matching endRead().
+    virtual void beginRead() = 0;
+    virtual void endRead() = 0;
+
+    // Reads up to size bytes at offset into out, between beginRead() and
+    // endRead(): how many were read, fewer than size at the end of the
+    // bytes, or -1 when offset cannot be reached, and nothing is read then
+    // (#845).
+    virtual qint64 readAt( qint64 offset, char* out, qint64 size ) = 0;
+};
+
 template <typename T>
 class ScopedFileHolder {
 public:
@@ -46,12 +72,12 @@ private:
     T* file_holder_;
 };
 
-class FileHolder {
+class FileHolder final : public LogFileBytes {
     friend class ScopedFileHolder<FileHolder>;
 
 public:
     explicit FileHolder( bool keepClosed );
-    ~FileHolder();
+    ~FileHolder() override;
     FileId getFileId();
     qint64 size();
 
@@ -67,9 +93,13 @@ public:
 
     void reOpenFile();
 
-private:
-    Q_DISABLE_COPY( FileHolder )
+    // Lock the Log File and attach a reader for one read of Log Lines, as a
+    // ScopedFileHolder does.
+    void beginRead() override;
+    void endRead() override;
+    qint64 readAt( qint64 offset, char* out, qint64 size ) override;
 
+private:
     QFile* getFile();
 
 private:

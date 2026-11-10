@@ -408,6 +408,11 @@ struct IndexOutcome {
     // What went wrong: indexing is then Failed, and a Check Truncated, so the
     // Log File is indexed again from the start. Empty otherwise.
     QString failure;
+    // The first Log Line the run may have changed, and every one after it:
+    // the last Log Line indexed before the data a Partial added, which that
+    // data may have gone on; the first for an Attach, a Full or a run that
+    // failed. Not told for a Check, which changes no Log Line.
+    LineNumber firstChanged = 0_lnum;
 };
 
 struct CachedIndex;
@@ -477,7 +482,7 @@ public:
     // ran or could not even be built: indexing is Failed.
     static IndexOutcome failedOutcome( const QString& failure )
     {
-        return { LoadingStatus::Failed, failure };
+        return { LoadingStatus::Failed, failure, 0_lnum };
     }
 
     // How many bytes of the Log File this operation has read to index them.
@@ -583,9 +588,6 @@ private:
     // Index a full re-index builds.
     bool resumeFrom( CachedIndex& cached, qint64 fileSize );
 
-    // How closely a cached Index is checked against the Log File.
-    DigestCoverage cachedIndexCoverage() const;
-
     FullIndexRequest request_;
     const TextEncoding* forcedEncoding_;
 };
@@ -626,7 +628,7 @@ public:
     // taken as truncated: it is indexed again from the start.
     static IndexOutcome failedOutcome( const QString& failure )
     {
-        return { MonitoredFileStatus::Truncated, failure };
+        return { MonitoredFileStatus::Truncated, failure, 0_lnum };
     }
 
 protected:

@@ -47,6 +47,7 @@
 #include "applicationplugins.h"
 #include "archivemember.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
 #include "logfileprovenance.h"
@@ -55,6 +56,7 @@
 #include "logmainview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "pathline.h"
 #include "searchlinewidget_access.h"
@@ -71,38 +73,30 @@
 #include "textencoding.h"
 #include "viewstatecodec.h"
 
-struct MainWindowLoadAccess;
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<MainWindowLoadAccess> {
-    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
-    {
-        return *crawler.openLogFile_;
-    }
-
+// The child widgets of a tab a test reads.
+struct LoadAccess {
     // The Search line, whose drop-down list shows the Search history.
     static QComboBox& searchLine( CrawlerWidget& crawler )
     {
-        return *SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        return *SearchLineAccess::patternEdit( searchLineOf( crawler ) );
     }
 
     // The text view of the Log File.
     static const AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 };
 
-namespace {
-
-using LoadAccess = CrawlerWidget::access_by<MainWindowLoadAccess>;
-
-// Reloads the Log File of crawler with an Encoding the indexing fails on --
-// no converter exists for its name -- and waits until the load has finished
-// Failed. encoding must outlive the Log File, which holds on to it.
-bool failToLoad( CrawlerWidget& crawler, const TextEncoding& encoding )
+// Reloads the Log File of crawler, open in session, with an Encoding the
+// indexing fails on -- no converter exists for its name -- and waits until
+// the load has finished Failed. encoding must outlive the Log File, which
+// holds on to it.
+bool failToLoad( const Session& session, CrawlerWidget& crawler, const TextEncoding& encoding )
 {
-    auto& openLogFile = LoadAccess::openLogFile( crawler );
+    auto& openLogFile = openLogFileOf( session, crawler );
     bool failed = false;
     QObject context;
     QObject::connect( &openLogFile, &OpenLogFile::loadingFinished, &context,
@@ -182,7 +176,7 @@ SCENARIO( "A Log File that failed to load in a background tab says so when its t
             10000 ) );
         REQUIRE( tabArea->currentWidget() != failing );
 
-        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+        REQUIRE( failToLoad( *appSession, *failing, unusableEncoding ) );
         QTest::qWait( 100 );
         questionsAsked = 0;
 
@@ -222,7 +216,7 @@ SCENARIO( "A Log File that failed to load in a background tab says so when its t
 
     GIVEN( "a Log File in front that fails to load" )
     {
-        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+        REQUIRE( failToLoad( *appSession, *failing, unusableEncoding ) );
 
         THEN( "the failure is offered to be reported and the tab is closed" )
         {
@@ -273,8 +267,7 @@ SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
     REQUIRE( waitUiState(
         [ & ] {
             crawler = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
-            return crawler != nullptr
-                   && LoadAccess::openLogFile( *crawler ).logData()->getNbLine().get() == 2;
+            return crawler != nullptr && crawler->state().lineCount.get() == 2;
         },
         10000 ) );
     QTest::qWait( 100 );
@@ -283,7 +276,7 @@ SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
     // history it saved in the Search line's drop-down list.
     int searchesStarted = 0;
     QObject context;
-    QObject::connect( LoadAccess::openLogFile( *crawler ).filteredData().get(),
+    QObject::connect( openLogFileOf( *appSession, *crawler ).filteredData().get(),
                       &LogFilteredData::searchStateChanged, &context,
                       [ &searchesStarted ]( const SearchSession::State& state ) {
                           if ( state.phase == SearchSession::Phase::Idle ) {
@@ -441,7 +434,8 @@ SCENARIO( "The window's own restore holds the tab in front's Kept Searches until
         // What each tab did, in order: "loaded" or "searched".
         std::vector<std::pair<QString, int>> steps;
         for ( auto tab = 0; tab < 3; ++tab ) {
-            auto& openLogFile = LoadAccess::openLogFile( *crawlers[ static_cast<size_t>( tab ) ] );
+            auto& openLogFile
+                = openLogFileOf( *appSession, *crawlers[ static_cast<size_t>( tab ) ] );
             QObject::connect( &openLogFile, &OpenLogFile::loadingFinished, mainWindow.get(),
                               [ &steps, tab ] { steps.emplace_back( "loaded", tab ); } );
             QObject::connect(
@@ -457,7 +451,7 @@ SCENARIO( "The window's own restore holds the tab in front's Kept Searches until
 
         THEN( "the tab in front's Kept Search is held still as the restore returns" )
         {
-            REQUIRE( LoadAccess::openLogFile( *front ).holdsSearches() );
+            REQUIRE( openLogFileOf( *appSession, *front ).holdsSearches() );
         }
 
         THEN( "it starts only once the last queued Log File has loaded" )
@@ -630,7 +624,7 @@ SCENARIO( "A restored window reopens a decompressed Log File from its archive",
             REQUIRE( restored != nullptr );
             const auto& textView = LoadAccess::textView( *restored );
             REQUIRE( waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
-            REQUIRE( LoadAccess::openLogFile( *restored ).logData()->getNbLine().get() == 3000 );
+            REQUIRE( restored->state().lineCount.get() == 3000 );
             QTest::qWait( 50 );
             REQUIRE( messagesShown == 0 );
         }
@@ -766,7 +760,7 @@ SCENARIO( "A restored window is in use while the archive of a Log File decompres
             REQUIRE( tabArea->currentWidget() == restored );
             const auto& textView = LoadAccess::textView( *restored );
             REQUIRE( waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
-            REQUIRE( LoadAccess::openLogFile( *restored ).logData()->getNbLine().get() == 3000 );
+            REQUIRE( restored->state().lineCount.get() == 3000 );
             QTest::qWait( 50 );
             REQUIRE( messagesShown == 0 );
         }
@@ -1020,7 +1014,7 @@ SCENARIO( "Loading progress follows the tab in front", "[ui][loading]" )
         {
             // As a load under way tells it; these Log Files are too small to
             // be caught between two ticks of a real load.
-            Q_EMIT LoadAccess::openLogFile( *first ).loadingProgressed( 42 );
+            Q_EMIT openLogFileOf( *appSession, *first ).loadingProgressed( 42 );
             QTest::qWait( 50 );
 
             THEN( "the window still shows the Log File in front, loaded, with no gauge" )
@@ -1415,7 +1409,7 @@ SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui]
     REQUIRE( followAction != nullptr );
     const auto frontFollowed = [ & ] {
         auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
-        return front != nullptr && front->isFollowEnabled() && followAction->isChecked();
+        return front != nullptr && front->state().follows && followAction->isChecked();
     };
 
     GIVEN( "a Log File opened" )
@@ -1437,7 +1431,7 @@ SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui]
         auto provenance = LogFileProvenance::ordinary();
         provenance.whenOpened = [ & ]( CrawlerWidget* crawler ) {
             REQUIRE( crawler != nullptr );
-            followedAsOpened = crawler->isFollowEnabled() && followAction->isChecked();
+            followedAsOpened = crawler->state().follows && followAction->isChecked();
             crawler->followSet( false );
         };
         REQUIRE( mainWindow->openLogFile( QFileInfo( firstFile ).absoluteFilePath(),
@@ -1451,7 +1445,7 @@ SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui]
             QTest::qWait( 50 );
             auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
             REQUIRE( front != nullptr );
-            REQUIRE_FALSE( front->isFollowEnabled() );
+            REQUIRE_FALSE( front->state().follows );
             REQUIRE_FALSE( followAction->isChecked() );
         }
     }

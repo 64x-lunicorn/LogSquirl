@@ -38,6 +38,7 @@
 #include <memory>
 #include <set>
 
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "logdata.h"
@@ -45,6 +46,7 @@
 #include "logformatcatalog.h"
 #include "logmainview.h"
 #include "logtableview.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "regexlabwindow.h"
 #include "savedsearches.h"
@@ -54,45 +56,26 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-struct FieldTermSearchLineTest {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<FieldTermSearchLineTest> {
-    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
-    {
-        return *crawler.openLogFile_;
-    }
-
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static SearchLineWidget& searchLine( CrawlerWidget& crawler )
     {
-        return *crawler.searchLine_;
+        return searchLineOf( crawler );
     }
 
     static LogTableView& tableView( CrawlerWidget& crawler )
     {
-        return *crawler.logTableView_;
+        return tableViewOf( crawler );
     }
 
     static void focusMainView( CrawlerWidget& crawler )
     {
-        crawler.logMainView_->setFocus();
+        textViewOf( crawler ).setFocus();
         QCoreApplication::processEvents();
     }
-
-    static int recognitionCount( CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->formatRecognitionCount();
-    }
-
-    static bool isLoadingFinished( CrawlerWidget& crawler )
-    {
-        return crawler.lastLoadStatus_.has_value();
-    }
 };
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<FieldTermSearchLineTest>;
 
 constexpr int LogLineCount = 40;
 
@@ -169,17 +152,16 @@ struct OpenCrawler {
         }
         file.close();
 
-        crawler.reset( static_cast<CrawlerWidget*>( session->open(
-            logFilePath, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawler.reset(
+            static_cast<CrawlerWidget*>( session->open( logFilePath, buildCrawlerWidget ) ) );
         crawler->resize( 800, 600 );
         showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this ] {
-            return CrawlerAccess::isLoadingFinished( *crawler )
-                   && CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
-                          == static_cast<uint64_t>( LogLineCount );
+            return crawler->state().loadStatus.has_value()
+                   && crawler->state().lineCount.get() == static_cast<uint64_t>( LogLineCount );
         } ) );
         if ( withLogFormat ) {
-            REQUIRE( CrawlerAccess::openLogFile( *crawler ).logFormat() != nullptr );
+            REQUIRE( openLogFileOf( *crawler ).logFormat() != nullptr );
         }
         QTest::qWait( 100 );
     }
@@ -221,7 +203,7 @@ struct OpenCrawler {
 
     std::set<int> matchingLines()
     {
-        const auto filtered = CrawlerAccess::openLogFile( *crawler ).filteredData();
+        const auto filtered = openLogFileOf( *crawler ).filteredData();
         std::set<int> lines;
         for ( const auto logLine : filtered->matches() ) {
             lines.insert( static_cast<int>( logLine ) );
@@ -398,10 +380,11 @@ SCENARIO( "A Search Line's Field Term reads the field through the tab's Log Form
             writeUserFormat( open.userFormats, "severity" );
             open.catalog->rebuild();
             open.crawler->reload();
-            REQUIRE( waitUiState(
-                [ &open ] { return CrawlerAccess::recognitionCount( *open.crawler ) == 2; } ) );
-            REQUIRE( waitUiState(
-                [ &open ] { return CrawlerAccess::isLoadingFinished( *open.crawler ); } ) );
+            REQUIRE( waitUiState( [ &open ] {
+                return openLogFileOf( *open.crawler ).formatRecognitionCount() == 2;
+            } ) );
+            REQUIRE(
+                waitUiState( [ &open ] { return open.crawler->state().loadStatus.has_value(); } ) );
             QTest::qWait( 100 );
             open.runSearch();
 
@@ -444,11 +427,9 @@ SCENARIO( "A Search Line's Field Term reads the field through the tab's Log Form
                 REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
             }
             REQUIRE( open.fileWatch->reportChange( open.logFilePath ) );
-            REQUIRE( waitUiState( [ &open ] {
-                return CrawlerAccess::openLogFile( *open.crawler ).logData()->getNbLine().get()
-                       == 0;
-            } ) );
-            REQUIRE( CrawlerAccess::openLogFile( *open.crawler ).logFormat() == nullptr );
+            REQUIRE(
+                waitUiState( [ &open ] { return open.crawler->state().lineCount.get() == 0; } ) );
+            REQUIRE( openLogFileOf( *open.crawler ).logFormat() == nullptr );
             {
                 QFile file( open.logFilePath );
                 REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
@@ -457,10 +438,11 @@ SCENARIO( "A Search Line's Field Term reads the field through the tab's Log Form
                 }
             }
             REQUIRE( open.fileWatch->reportChange( open.logFilePath ) );
-            REQUIRE( waitUiState(
-                [ &open ] { return CrawlerAccess::recognitionCount( *open.crawler ) >= 2; } ) );
             REQUIRE( waitUiState( [ &open ] {
-                const auto state = CrawlerAccess::openLogFile( *open.crawler ).searchState();
+                return openLogFileOf( *open.crawler ).formatRecognitionCount() >= 2;
+            } ) );
+            REQUIRE( waitUiState( [ &open ] {
+                const auto state = openLogFileOf( *open.crawler ).searchState();
                 return state.phase == SearchSession::Phase::Complete && !open.isSearchRunning();
             } ) );
 

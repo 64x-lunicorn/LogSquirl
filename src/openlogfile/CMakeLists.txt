@@ -3,6 +3,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadrule.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/openlogfile.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchautorefresh.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/loadrule.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/openlogfile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchautorefresh.cpp

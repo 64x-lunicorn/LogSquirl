@@ -48,9 +48,6 @@ struct Reload {};
 struct ChangedOnDisk {
     MonitoredFileStatus status;
 };
-struct SearchRequested {};
-struct SearchCleared {};
-struct WaitingSearchDropped {};
 struct LoadFinished {
     LoadingStatus status = LoadingStatus::Successful;
     uint64_t lines = 30;
@@ -76,9 +73,8 @@ struct StopWatching {
 // A check of the Log File found it unchanged.
 struct FoundUnchanged {};
 
-using Event
-    = std::variant<SavedMarks, Reload, ChangedOnDisk, SearchRequested, SearchCleared,
-                   WaitingSearchDropped, LoadFinished, SetLimits, StopWatching, FoundUnchanged>;
+using Event = std::variant<SavedMarks, Reload, ChangedOnDisk, LoadFinished, SetLimits, StopWatching,
+                           FoundUnchanged>;
 
 const auto grew = ChangedOnDisk{ MonitoredFileStatus::DataAdded };
 const auto truncated = ChangedOnDisk{ MonitoredFileStatus::Truncated };
@@ -134,7 +130,6 @@ struct Decisions {
     LoadRule::LoadDecision load;
     LoadRule::ChangeDecision change;
     LoadRule::ReloadDecision reload;
-    bool searchWaits = false;
     // The Search Limits as the Open Log File holds them: as set, and as each
     // load settled them.
     Limits limits = {};
@@ -165,9 +160,6 @@ Decisions run( LoadRule& rule, const std::vector<Event>& events )
                 [ & ]( const ChangedOnDisk& change ) {
                     decisions.change = rule.changedOnDisk( change.status );
                 },
-                [ & ]( const SearchRequested& ) { decisions.searchWaits = rule.searchRequested(); },
-                [ & ]( const SearchCleared& ) { rule.searchCleared(); },
-                [ & ]( const WaitingSearchDropped& ) { rule.waitingSearchDropped(); },
                 [ & ]( const LoadFinished& load ) {
                     decisions.load = rule.loadFinished(
                         load.status, LinesCount( load.lines ), autoRefreshIn( load.search ),
@@ -198,7 +190,6 @@ struct LoadRow {
     bool onlyAppended;
     SearchRefresh searchRefresh;
     std::vector<uint64_t> savedMarksToApply;
-    bool runWaitingSearch;
     bool recognizeFormat;
 };
 
@@ -207,7 +198,6 @@ struct ChangeRow {
     std::vector<Event> events; // the last one is the change whose decision is checked
     Change report;
     bool clearMarks;
-    bool dropSearch;
     bool forgetLogFormat;
 };
 
@@ -223,12 +213,6 @@ struct WatchingRow {
     std::vector<Event> events;
     WatchingStep watching;
     bool watched;
-};
-
-struct SearchRow {
-    std::string sequence;
-    std::vector<Event> events; // the Search is requested after them
-    bool waits;
 };
 
 } // namespace
@@ -256,112 +240,94 @@ SCENARIO( "The Load Rule decides what a finished load brings", "[openlogfile][lo
     // clang-format off
     const std::vector<LoadRow> rows = {
         // sequence, events,
-        //   fromStart, onlyAppended, searchRefresh, savedMarksToApply, runWaitingSearch, recognizeFormat
+        //   fromStart, onlyAppended, searchRefresh, savedMarksToApply, recognizeFormat
         { "first load", { loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          true, false, SearchRefresh::None, {}, true },
         { "first load with Marks saved with the Session", { SavedMarks{ { 3, 7 } }, loaded },
-          true, false, SearchRefresh::None, { 3, 7 }, false, true },
+          true, false, SearchRefresh::None, { 3, 7 }, true },
         { "grew, then loaded, under an auto-refreshing Search", { loaded, grew, autoRefreshing },
-          false, true, SearchRefresh::Continue, {}, false, false },
+          false, true, SearchRefresh::Continue, {}, false },
         { "grew, then loaded, under a static Search", { loaded, grew, staticSearch },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "grew twice before the load finished", { loaded, grew, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "loaded again with nothing changed on disk", { loaded, loaded },
-          false, false, SearchRefresh::None, {}, false, false },
+          false, false, SearchRefresh::None, {}, false },
         { "truncated, then loaded, under an auto-refreshing Search",
           { loaded, truncated, truncatedUnderAutoRefresh },
-          false, false, SearchRefresh::Restart, {}, false, true },
+          false, false, SearchRefresh::Restart, {}, true },
         { "truncated, then loaded, under a static Search",
           { loaded, truncated, truncatedUnderStaticSearch },
-          false, false, SearchRefresh::None, {}, false, true },
+          false, false, SearchRefresh::None, {}, true },
         { "truncated, then grew before the load finished",
           { loaded, truncated, grew, truncatedUnderAutoRefresh },
-          false, false, SearchRefresh::Restart, {}, false, true },
+          false, false, SearchRefresh::Restart, {}, true },
         { "grew, then truncated before the load finished",
           { loaded, grew, truncated, loaded },
-          false, false, SearchRefresh::None, {}, false, true },
+          false, false, SearchRefresh::None, {}, true },
         { "truncated, loaded, then grew and loaded", { loaded, truncated, loaded, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "reloaded after the first load", { loaded, Reload{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          true, false, SearchRefresh::None, {}, true },
         { "reloaded while a growth was loading", { loaded, grew, Reload{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          true, false, SearchRefresh::None, {}, true },
         { "saved Marks are applied once, not after a growth",
           { SavedMarks{ { 3 } }, loaded, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "saved Marks are applied once, not after a reload",
           { SavedMarks{ { 3 } }, loaded, Reload{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          true, false, SearchRefresh::None, {}, true },
         // A reload asked for while the first load is still running leaves the
         // saved Marks to the load that finishes, which is still the first.
         { "reloaded while the first load was running", { SavedMarks{ { 3 } }, Reload{}, loaded },
-          true, false, SearchRefresh::None, { 3 }, false, true },
+          true, false, SearchRefresh::None, { 3 }, true },
         // A first load that fails is the first load all the same: the saved
         // Marks go with it, and the next load is not from the start.
         { "a first load that failed takes the saved Marks", { SavedMarks{ { 3 } }, failedToLoad },
-          true, false, SearchRefresh::None, { 3 }, false, false },
+          true, false, SearchRefresh::None, { 3 }, false },
         { "loaded after a first load that failed", { failedToLoad, loaded },
-          false, false, SearchRefresh::None, {}, false, true },
-        { "a Search requested before the first load runs once it has loaded",
-          { SearchRequested{}, loaded },
-          true, false, SearchRefresh::None, {}, true, true },
-        { "a Search requested before a first load that failed is dropped",
-          { SearchRequested{}, failedToLoad },
-          true, false, SearchRefresh::None, {}, false, false },
-        { "a Search dropped by a failed first load does not run with the next load",
-          { SearchRequested{}, failedToLoad, loaded },
-          false, false, SearchRefresh::None, {}, false, true },
-        { "a Search waiting for the first load, then stopped",
-          { SearchRequested{}, WaitingSearchDropped{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
-        { "a Search waiting for the first load, then cleared",
-          { SearchRequested{}, SearchCleared{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
-        { "a Search waiting for the first load, then reloaded",
-          { SearchRequested{}, Reload{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          false, false, SearchRefresh::None, {}, true },
         // Kept oddity: a load with no Log Lines leaves Format Recognition for
         // the next load, even one that only brings Log Lines added.
         { "a first load with no Log Lines recognizes no Log Format", { noLines },
-          true, false, SearchRefresh::None, {}, false, false },
+          true, false, SearchRefresh::None, {}, false },
         { "the Log Format is recognized once Log Lines were added", { noLines, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, true },
+          false, true, SearchRefresh::None, {}, true },
         // A Log File too short to recognize a Log Format from is looked at
         // again as it grows, until one is recognized or it has as many Log
         // Lines as Format Recognition looks at (#794).
         { "nothing recognized from one Log Line: recognized again once more were added",
           { oneLineUnrecognized, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, true },
+          false, true, SearchRefresh::None, {}, true },
         { "nothing recognized from one Log Line: not again while no more were added",
           { oneLineUnrecognized, unchanged, oneLineUnrecognized },
-          false, false, SearchRefresh::None, {}, false, false },
+          false, false, SearchRefresh::None, {}, false },
         { "nothing recognized from one, then from ten Log Lines: recognized again after that",
           { oneLineUnrecognized, grew, tenLinesUnrecognized, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, true },
+          false, true, SearchRefresh::None, {}, true },
         { "a Log Format recognized from two Log Lines stays as the Log File grows",
           { twoLinesRecognized, grew, loaded },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "nothing recognized from fifty Log Lines: not again as the Log File grows",
           { fiftyLinesUnrecognized, grew, LoadFinished{ .lines = 60 } },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "nothing recognized from eighty Log Lines: not again as the Log File grows",
           { eightyLinesUnrecognized, grew, LoadFinished{ .lines = 100 } },
-          false, true, SearchRefresh::None, {}, false, false },
+          false, true, SearchRefresh::None, {}, false },
         { "nothing recognized from fifty Log Lines, then reloaded",
           { fiftyLinesUnrecognized, Reload{}, loaded },
-          true, false, SearchRefresh::None, {}, false, true },
+          true, false, SearchRefresh::None, {}, true },
         { "nothing recognized from fifty Log Lines, then truncated",
           { fiftyLinesUnrecognized, truncated, truncatedUnderStaticSearch },
-          false, false, SearchRefresh::None, {}, false, true },
+          false, false, SearchRefresh::None, {}, true },
         { "nothing recognized from one Log Line, then truncated and loaded with one again",
           { oneLineUnrecognized, truncated, oneLineUnrecognized },
-          false, false, SearchRefresh::None, {}, false, true },
+          false, false, SearchRefresh::None, {}, true },
         // Kept oddity: a check that finds the Log File unchanged still reports
         // it grew (see the change table), but the load after it does not take
         // it for Log Lines added.
         { "a check found the Log File unchanged", { loaded, unchanged, loaded },
-          false, false, SearchRefresh::None, {}, false, false },
+          false, false, SearchRefresh::None, {}, false },
     };
     // clang-format on
 
@@ -374,7 +340,6 @@ SCENARIO( "The Load Rule decides what a finished load brings", "[openlogfile][lo
         CHECK( decision.onlyAppended == row.onlyAppended );
         CHECK( decision.searchRefresh == row.searchRefresh );
         CHECK( numbers( decision.savedMarksToApply ) == row.savedMarksToApply );
-        CHECK( decision.runWaitingSearch == row.runWaitingSearch );
         CHECK( decision.recognizeFormat == row.recognizeFormat );
     }
 }
@@ -383,32 +348,18 @@ SCENARIO( "The Load Rule decides what a change on disk means", "[openlogfile][lo
 {
     // clang-format off
     const std::vector<ChangeRow> rows = {
-        // sequence, events, report, clearMarks, dropSearch, forgetLogFormat
+        // sequence, events, report, clearMarks, forgetLogFormat
         { "grew", { loaded, grew },
-          Change::Grew, false, false, false },
-        { "truncated with no Search requested", { loaded, truncated },
-          Change::Truncated, true, false, true },
-        { "truncated under a Search", { loaded, SearchRequested{}, truncated },
-          Change::Truncated, true, true, true },
-        { "truncated under a Search waiting for the first load", { SearchRequested{}, truncated },
-          Change::Truncated, true, true, true },
-        { "truncated after the Search was cleared",
-          { loaded, SearchRequested{}, SearchCleared{}, truncated },
-          Change::Truncated, true, false, true },
-        { "truncated after the Search was stopped",
-          { loaded, SearchRequested{}, WaitingSearchDropped{}, truncated },
-          Change::Truncated, true, true, true },
-        { "truncated after a reload dropped the Search",
-          { loaded, SearchRequested{}, Reload{}, truncated },
-          Change::Truncated, true, false, true },
-        { "truncated after a failed first load dropped the waiting Search",
-          { SearchRequested{}, failedToLoad, truncated },
-          Change::Truncated, true, false, true },
+          Change::Grew, false, false },
+        // Whether the Search's results are dropped the Search Set decides
+        // (#941).
+        { "truncated", { loaded, truncated },
+          Change::Truncated, true, true },
         // Kept oddity: a check that finds the Log File unchanged still reports
         // it grew. The log data tells no such check (it tells only a change,
         // on master as since #395), so the Open Log File never sees it today.
         { "a check found the Log File unchanged", { loaded, unchanged },
-          Change::Grew, false, false, false },
+          Change::Grew, false, false },
     };
     // clang-format on
 
@@ -419,67 +370,14 @@ SCENARIO( "The Load Rule decides what a change on disk means", "[openlogfile][lo
 
         CHECK( decision.report == row.report );
         CHECK( decision.clearMarks == row.clearMarks );
-        CHECK( decision.dropSearch == row.dropSearch );
         CHECK( decision.forgetLogFormat == row.forgetLogFormat );
-    }
-}
-
-SCENARIO( "The Load Rule decides whether a Search waits for the first load",
-          "[openlogfile][loadrule]" )
-{
-    // clang-format off
-    const std::vector<SearchRow> rows = {
-        { "before any load", {}, true },
-        { "while the first load is reloaded", { Reload{} }, true },
-        { "after the first load", { loaded }, false },
-        { "after a first load that failed", { failedToLoad }, false },
-        { "while a reload after the first load is running", { loaded, Reload{} }, false },
-    };
-    // clang-format on
-
-    for ( const auto& row : rows ) {
-        INFO( row.sequence );
-        LoadRule rule;
-        auto events = row.events;
-        events.emplace_back( SearchRequested{} );
-        CHECK( run( rule, events ).searchWaits == row.waits );
-    }
-}
-
-SCENARIO( "The Load Rule tells whether a Search waits for the first load now",
-          "[openlogfile][loadrule][pendingsearch]" )
-{
-    struct Row {
-        const char* sequence;
-        std::vector<Event> events;
-        bool waits;
-        bool loadFinished;
-    };
-    // clang-format off
-    const std::vector<Row> rows = {
-        { "before any load", {}, false, false },
-        { "a Search requested before any load", { SearchRequested{} }, true, false },
-        { "a waiting Search dropped", { SearchRequested{}, WaitingSearchDropped{} }, false, false },
-        { "a waiting Search cleared", { SearchRequested{}, SearchCleared{} }, false, false },
-        { "a waiting Search run by the first load", { SearchRequested{}, loaded }, false, true },
-        { "after a first load that failed", { failedToLoad }, false, true },
-        { "a Search requested after the first load", { loaded, SearchRequested{} }, false, true },
-    };
-    // clang-format on
-
-    for ( const auto& row : rows ) {
-        INFO( row.sequence );
-        LoadRule rule;
-        run( rule, row.events );
-        CHECK( rule.searchWaitsForLoad() == row.waits );
-        CHECK( rule.hasLoadFinished() == row.loadFinished );
     }
 }
 
 SCENARIO( "The Load Rule decides what a reload drops", "[openlogfile][loadrule]" )
 {
     LoadRule rule;
-    const auto decision = run( rule, { loaded, SearchRequested{}, Reload{} } ).reload;
+    const auto decision = run( rule, { loaded, Reload{} } ).reload;
 
     THEN( "the Search is dropped with its cache and the Marks are cleared" )
     {
@@ -535,10 +433,6 @@ SCENARIO( "The Load Rule settles the Search Limits a load leaves", "[openlogfile
     const std::vector<LimitsRow> rows = {
         // sequence, events, searchLimits, continueOver
         { "the first load: the whole Log File", { loaded },
-          limits( 0, 30 ), std::nullopt },
-        // logsquirl-grep sets no Limits: its Search waits for the first load
-        // and runs over the whole Log File.
-        { "the grep CLI: a Search waiting for the first load", { SearchRequested{}, loaded },
           limits( 0, 30 ), std::nullopt },
         { "whole-file Limits, then grew: the end follows", { loaded, grew, grewUnderStaticSearch },
           limits( 0, 40 ), std::nullopt },

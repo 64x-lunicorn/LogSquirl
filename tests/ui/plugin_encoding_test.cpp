@@ -51,16 +51,6 @@
 #include <utility>
 #include <vector>
 
-struct PluginEncodingTest {};
-
-template <>
-struct CrawlerWidget::access_by<PluginEncodingTest> {
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
-};
-
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
@@ -222,8 +212,7 @@ struct EncodingWindow {
                 crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
                 return crawler != nullptr
                        && crawler->state().loadStatus == LoadingStatus::Successful
-                       && CrawlerWidget::access_by<PluginEncodingTest>::lineCount( *crawler )
-                              == lines;
+                       && crawler->state().lineCount == lines;
             },
             10'000 ) );
         // The Encoding is settled, and the plugin told, once the tab heard

@@ -4,7 +4,9 @@ add_executable(logsquirl_logdata_tests
     logdata_tests_main.cpp
     logdata_test.cpp
     logfiltereddata_test.cpp
+    loglinereader_test.cpp
     indexing_test.cpp
+    indexoutcome_test.cpp
     indexingblocks_test.cpp
     indexjobqueue_test.cpp
     worker_destruction_test.cpp

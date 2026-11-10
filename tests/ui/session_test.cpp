@@ -20,22 +20,32 @@
 #include "recording_views.h"
 #include "test_policies.h"
 
+// The Team Folder helpers of the unit tests, which run it against real Git
+// repositories.
+#include "../unit/teamfoldertesting.h"
+
 #include "containers.h"
+#include "highlighterset.h"
 #include "logdata.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
+#include "predefinedfilters.h"
 #include "savedsearches.h"
 #include "session.h"
 #include "sessioninfo.h"
 #include "stored_session.h"
+#include "teamfolder.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QTextStream>
+#include <QUrl>
 
 #include <algorithm>
 #include <memory>
@@ -266,10 +276,14 @@ SCENARIO( "A change to one Axis reaches every open Log File, and no other Axis i
 
 namespace {
 
-// A window as the Session sees it: it counts the settings changes it is told of,
-// and brings to the front the tabs it has when asked to (#642).
+// A window as the Session sees it: it counts the changes it is told of, and
+// brings to the front the tabs it has when asked to (#642).
 struct CountingWindow final : SessionWindow {
     int settingsChanges = 0;
+    int highlighterSetChanges = 0;
+    int predefinedFiltersChanges = 0;
+    int valueNamesChanges = 0;
+    int teamFilterGroupsChanges = 0;
     // The views of the window's tabs, and those it was asked to bring to the
     // front, in order.
     std::vector<const ViewInterface*> tabs;
@@ -278,6 +292,26 @@ struct CountingWindow final : SessionWindow {
     void applySettingsChange() override
     {
         ++settingsChanges;
+    }
+
+    void applyHighlighterSetChange() override
+    {
+        ++highlighterSetChanges;
+    }
+
+    void applyPredefinedFiltersChange() override
+    {
+        ++predefinedFiltersChanges;
+    }
+
+    void applyValueNamesChange() override
+    {
+        ++valueNamesChanges;
+    }
+
+    void applyTeamFilterGroupsChange() override
+    {
+        ++teamFilterGroupsChanges;
     }
 
     bool showView( const ViewInterface* view ) override
@@ -332,6 +366,191 @@ SCENARIO( "A zoom hands every open Log File the font alone", "[ui][session]" )
     }
 
     session.removeWindow( &window );
+}
+
+SCENARIO( "A changed Highlighter Set or Predefined Filter reaches every window, the writing one "
+          "included",
+          "[ui][session]" )
+{
+    TwoLogFiles files;
+    const auto policies = testSettingsPolicies();
+    const auto catalog = std::make_shared<LogFormatCatalog>();
+    Session session{ policies, catalog };
+    OpenedViews views;
+    // The first window is the one the change was made in; the Session does
+    // not know, nor need to.
+    CountingWindow writing;
+    CountingWindow other;
+    session.addWindow( &writing );
+    session.addWindow( &other );
+
+    session.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+    session.open( files.second.fileName(), RecordingViews::factory( views.built ) );
+    REQUIRE( views.built.size() == 2 );
+
+    WHEN( "the Highlighter Sets changed" )
+    {
+        session.applyChange( Changed::HighlighterSets );
+
+        THEN( "every window is told once, so each builds its Highlighters menu again" )
+        {
+            for ( const auto* window : { &writing, &other } ) {
+                REQUIRE( window->highlighterSetChanges == 1 );
+                REQUIRE( window->predefinedFiltersChanges == 0 );
+                REQUIRE( window->settingsChanges == 0 );
+            }
+        }
+
+        THEN( "every open Log File is recolored" )
+        {
+            ViewChange expected;
+            expected.highlighterSets = true;
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().size() == 1 );
+                REQUIRE( opened->changes().front() == expected );
+            }
+        }
+    }
+
+    WHEN( "the Predefined Filters changed" )
+    {
+        session.applyChange( Changed::PredefinedFilters );
+
+        THEN( "every window is told once, so each lists them again in its Filters panel" )
+        {
+            for ( const auto* window : { &writing, &other } ) {
+                REQUIRE( window->predefinedFiltersChanges == 1 );
+                REQUIRE( window->highlighterSetChanges == 0 );
+                REQUIRE( window->settingsChanges == 0 );
+            }
+        }
+
+        THEN( "no Log File is told: none shows the Predefined Filters, and nothing is re-derived" )
+        {
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().empty() );
+            }
+            REQUIRE( catalog->formatCount() == 0 );
+        }
+    }
+
+    session.removeWindow( &other );
+    session.removeWindow( &writing );
+}
+
+SCENARIO( "A Team sync is heard by the Session once and reaches every window",
+          "[ui][session][teamfolder]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishOutcome;
+    using logsquirl::teamfolder::PublishRequest;
+    using logsquirl::teamfolder::PublishStatus;
+    using teamfolder_testing::settled;
+    using teamfolder_testing::SyncTimeoutMs;
+
+    const teamfolder_testing::IsolatedGitEnvironment environment;
+    if ( !teamfolder_testing::gitInstalled() ) {
+        SKIP( "Git is not installed" );
+    }
+
+    // The team's server, holding a Highlighter Set and a Filter Group a
+    // colleague published.
+    QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto server = root.filePath( "server.git" );
+    QProcess git;
+    git.start( "git", { "init", "--quiet", "--bare", server } );
+    REQUIRE( git.waitForFinished( SyncTimeoutMs ) );
+    REQUIRE( git.exitCode() == 0 );
+    const auto teamPolicy
+        = teamfolder_testing::policyFor( QUrl::fromLocalFile( server ).toString() );
+
+    auto levels = HighlighterSet::createNewSet( "Team Levels" );
+    levels.addHighlighter( Highlighter( "ERROR", false, true, Qt::red, Qt::white ) );
+    auto crashes = PredefinedFilterSet::createNewSet( "Team Crashes" );
+    crashes.addFilter( { "Fatal", "FATAL", false } );
+    {
+        TeamFolder colleague( root.filePath( "colleague" ) );
+        colleague.setUp( teamPolicy );
+        REQUIRE( settled( colleague ) );
+        QSignalSpy published( &colleague, &TeamFolder::publishFinished );
+        colleague.publish( { PublishRequest::forGroup( levels, GroupAction::Add ),
+                             PublishRequest::forGroup( crashes, GroupAction::Add ) } );
+        REQUIRE( published.wait( SyncTimeoutMs ) );
+        const auto outcome = published.at( 0 ).at( 0 ).value<PublishOutcome>();
+        REQUIRE( outcome.results.size() == 2 );
+        for ( const auto& result : outcome.results ) {
+            REQUIRE( result.status == PublishStatus::Published );
+        }
+        REQUIRE( settled( colleague ) );
+    }
+
+    GIVEN( "a Session with two windows and an open Log File, whose Team Folder syncs" )
+    {
+        TwoLogFiles files;
+        auto policies = testSettingsPolicies();
+        policies.teamFolder = teamPolicy;
+        const auto teamFolder = std::make_shared<TeamFolder>( root.filePath( "member" ) );
+        CountingWindow first;
+        CountingWindow second;
+        {
+            Session session{ policies, std::make_shared<LogFormatCatalog>(), {}, teamFolder };
+            OpenedViews views;
+            session.addWindow( &first );
+            session.addWindow( &second );
+            session.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+            REQUIRE( views.built.size() == 1 );
+
+            // The Session set the Team Folder up, which started its first sync.
+            REQUIRE( settled( *teamFolder ) );
+            REQUIRE( teamFolder->state() == TeamFolder::State::Synced );
+
+            THEN( "the Highlighter Set Collection holds the Team set, written once: the open Log "
+                  "File is recolored once" )
+            {
+                CHECK( HighlighterSetCollection::get().hasSet( levels.id() ) );
+                ViewChange expected;
+                expected.highlighterSets = true;
+                REQUIRE( views.built.front()->changes().size() == 1 );
+                CHECK( views.built.front()->changes().front() == expected );
+            }
+
+            THEN( "each window hears once of the Highlighter Sets and of the Team Filter Groups, "
+                  "and of nothing else" )
+            {
+                for ( const auto* window : { &first, &second } ) {
+                    CHECK( window->highlighterSetChanges == 1 );
+                    CHECK( window->teamFilterGroupsChanges == 1 );
+                    CHECK( window->predefinedFiltersChanges == 0 );
+                    CHECK( window->valueNamesChanges == 0 );
+                    CHECK( window->settingsChanges == 0 );
+                }
+            }
+
+            WHEN( "a sync brings nothing new" )
+            {
+                teamFolder->sync();
+                REQUIRE( settled( *teamFolder ) );
+
+                THEN( "nothing is written again, and no window is told" )
+                {
+                    CHECK( views.built.front()->changes().size() == 1 );
+                    for ( const auto* window : { &first, &second } ) {
+                        CHECK( window->highlighterSetChanges == 1 );
+                        CHECK( window->teamFilterGroupsChanges == 1 );
+                    }
+                }
+            }
+
+            session.removeWindow( &second );
+            session.removeWindow( &first );
+        }
+
+        // The Team set leaves the application's Collection as it came.
+        auto& collection = HighlighterSetCollection::get();
+        collection.setTeamHighlighterSets( {} );
+        collection.save();
+    }
 }
 
 SCENARIO( "Restoring a Session reads the settings store once, at startup, not per Log File",

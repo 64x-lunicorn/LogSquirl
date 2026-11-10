@@ -38,46 +38,22 @@
 
 // This file implements LogData, the content of a log file.
 
-#include <algorithm>
-#include <exception>
-#include <limits>
-#include <numeric>
 #include <optional>
-#include <qregularexpression.h>
-#include <string_view>
 #include <utility>
-#include <vector>
 
 #include <QFileInfo>
 
-#include "ansicolorsequences.h"
 #include "containers.h"
+#include "encodingdecision.h"
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
-#include "loglinetext.h"
-#include "sparselineread.h"
+#include "loglinereader.h"
 
 #include "indexoperation.h"
 #include "logdata.h"
 #include "logdatametatypes.h"
 #include "logdataworker.h"
-
-namespace {
-
-// A Log Line as getLineString() returns it: its text, as it is.
-QString unchanged( QString&& lineText )
-{
-    return std::move( lineText );
-}
-
-// A Log Line as getExpandedLineString() returns it, from its text.
-QString untabified( QString&& lineText )
-{
-    return untabify( std::move( lineText ) );
-}
-
-} // namespace
 
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                   const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
@@ -142,12 +118,6 @@ const SearchPolicy& LogData::searchPolicy() const
 void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     searchPolicy_ = searchPolicy;
-
-    for ( const auto& filteredData : filteredData_ ) {
-        if ( filteredData ) {
-            filteredData->setSearchPolicy( searchPolicy );
-        }
-    }
 }
 
 void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
@@ -159,7 +129,7 @@ void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 
     // Views paint what they read before until they are told to read again;
     // the lock is released first, as they read Log Lines straight away.
-    logLinesChanged();
+    Q_EMIT logLinesChanged( 0_lnum );
     Q_EMIT decodingPolicyChanged();
 }
 
@@ -197,15 +167,9 @@ QDateTime LogData::getLastModifiedDate() const
 // Return an initialised LogFilteredData. The search is not started.
 std::unique_ptr<LogFilteredData> LogData::getNewFilteredData() const
 {
-    auto filteredData = std::make_unique<LogFilteredData>( this, searchPolicy_ );
-
-    // Forget the ones that have since been destroyed while we are here, so
-    // this list cannot grow without bound over a long session.
-    filteredData_.erase( std::remove( filteredData_.begin(), filteredData_.end(), nullptr ),
-                         filteredData_.end() );
-    filteredData_.emplace_back( filteredData.get() );
-
-    return filteredData;
+    // It hears of the Log Lines changed through logLinesChanged(), which it
+    // connects itself to.
+    return std::make_unique<LogFilteredData>( this, searchPolicy_ );
 }
 
 void LogData::reload( const TextEncoding* forcedEncoding )
@@ -214,7 +178,7 @@ void LogData::reload( const TextEncoding* forcedEncoding )
 
     // Told at once, not only once indexed again: until then no Search may be
     // served what it found in the Log Lines as they were read before.
-    logLinesChanged();
+    Q_EMIT logLinesChanged( 0_lnum );
 
     // Re-open the file, useful in case the file has been moved
     attached_file_->reOpenFile();
@@ -274,7 +238,8 @@ void LogData::fileChangedOnDisk( const QString& filename )
     operationQueue_.enqueueJob( CheckForChangesJob{} );
 }
 
-void LogData::indexingFinished( LoadingStatus status, const QString& failure )
+void LogData::indexingFinished( LoadingStatus status, const QString& failure,
+                                LineNumber firstChanged )
 {
     LOG_INFO << "indexingFinished for: " << indexingFileName_
              << ( status == LoadingStatus::Successful ) << ", found "
@@ -288,16 +253,10 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
             lastModifiedDate_ = fileInfo.lastModified();
     }
 
-    // After a Partial only the last Log Line indexed before data was added
-    // can have changed; after an Attach or a Full any of them can have.
-    if ( operationQueue_.isPartialReindexRunning() ) {
-        logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
-                             ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
-                             : 0_lnum );
-    }
-    else {
-        logLinesChanged();
-    }
+    // As the index job tells it: after a Partial only the last Log Line
+    // indexed before data was added can have changed; after an Attach or a
+    // Full any of them can have.
+    Q_EMIT logLinesChanged( firstChanged );
 
     LOG_DEBUG << "Sending indexingFinished.";
     Q_EMIT loadingFinished( status, failure );
@@ -316,11 +275,10 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     case MonitoredFileStatus::Truncated:
         // Told at once, not only once indexed again: until then no Search may
         // be served what it found in the Log Lines that were there before.
-        logLinesChanged();
+        Q_EMIT logLinesChanged( 0_lnum );
         operationQueue_.enqueueJob( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:
-        nbLinesBeforeDataAdded_ = doGetNbLine();
         operationQueue_.enqueueJob( PartialReindexJob{} );
         break;
     case MonitoredFileStatus::Unchanged:
@@ -364,40 +322,30 @@ void LogData::setDisplayEncoding( const TextEncoding& encoding )
 {
     LOG_DEBUG << "LogData::setDisplayEncoding: " << encoding.name().constData();
     codec_.setCodec( &encoding );
-    auto needReload = false;
-    auto useGuessedCodec = false;
 
+    EncodingDecision decision;
     {
         IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        const auto indexGuess = encodingMib( scopedAccessor.getEncodingGuess() );
 
-        const TextEncoding* currentIndexCodec = scopedAccessor.getForcedEncoding();
-        if ( !currentIndexCodec ) {
-            currentIndexCodec = scopedAccessor.getEncodingGuess();
-        }
-
-        if ( currentIndexCodec && codec_.mibEnum() != currentIndexCodec->mibEnum() ) {
-            if ( codec_.encodingParameters() != EncodingParameters( currentIndexCodec ) ) {
-                needReload = true;
-                useGuessedCodec = codec_.mibEnum() == scopedAccessor.getEncodingGuess()->mibEnum();
-            }
-        }
+        // Told to read in it, whatever it read in before: shown as given.
+        decision = decideEncoding( std::nullopt, encoding.mibEnum(), indexGuess,
+                                   encodingMib( scopedAccessor.getForcedEncoding() ), indexGuess );
     }
 
-    if ( needReload ) {
-        reload( useGuessedCodec ? nullptr : codec_.codec() );
-    }
-    else {
+    switch ( decision.change ) {
+    case EncodingChange::Unchanged:
+        break;
+    case EncodingChange::Redecode:
         // Indexed as it was, but the Log Lines decode differently.
-        logLinesChanged();
-    }
-}
-
-void LogData::logLinesChanged( LineNumber firstChanged ) const
-{
-    for ( const auto& filteredData : filteredData_ ) {
-        if ( filteredData ) {
-            filteredData->logLinesChanged( firstChanged );
-        }
+        Q_EMIT logLinesChanged( 0_lnum );
+        break;
+    case EncodingChange::ReindexForced:
+        reload( codec_.codec() );
+        break;
+    case EncodingChange::ReindexDetecting:
+        reload( nullptr );
+        break;
     }
 }
 
@@ -422,13 +370,13 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // indexingFinished).
 logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, unchanged );
+    return reader().readLines( first_line, number );
 }
 
 logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
                                                         LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, untabified );
+    return reader().readExpandedLines( first_line, number );
 }
 
 std::shared_ptr<const SearchBlockSource> LogData::searchBlockSource() const
@@ -446,7 +394,7 @@ RawLines LogDataBlockSource::getLinesRaw( LineNumber first, LinesCount number ) 
 {
     // The handles are taken under the lock, the block is read without it: a
     // read that outlasts the LogData holds everything it touches.
-    auto handles = [ this ]() -> std::optional<LogData::ReadHandles> {
+    auto handles = [ this ]() -> std::optional<ReadHandles> {
         std::lock_guard lock( mutex_ );
         if ( !logData_ ) {
             return std::nullopt;
@@ -458,7 +406,8 @@ RawLines LogDataBlockSource::getLinesRaw( LineNumber first, LinesCount number ) 
         rawLines.startLine = first;
         return rawLines;
     }
-    return LogData::readRawLines( std::move( *handles ), first, number, SearchBlockMaxBytes );
+    return LogLineReader( std::move( *handles ) )
+        .readRawLines( first, number, SearchBlockMaxBytes );
 }
 
 void LogDataBlockSource::attachReader() const
@@ -487,409 +436,64 @@ std::shared_ptr<FileHolder> LogDataBlockSource::attachedFile() const
     return logData_ ? logData_->attached_file_ : nullptr;
 }
 
-LogData::ReadHandles LogData::readHandles() const
+ReadHandles LogData::readHandles() const
 {
     // The decoder carries the Encoding's parameters: one lock, not two, on
     // every read of Log Lines.
-    auto decoder = codec_.makeDecoder();
-    const auto encodingParams = decoder.encodingParams;
-    return ReadHandles{ indexing_data_, attached_file_, encodingParams, std::move( decoder ),
-                        decodingPolicy_.load() };
+    return ReadHandles{ .index = indexing_data_,
+                        .file = attached_file_,
+                        .decoder = codec_.makeDecoder(),
+                        .decodingPolicy = decodingPolicy_.load() };
 }
 
-RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 maxBytes ) const
+LogLineReader LogData::reader() const
 {
-    // The views' path: no handles to share, so none are copied per read.
-    auto decoder = codec_.makeDecoder();
-    const auto encodingParams = decoder.encodingParams;
-    return readRawLines( *indexing_data_, *attached_file_, encodingParams, std::move( decoder ),
-                         decodingPolicy_.load(), firstLine, number, maxBytes );
-}
-
-RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, LinesCount number,
-                                qint64 maxBytes )
-{
-    return readRawLines( *handles.index, *handles.file, handles.encodingParams,
-                         std::move( handles.decoder ), handles.decodingPolicy, firstLine, number,
-                         maxBytes );
-}
-
-RawLines LogData::readRawLines( const IndexingData& index, FileHolder& file,
-                                const EncodingParameters& encodingParams, TextDecoder decoder,
-                                DecodingPolicy decodingPolicy, LineNumber firstLine,
-                                LinesCount number, qint64 maxBytes )
-{
-    RawLines rawLines;
-    rawLines.startLine = firstLine;
-
-    try {
-        OffsetInFile::UnderlyingType firstByte = 0;
-        logsquirl::vector<OffsetInFile> endOfLines;
-        {
-            // Only the offsets are taken under the index lock: the file is
-            // read without it, so indexing can publish a block meanwhile.
-            IndexingData::ConstAccessor scopedAccessor{ &index };
-            if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
-                LOG_WARNING << "Lines out of bound asked for";
-                return {}; /* exception? */
-            }
-
-            rawLines.hideAnsiColorSequences = decodingPolicy.hideAnsiColorSequences;
-
-            firstByte = ( firstLine == 0_lnum )
-                            ? 0
-                            : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
-
-            endOfLines = scopedAccessor.getEndOfLineOffsets( firstLine, number );
-        }
-
-        // Guard against the (rare) case where the index has been concurrently truncated
-        // between the firstByte lookup above and this call: back() on an empty vector is
-        // undefined behavior.
-        if ( endOfLines.empty() ) {
-            LOG_DEBUG << "no end-of-line offsets returned for firstLine=" << firstLine
-                      << " number=" << number;
-            return rawLines;
-        }
-
-        // Where each Log Line ends in the buffer. A Log Line too long to read
-        // is left out of it but for a line feed, and the block ends before
-        // the Log Line that would take the buffer past maxBytes (#825).
-        const auto lineFeedWidth = encodingParams.lineFeedWidth;
-        rawLines.endOfLines.reserve( endOfLines.size() );
-        qint64 lineStart = firstByte;
-        qint64 skipped = 0;
-        for ( const auto& offset : endOfLines ) {
-            const auto end = offset.get();
-            if ( end < lineStart ) {
-                // Out of a tampered Index: the block reads as warnings (#824).
-                throw std::runtime_error( "Index offsets out of order" );
-            }
-            const bool tooLong = end - lineStart - lineFeedWidth >= MaxLogLineLength;
-            if ( tooLong ) {
-                skipped += end - lineStart - lineFeedWidth;
-            }
-            const auto bufferEnd = end - firstByte - skipped;
-            if ( bufferEnd > maxBytes && !rawLines.endOfLines.empty() ) {
-                break;
-            }
-            if ( tooLong ) {
-                rawLines.tooLongLines.push_back( rawLines.endOfLines.size() );
-            }
-            rawLines.endOfLines.push_back( bufferEnd );
-            lineStart = end;
-        }
-
-        const auto bytesToRead = rawLines.endOfLines.back();
-        LOG_DEBUG << "will try to read:" << bytesToRead << " bytes";
-        rawLines.buffer.resize( static_cast<std::size_t>( bytesToRead ) );
-
-        {
-            ScopedFileHolder<FileHolder> fileHolder( &file );
-            // Reads the bytes [fileOffset, fileOffset + size) of the Log File
-            // to bufferOffset in the buffer. When the Log File is shorter than
-            // its Index says, as when it was cut short on disk and is not
-            // indexed again yet, only the bytes read are kept: the Log Lines
-            // past them read as a warning.
-            const auto readRun = [ &rawLines, &fileHolder ]( qint64 fileOffset, qint64 bufferOffset,
-                                                             qint64 size ) {
-                if ( size <= 0 ) {
-                    return size == 0;
-                }
-                const auto bytesRead = readBytesAt( *fileHolder.getFile(), fileOffset,
-                                                    rawLines.buffer.data() + bufferOffset, size );
-                if ( bytesRead != size ) {
-                    LOG_DEBUG << "failed to read " << size << " bytes, got " << bytesRead;
-                    rawLines.buffer.resize( static_cast<std::size_t>(
-                        bufferOffset + std::max( bytesRead, qint64{ 0 } ) ) );
-                    return false;
-                }
-                return true;
-            };
-
-            if ( rawLines.tooLongLines.empty() ) {
-                // One read for a block of ordinary Log Lines.
-                readRun( firstByte, 0, bytesToRead );
-            }
-            else {
-                // A run of bytes before each Log Line too long to read, then
-                // a line feed in the Encoding standing for it, then the run
-                // after the last one.
-                qint64 runFile = firstByte;
-                qint64 runBuffer = 0;
-                bool complete = true;
-                for ( const auto lineIndex : rawLines.tooLongLines ) {
-                    const auto bufferEnd = rawLines.endOfLines[ lineIndex ];
-                    complete = readRun( runFile, runBuffer, bufferEnd - lineFeedWidth - runBuffer );
-                    if ( !complete ) {
-                        break;
-                    }
-                    rawLines.buffer[ static_cast<std::size_t>(
-                        bufferEnd - lineFeedWidth + encodingParams.lineFeedIndex ) ] = '\n';
-                    runFile = endOfLines[ lineIndex ].get();
-                    runBuffer = bufferEnd;
-                }
-                if ( complete ) {
-                    readRun( runFile, runBuffer, bytesToRead - runBuffer );
-                }
-            }
-        }
-
-        LOG_DEBUG << "done reading lines:" << rawLines.buffer.size();
-        rawLines.textDecoder = std::move( decoder );
-        return rawLines;
-
-    } catch ( const std::bad_alloc& ) {
-        LOG_ERROR << "not enough memory";
-        rawLines.endOfLines.clear();
-        rawLines.tooLongLines.clear();
-        rawLines.buffer.clear();
-        return rawLines;
-    } catch ( const std::exception& error ) {
-        // Offsets out of a tampered Index make the buffer's size absurd;
-        // the block reads as warnings rather than throwing into the paint
-        // path (#824).
-        LOG_ERROR << "cannot read Log Lines: " << error.what();
-        rawLines.endOfLines.clear();
-        rawLines.tooLongLines.clear();
-        rawLines.buffer.clear();
-        return rawLines;
-    }
-}
-
-logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, LinesCount number,
-                                                      QString ( *processLine )( QString&& ) ) const
-{
-    LOG_DEBUG << "firstLine:" << firstLine << " nb:" << number;
-
-    if ( number.get() == 0 ) {
-        return logsquirl::vector<QString>();
-    }
-
-    logsquirl::vector<QString> processedLines;
-    try {
-        const auto rawLines = getLinesRaw( firstLine, number );
-        auto decodedLines = rawLines.decodeLines();
-
-        processedLines.reserve( decodedLines.size() );
-
-        for ( auto&& line : decodedLines ) {
-            processedLines.push_back( processLine( std::move( line ) ) );
-        }
-
-    } catch ( const std::bad_alloc& e ) {
-        LOG_ERROR << "not enough memory " << e.what();
-        processedLines.push_back( warningText( NotEnoughMemoryWarning ) );
-    } catch ( const std::exception& error ) {
-        // The Log Lines not made yet read as warnings below (#824).
-        LOG_ERROR << "cannot read Log Lines: " << error.what();
-    }
-
-    processedLines.reserve( number.get() - processedLines.size() );
-    while ( processedLines.size() < number.get() ) {
-        processedLines.push_back( warningText( LinesNotReadWarning ) );
-    }
-
-    return processedLines;
-}
-
-template <typename OnLine>
-void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const
-{
-    // Everything the reads need from the Index and the Decoding Policy is
-    // copied under the index lock; the file is read without it, so indexing
-    // can publish a block meanwhile (#289). A read cut short by a Log File
-    // shorter than its Index reads as a warning below.
-    logsquirl::vector<SparseRead> reads;
-    bool hideAnsiColorSequences = false;
-    const auto lineFeedWidth = codec_.encodingParameters().lineFeedWidth;
-    {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-        SparseReadLimits limits;
-        limits.lineFeedWidth = lineFeedWidth;
-        reads = planSparseRead(
-            lines, scopedAccessor.getNbLines(),
-            [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
-                return scopedAccessor.getEndOfLineOffsets( first, count );
-            },
-            limits );
-        hideAnsiColorSequences = decodingPolicy_.load().hideAnsiColorSequences;
-    }
-
-    if ( reads.empty() ) {
-        return;
-    }
-
-    ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
-
-    logsquirl::vector<char> buffer;
-    for ( const auto& read : reads ) {
-        // A read with no bytes holds a Log Line too long to read, which reads
-        // as the warning below without touching the Log File (#825).
-        qint64 bytesRead = 0;
-        if ( read.size > 0 ) {
-            buffer.resize( static_cast<std::size_t>( read.size ) );
-            bytesRead = readBytesAt( *fileHolder.getFile(), read.firstByte.get(), buffer.data(),
-                                     read.size );
-            if ( bytesRead != read.size ) {
-                LOG_DEBUG << "failed to read " << read.size << " bytes, got " << bytesRead;
-            }
-        }
-        // A read that could not seek read nothing: every Log Line of it reads
-        // as the warning, an empty one included (#845).
-        if ( bytesRead < 0 ) {
-            for ( const auto& line : read.lines ) {
-                onLine( ReadLogLine{ .request = line.request,
-                                     .bytes = {},
-                                     .warning = FileReadFailedWarning,
-                                     .hideAnsiColorSequences = hideAnsiColorSequences } );
-            }
-            continue;
-        }
-
-        const std::string_view bytes
-            = bytesRead > 0
-                  ? std::string_view( buffer.data(), static_cast<std::size_t>( bytesRead ) )
-                  : std::string_view();
-        for ( const auto& line : read.lines ) {
-            onLine( readLogLine( line.request, bytes, line.begin,
-                                 line.end - line.begin - lineFeedWidth, hideAnsiColorSequences ) );
-        }
-    }
+    return LogLineReader( readHandles() );
 }
 
 logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return decodeReadLogLines<QString>(
-        codec_, lines.size(),
-        [ this, lines ]( const auto& onLine ) { readSparseLines( lines, onLine ); }, logLineText );
+    return reader().readLinesSparse( lines );
 }
 
 logsquirl::vector<QString>
 LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return decodeReadLogLines<QString>(
-        codec_, lines.size(),
-        [ this, lines ]( const auto& onLine ) { readSparseLines( lines, onLine ); },
-        []( QString&& decodedLine, bool hideAnsiColorSequences ) {
-            return untabified( logLineText( std::move( decodedLine ), hideAnsiColorSequences ) );
-        } );
+    return reader().readExpandedLinesSparse( lines );
 }
 
 logsquirl::vector<AnsiColoredText>
 LogData::getAnsiColoredLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return decodeReadLogLines<AnsiColoredText>(
-        codec_, lines.size(),
-        [ this, lines ]( const auto& onLine ) { readSparseLines( lines, onLine ); },
-        ansiColoredLogLineText );
+    return reader().readAnsiColoredLinesSparse( lines );
 }
 
 logsquirl::vector<AnsiColoredText> LogData::doGetAnsiColoredLines( LineNumber firstLine,
                                                                    LinesCount number ) const
 {
-    if ( number.get() == 0 ) {
-        return {};
-    }
-
-    logsquirl::vector<AnsiColoredText> lines;
-    try {
-        lines = getLinesRaw( firstLine, number ).decodeAnsiColoredLines();
-    } catch ( const std::bad_alloc& e ) {
-        LOG_ERROR << "not enough memory " << e.what();
-        lines.push_back( AnsiColoredText{ warningText( NotEnoughMemoryWarning ) } );
-    } catch ( const std::exception& error ) {
-        // As in getLinesFromFile() (#824).
-        LOG_ERROR << "cannot read Log Lines: " << error.what();
-    }
-
-    while ( lines.size() < number.get() ) {
-        lines.push_back( AnsiColoredText{ warningText( LinesNotReadWarning ) } );
-    }
-    return lines;
+    return reader().readAnsiColoredLines( firstLine, number );
 }
 
 void LogData::readLinePrefixes(
     std::span<const LineNumber> lines, qint64 maxBytes,
     const std::function<bool( QString&& text, bool cut )>& onLine ) const
 {
-    // Where each Log Line lies, taken under the index lock; the file is read
-    // without it, as by readSparseLines().
-    struct Place {
-        OffsetInFile begin;
-        qint64 length = 0; // without its line feed
-    };
-    logsquirl::vector<Place> places;
-    bool hideAnsiColorSequences = false;
-    const auto lineFeedWidth = codec_.encodingParameters().lineFeedWidth;
-    {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-        const auto nbLines = scopedAccessor.getNbLines();
-        places.reserve( lines.size() );
-        for ( const auto line : lines ) {
-            if ( line.get() >= nbLines.get() ) {
-                break;
-            }
-            const auto first = line.get() == 0 ? line : line - 1_lcount;
-            const auto count = line.get() == 0 ? 1_lcount : 2_lcount;
-            const auto ends = scopedAccessor.getEndOfLineOffsets( first, count );
-            if ( ends.size() != count.get() ) {
-                break;
-            }
-            const auto begin = line.get() == 0 ? OffsetInFile( 0 ) : ends.front();
-            places.push_back( Place{ .begin = begin,
-                                     .length = std::max( ( ends.back() - begin ).get()
-                                                             - static_cast<qint64>( lineFeedWidth ),
-                                                         qint64{ 0 } ) } );
-        }
-        hideAnsiColorSequences = decodingPolicy_.load().hideAnsiColorSequences;
-    }
-    if ( places.empty() ) {
-        return;
-    }
-
-    ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
-    const auto textDecoder = codec_.makeDecoder();
-    logsquirl::vector<char> buffer;
-    for ( const auto& place : places ) {
-        const auto toRead = std::min( place.length, std::max( maxBytes, qint64{ 0 } ) );
-        buffer.resize( static_cast<std::size_t>( toRead ) );
-        const auto bytesRead = toRead > 0 ? readBytesAt( *fileHolder.getFile(), place.begin.get(),
-                                                         buffer.data(), toRead )
-                                          : qint64{ 0 };
-        // A Log Line the file could not seek to reads as the warning (#845).
-        if ( bytesRead < 0 ) {
-            if ( !onLine( QString::fromUtf8( FileReadFailedWarning ), false ) ) {
-                return;
-            }
-            continue;
-        }
-        const bool cut = place.length > toRead;
-
-        textDecoder.decoder->resetState();
-        auto text
-            = logLineText( textDecoder.decode( buffer.data(), static_cast<qsizetype>( bytesRead ) ),
-                           hideAnsiColorSequences );
-        // A character the bound cut in two decodes as a replacement character.
-        while ( cut && text.endsWith( QChar::ReplacementCharacter ) ) {
-            text.chop( 1 );
-        }
-        if ( !onLine( std::move( text ), cut ) ) {
-            return;
-        }
-    }
+    reader().readLinePrefixes( lines, maxBytes, onLine );
 }
 
 std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) const
 {
-    return decodeReadLogLinesToUtf8( codec_, lines.size(), [ this, lines ]( const auto& onLine ) {
-        readSparseLines( lines, onLine );
-    } );
+    return reader().readUtf8LinesSparse( lines );
 }
 
 const TextEncoding* LogData::getDetectedEncoding() const
 {
     return IndexingData::ConstAccessor{ indexing_data_.get() }.getEncodingGuess();
+}
+
+const TextEncoding* LogData::getForcedEncoding() const
+{
+    return IndexingData::ConstAccessor{ indexing_data_.get() }.getForcedEncoding();
 }
 
 void LogData::doAttachReader() const

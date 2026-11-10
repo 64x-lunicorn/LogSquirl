@@ -182,9 +182,3 @@ void OperationQueue::finishJobAndStartNext()
 
     tryStartWaitingJob();
 }
-
-bool OperationQueue::isPartialReindexRunning() const
-{
-    ScopedLock guard( mutex_ );
-    return std::holds_alternative<PartialReindexJob>( runningJob_ );
-}

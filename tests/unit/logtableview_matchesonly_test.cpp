@@ -136,7 +136,7 @@ struct SearchedLogFile {
 
     void clearSearch()
     {
-        filteredData->request();
+        filteredData->dropResults();
         QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
     }
 

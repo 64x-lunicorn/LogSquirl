@@ -17,6 +17,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinereader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinetext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/matchesdelta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
@@ -31,6 +32,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexcache.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/headerandtaildigests.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexedhash.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/digestcoverage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdecision.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ansicolorsequences.cpp
@@ -45,6 +48,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tbbworkersjoinedatexit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinereader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinetext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchsession.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sparselineread.cpp
@@ -53,6 +57,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexcache.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/headerandtaildigests.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/digestcoverage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdecision.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexoperation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.cpp

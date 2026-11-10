@@ -68,6 +68,19 @@
   Shortcuts list does, without the mnemonic in any form, with the ampersand
   kept and without the dots of an entry that opens a dialog (*Open* instead
   of *Open...*). (#937)
+- **A Highlighter Set or Predefined Filter changed in one window shows in
+  every window**: with two windows open, the other window's Highlighters
+  menu and Filters panel no longer keep the old state until a restart. (#942)
+- **A truncated Log File restarts the Search in front with its own
+  pattern**: after switching between Filtered View tabs, a Log File that was
+  truncated under an auto-refreshing Search restarted the Search in front
+  with the pattern of the tab shown before. Each Search now keeps its own
+  pattern. (#941)
+- **Stop and Reload are not offered on the Welcome Dashboard**: with no Log
+  File in front, the toolbar's Stop and Reload were enabled, and Matches
+  Only, Go to timestamp and the time Search Limits kept the state of the tab
+  shown last. They are now disabled and unchecked until a Log File is in
+  front. (#946)
 
 ## Internal
 
@@ -79,6 +92,57 @@
   lays its rows out again when shown, so rows filled before the tab was
   placed in the sidebar get the Theme's padding. The Value Names tab follows.
   (#923)
+- **The Searches of an Open Log File are kept in one Search Set**: it
+  decides whether a Search waits for the first load or is held by a restored
+  Session, runs them once that load has finished or they are released, and
+  hands the Search Policy to each of them. The log data keeps no list of its
+  Searches any longer; each one hears of changed Log Lines through a signal
+  it connects itself to. (#941)
+- **The Session hears the Team Folder and the plugin groups once**: it
+  writes each Collection once per Team sync or plugin change and tells every
+  window, instead of every window hearing them and writing the same
+  Collection again. (#943)
+- **A CrawlerWidget is observed through its State only**: its State also
+  says how many Log Lines the Log File has, which Log Format was recognized,
+  and how many Filtered View tabs there are and which one is in front. The
+  getters that repeated the State are gone. A test that needs a Table View
+  opens a Log File its Session's Log Format Catalog recognizes, instead of
+  planting a Log Format in the widget. (#944)
+- **Tests drive a tab's child widgets by their object names**: the Search
+  line, Text View, Table View, Filtered Views and chart panel are found as a
+  user finds them, not through the tab's private members. (#945)
+- **The tab in front decides the window's actions in one function and one
+  binding**: `frontTabActions()` works out from the state of the tab in front
+  alone (none for the Welcome Dashboard) what the Encoding, Follow, Text
+  Wrap, Show Value Names, Matches Only, Export as CSV..., Go to timestamp,
+  the time Search Limits, Stop, Reload and the actions that need a Log File
+  show, and is tested without a window. A front-tab binding owns the
+  connections to that tab and its place in the QuickFind mux. (#946)
+- **One rule decides how a changed Encoding takes effect**: which Encoding a
+  Log File is shown in, and whether a change indexes it again or only decodes
+  its Log Lines again, is one pure function tested without files. (#947)
+- **An index job tells which Log Lines it changed**: the Searches are told
+  the first changed Log Line from the job's outcome instead of one worked out
+  from the job queue's state. One rule, tested without Log Files, says how
+  much of a Log File is read to tell whether its Index still fits it (#277,
+  #337). (#948)
+- **One decision gives the order of the steps that open a Log File**: wait
+  for the plugins, show the tab of one already open, convert it by its
+  extension, have the converter plugins claim it by its content, decompress
+  it, open it. It is tested without a window; the main window only carries
+  out its steps. (#949)
+- **The window's actions come from one table**: their names, translations
+  and shortcuts are set from one table instead of three lists that repeated
+  each other. (#950)
+- **Every read of Log Lines goes through one Log Line Reader**: the views',
+  the Search's, the plugins' and `logsquirl_grep`'s reads apply the rules of a
+  read once -- a too-long Log Line, carriage return and byte order mark
+  trimming, UTF-8 passed through -- and the reader is tested against bytes in
+  memory. Who reads on which thread is unchanged. (#951)
+- **The Open Log File tests leave to the Search Set tests what those
+  cover**: waiting for the first load, holding and releasing, and making a
+  waiting Search current are tested with fake Searches; each is wired once
+  end to end. (#952)
 
 # v26.12.0-beta2 (2026-11-06)
 

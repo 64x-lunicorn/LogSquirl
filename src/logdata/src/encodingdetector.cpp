@@ -82,7 +82,8 @@ EncodingParameters::EncodingParameters( const TextEncoding* codec )
     static constexpr int Latin1Mib = TextEncoding::Latin1Mib;
     static constexpr int UsAsciiMib = TextEncoding::UsAsciiMib;
 
-    isUtf8Compatible = codec->mibEnum() == Utf8Mib || codec->mibEnum() == UsAsciiMib;
+    isUtf8 = codec->mibEnum() == Utf8Mib;
+    isUtf8Compatible = isUtf8 || codec->mibEnum() == UsAsciiMib;
     isUtf16LE = codec->mibEnum() == Utf16LEMib;
     isUtf16BE = codec->mibEnum() == Utf16BEMib;
     isLatin1 = codec->mibEnum() == Latin1Mib;

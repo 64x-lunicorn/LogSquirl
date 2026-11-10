@@ -40,9 +40,6 @@ void LoadRule::restoreMarks( const logsquirl::vector<LineNumber>& marks )
 
 LoadRule::ReloadDecision LoadRule::reload()
 {
-    searchRequested_ = false;
-    searchWaitsForLoad_ = false;
-
     // A reload recognizes the Log Format again, so an edited user Log Format
     // is picked up by reloading.
     formatRecognitionPending_ = true;
@@ -69,7 +66,6 @@ LoadRule::ChangeDecision LoadRule::changedOnDisk( MonitoredFileStatus status )
         decision.report = Change::Truncated;
         // Marks do not survive a truncation.
         decision.clearMarks = true;
-        decision.dropSearch = searchRequested_;
         // Recognized again once the truncated Log File has loaded.
         decision.forgetLogFormat = true;
         formatRecognitionPending_ = true;
@@ -87,39 +83,6 @@ LoadRule::ChangeDecision LoadRule::changedOnDisk( MonitoredFileStatus status )
         break;
     }
     return decision;
-}
-
-bool LoadRule::searchRequested()
-{
-    searchRequested_ = true;
-    if ( loadFinishedOnce_ ) {
-        return false;
-    }
-    // Nothing to search yet: it runs over the Log Lines once they have
-    // loaded, rather than over none now.
-    searchWaitsForLoad_ = true;
-    return true;
-}
-
-void LoadRule::searchCleared()
-{
-    searchRequested_ = false;
-    searchWaitsForLoad_ = false;
-}
-
-void LoadRule::waitingSearchDropped()
-{
-    searchWaitsForLoad_ = false;
-}
-
-bool LoadRule::searchWaitsForLoad() const
-{
-    return searchWaitsForLoad_;
-}
-
-bool LoadRule::hasLoadFinished() const
-{
-    return loadFinishedOnce_;
 }
 
 LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount lineCount,
@@ -153,18 +116,6 @@ LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount 
         firstLoadDone_ = true;
         // Applied once: a reload clears the Marks, and they stay cleared.
         decision.savedMarksToApply = std::exchange( savedMarks_, {} );
-    }
-
-    loadFinishedOnce_ = true;
-    if ( std::exchange( searchWaitsForLoad_, false ) ) {
-        // The Search requested while the Log File loaded runs over the whole
-        // of it now; a Log File that did not load has nothing to search.
-        if ( status == LoadingStatus::Successful ) {
-            decision.runWaitingSearch = true;
-        }
-        else {
-            searchRequested_ = false;
-        }
     }
 
     // A Log File with no Log Lines yet has nothing to recognize from, so it

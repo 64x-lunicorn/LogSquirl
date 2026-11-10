@@ -51,7 +51,6 @@
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
-#include <QPointer>
 #include <QString>
 #include <qregularexpression.h>
 #include <span>
@@ -64,6 +63,7 @@
 #include "fileholder.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
+#include "loglinereader.h"
 #include "searchblocksource.h"
 #include "settingspolicies.h"
 
@@ -110,7 +110,7 @@ class CantReattachErr : public std::exception {};
 class LogData : public AbstractLogData {
     Q_OBJECT
 
-    // Reads raw Log Lines for a Search, through getLinesRaw().
+    // Reads raw Log Lines for a Search, through the handles of its own.
     friend class LogDataBlockSource;
 
 public:
@@ -120,7 +120,7 @@ public:
 
     // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
-    // it needs (handed on to every LogFilteredData built from it), how the
+    // it needs (each LogFilteredData built from it starts with it), how the
     // file itself is opened, and how its bytes become the text of its Log
     // Lines. It reads no setting of its own -- the log data library does
     // not link the settings library.
@@ -156,11 +156,15 @@ public:
 
     // Get the auto-detected encoding for the indexed text.
     const TextEncoding* getDetectedEncoding() const;
+    // The Encoding the Log File was indexed forced to; null when it was
+    // indexed in the one detected.
+    const TextEncoding* getForcedEncoding() const;
 
-    // Reads the Log File in the Encoding given from now on. When it splits
-    // the Log File into Log Lines differently than the Encoding it was
-    // indexed in, the Log File is loaded again; otherwise its Log Lines only
-    // decode differently, which every LogFilteredData built from it is told.
+    // Reads the Log File in the Encoding given from now on. As
+    // decideEncoding() decides: when it splits the Log File into Log Lines
+    // differently than the Encoding it was indexed in, the Log File is loaded
+    // again; otherwise its Log Lines only decode differently, which every
+    // LogFilteredData built from it is told.
     void setDisplayEncoding( const TextEncoding& encoding );
 
     // Replaces the Decoding Policy: every Log Line read from now on, for a
@@ -173,9 +177,9 @@ public:
     // use it, one already in flight keeps the one it started with.
     void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
-    // Replaces the Search Policy, here and in every LogFilteredData built
-    // from this Log File -- including the ones a tab kept from an earlier
-    // Search, which nothing else holds a list of.
+    // Replaces the Search Policy a LogFilteredData built from now on starts
+    // with. One built before keeps its own: whoever holds the Searches -- the
+    // Open Log File's Search Set (#941) -- hands it on to them.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
     const SearchPolicy& searchPolicy() const;
 
@@ -251,10 +255,15 @@ Q_SIGNALS:
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();
+    // The Log Lines from firstChanged on may read differently now: indexed
+    // again, cut short or appended to, or decoded differently. Every
+    // LogFilteredData built from this object hears of it through a direct
+    // connection, before loadingFinished() when a load brought the change.
+    void logLinesChanged( LineNumber firstChanged );
 
 private Q_SLOTS:
     // Called when the worker thread signals the current operation ended
-    void indexingFinished( LoadingStatus status, const QString& failure );
+    void indexingFinished( LoadingStatus status, const QString& failure, LineNumber firstChanged );
     // Called when the worker thread signals the current operation ended
     void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
@@ -276,49 +285,14 @@ private:
     void doAttachReader() const override;
     void doDetachReader() const override;
 
-    void reOpenFile() const;
-
-    // The raw Log Lines [first, first + number), as a Search reads them
-    // through searchBlockSource() and as the block reads here decode them.
-    // Only the offsets are taken under the Index's lock. The block ends
-    // before the Log Line that would take its bytes past maxBytes, its
-    // first Log Line always in it: a Search's block is bounded so, the
-    // view's is not. A Log Line too long to read costs its line feed alone
-    // (RawLines::tooLongLines, #825).
-    RawLines getLinesRaw( LineNumber first, LinesCount number,
-                          qint64 maxBytes = std::numeric_limits<qint64>::max() ) const;
-
-    // What a block read holds of this object, so that the read goes on
-    // without it: the Index and the Log File through shared handles, and the
-    // rest by value (#832).
-    struct ReadHandles {
-        std::shared_ptr<IndexingData> index;
-        std::shared_ptr<FileHolder> file;
-        EncodingParameters encodingParams;
-        TextDecoder decoder;
-        DecodingPolicy decodingPolicy;
-    };
+    // What a read of Log Lines holds of this object (#832). Every read of
+    // Log Lines goes through a Log Line Reader built from them: the views'
+    // and the plugins' on their own threads through reader(), the Search's on
+    // its threads through searchBlockSource(). It copies the handles without a
+    // lock: the Index and the file holder are set once, when the Log File is
+    // attached, and only what they point to changes, under their own locks.
     ReadHandles readHandles() const;
-    static RawLines readRawLines( ReadHandles handles, LineNumber first, LinesCount number,
-                                  qint64 maxBytes );
-    // The read itself: the views read through this object's own Index and Log
-    // File, the Search through the handles above.
-    static RawLines readRawLines( const IndexingData& index, FileHolder& file,
-                                  const EncodingParameters& encodingParams, TextDecoder decoder,
-                                  DecodingPolicy decodingPolicy, LineNumber first,
-                                  LinesCount number, qint64 maxBytes );
-    // Tells every LogFilteredData handed out that the Log Lines from
-    // firstChanged on may read differently now.
-    void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
-
-    logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
-                                                 QString ( *processLine )( QString&& ) ) const;
-    // Reads the Log Lines asked for that are indexed, nearby ones merged into
-    // runs, and calls onLine( const ReadLogLine& ) for each, in the order
-    // read. Log Lines past the last one are not called for. The Index is
-    // looked at under its lock, the Log File is read without it.
-    template <typename OnLine>
-    void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
+    LogLineReader reader() const;
 
 private:
     // Shared with the block reads of a Search, which may outlive this object.
@@ -328,12 +302,6 @@ private:
     std::shared_ptr<IndexingData> indexing_data_;
 
     OperationQueue operationQueue_;
-
-    // Every LogFilteredData handed out by getNewFilteredData(), so that a
-    // changed Search Policy reaches all of them. QPointer rather than a
-    // shared handle: the caller owns them, and one that has been destroyed
-    // simply drops out of this list.
-    mutable std::vector<QPointer<LogFilteredData>> filteredData_;
 
     QString indexingFileName_;
     // mutable std::unique_ptr<QFile> attached_file_;
@@ -350,9 +318,6 @@ private:
 
     // Codec to decode text
     TextCodecHolder codec_;
-    // How many Log Lines were indexed before the data added on disk is,
-    // taken when a Check finds only growth.
-    LinesCount nbLinesBeforeDataAdded_;
 
     // Read by every read of Log Lines, on the Search's threads too: atomic,
     // so a read takes no lock for it.

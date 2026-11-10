@@ -24,7 +24,9 @@ add_executable(logsquirl_tests
     csvexportdialog_test.cpp
     datalocation_test.cpp
     decorationsetup_test.cpp
+    digestcoverage_test.cpp
     displayedlines_test.cpp
+    encodingdecision_test.cpp
     encodingdetector_test.cpp
     fileassociations_test.cpp
     fileassociationchoice_test.cpp
@@ -33,6 +35,7 @@ add_executable(logsquirl_tests
     windowsfileassociations_test.cpp
     fileholder_test.cpp
     fontutils_test.cpp
+    fronttabactions_test.cpp
     groupexchange_test.cpp
     hsregularexpression_test.cpp
     teamfolder_test.cpp

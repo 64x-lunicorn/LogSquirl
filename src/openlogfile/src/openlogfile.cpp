@@ -19,6 +19,7 @@
 
 #include "openlogfile.h"
 
+#include "encodingdecision.h"
 #include "filewatchport.h"
 #include "formatrecognition.h"
 #include "log.h"
@@ -30,9 +31,7 @@
 
 #include "textencoding.h"
 
-#include <algorithm>
 #include <mutex>
-#include <tuple>
 #include <utility>
 
 namespace {
@@ -47,6 +46,14 @@ std::optional<int> knownEncoding( std::optional<int> mib )
     return known ? mib : std::nullopt;
 }
 
+// The Encoding decideEncoding() shows, by its MIB: one chosen is one this
+// build knows, one detected or the locale's one it decodes.
+const TextEncoding* shownEncoding( int mib )
+{
+    const auto* encoding = TextEncoding::forMib( mib );
+    return encoding != nullptr ? encoding : TextEncoding::forLocale();
+}
+
 } // namespace
 
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
@@ -59,7 +66,17 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     , fileWatch_( std::move( fileWatch ) )
     , logData_( std::make_shared<LogData>( indexingPolicy, searchPolicy, fileAccessPolicy,
                                            decodingPolicy ) )
-    , filteredData_( logData_->getNewFilteredData() )
+    , searchSet_( SearchSet<LogFilteredData>::Hooks{
+          .newSearch = [ this ]() -> std::shared_ptr<LogFilteredData> {
+              return logData_->getNewFilteredData();
+          },
+          .preparePattern =
+              [ this ]( RegularExpressionPattern pattern ) {
+                  return withFieldReader( std::move( pattern ) );
+              },
+          .currentRequested = [ this ] { followCurrentRequest(); },
+          .heldNoLonger = [ this ] { Q_EMIT searchesHeldNoLonger(); },
+      } )
     , recognitionPolicy_( recognitionPolicy )
     , logFormatCatalog_( std::move( logFormatCatalog ) )
 {
@@ -116,7 +133,7 @@ void OpenLogFile::open( const QString& fileName )
 
 bool OpenLogFile::hasFirstLoadFinished() const
 {
-    return loadRule_.hasLoadFinished();
+    return searchSet_.hasFirstLoadFinished();
 }
 
 void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
@@ -126,22 +143,22 @@ void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
 
 void OpenLogFile::addMark( LineNumber line )
 {
-    filteredData_->addMark( line );
+    searchSet_.current()->addMark( line );
 }
 
 void OpenLogFile::toggleMark( LineNumber line )
 {
-    filteredData_->toggleMark( line );
+    searchSet_.current()->toggleMark( line );
 }
 
 void OpenLogFile::clearMarks()
 {
-    filteredData_->clearMarks();
+    searchSet_.current()->clearMarks();
 }
 
 AbstractLogData::LineType OpenLogFile::lineType( LineNumber line ) const
 {
-    return filteredData_->lineTypeByLine( line );
+    return searchSet_.current()->lineTypeByLine( line );
 }
 
 QList<LineNumber> OpenLogFile::marks() const
@@ -150,7 +167,7 @@ QList<LineNumber> OpenLogFile::marks() const
         const auto& savedMarks = loadRule_.savedMarks();
         return QList<LineNumber>( savedMarks.begin(), savedMarks.end() );
     }
-    return filteredData_->getMarks();
+    return searchSet_.current()->getMarks();
 }
 
 void OpenLogFile::reload()
@@ -171,8 +188,9 @@ void OpenLogFile::reload()
     const auto decision = loadRule_.reload();
     if ( decision.dropSearch ) {
         // The cached results go once the Log File is indexed again, which
-        // tells every Search that its Log Lines changed.
-        filteredData_->request();
+        // tells every Search that its Log Lines changed. It waits for the
+        // first load no longer, and is held no longer.
+        searchSet_.clearCurrent();
     }
     if ( decision.clearMarks ) {
         clearMarks();
@@ -183,7 +201,7 @@ void OpenLogFile::reload()
 
 void OpenLogFile::stopLoading()
 {
-    filteredData_->stop();
+    searchSet_.current()->stop();
     logData_->interruptLoading();
 }
 
@@ -194,7 +212,7 @@ const std::shared_ptr<LogData>& OpenLogFile::logData() const
 
 const std::shared_ptr<LogFilteredData>& OpenLogFile::filteredData() const
 {
-    return filteredData_;
+    return searchSet_.current();
 }
 
 LinesCount OpenLogFile::lineCount() const
@@ -219,9 +237,10 @@ void OpenLogFile::setIndexingPolicy( const IndexingPolicy& policy )
 
 void OpenLogFile::setSearchPolicy( const SearchPolicy& policy )
 {
-    // The log data hands it on to every Search built from it, the kept ones
-    // included, which this object holds no list of.
+    // A Search made from now on starts with it; the Search Set hands it on
+    // to every Search made before, the kept ones included.
     logData_->setSearchPolicy( policy );
+    searchSet_.setSearchPolicy( policy );
     Q_EMIT searchPolicyChanged();
 }
 
@@ -240,159 +259,49 @@ void OpenLogFile::setDecodingPolicy( const DecodingPolicy& policy )
 
 std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 {
-    keepWaitingSearch();
-    loadRule_.waitingSearchDropped();
-    filteredData_->stop();
-    filteredData_ = logData_->getNewFilteredData();
+    auto search = searchSet_.startAnother();
     followCurrentSearch();
-    return filteredData_;
+    return search;
 }
 
 void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
 {
-    if ( search && search != filteredData_ ) {
-        keepWaitingSearch();
-    }
-    loadRule_.waitingSearchDropped();
-    filteredData_->stop();
-    if ( search && search != filteredData_ ) {
-        filteredData_ = std::move( search );
+    const auto another = search && search != searchSet_.current();
+    searchSet_.makeCurrent( std::move( search ) );
+    if ( another ) {
         followCurrentSearch();
-
-        // A kept Search that waits for the first load waits on, current.
-        const auto waiting = std::find_if(
-            waitingKeptSearches_.begin(), waitingKeptSearches_.end(),
-            [ this ]( const WaitingSearch& kept ) { return kept.search.lock() == filteredData_; } );
-        if ( waiting != waitingKeptSearches_.end() ) {
-            // Requested as requestSearch() requests one before the first
-            // load, but held on when it was held: this is no request of the
-            // user's.
-            searchPattern_ = waiting->pattern;
-            waitingKeptSearches_.erase( waiting );
-            std::ignore = loadRule_.searchRequested();
-        }
     }
 }
 
 void OpenLogFile::requestKeptSearch( const std::shared_ptr<LogFilteredData>& search,
                                      const RegularExpressionPattern& pattern )
 {
-    if ( !search ) {
-        return;
-    }
-    if ( search == filteredData_ ) {
-        requestSearch( pattern );
-        return;
-    }
-    stopHolding( search );
-
-    // Requested again, it waits with the pattern requested last.
-    std::erase_if( waitingKeptSearches_, [ &search ]( const WaitingSearch& kept ) {
-        return kept.search.lock() == search;
-    } );
-    if ( !loadRule_.hasLoadFinished() ) {
-        // Nothing to search yet: it runs over the Log Lines once they have
-        // loaded, rather than over none now.
-        waitingKeptSearches_.push_back( WaitingSearch{ search, pattern } );
-        return;
-    }
-    search->request( withFieldReader( pattern ), searchLimits_.start, searchLimits_.end );
+    searchSet_.requestKept( search, pattern, searchLimits_ );
 }
 
 void OpenLogFile::holdWaitingSearches()
 {
-    if ( loadRule_.hasLoadFinished() ) {
-        return;
-    }
-    heldBeforeLoad_.clear();
-    if ( loadRule_.searchWaitsForLoad() ) {
-        heldBeforeLoad_.push_back( filteredData_ );
-    }
-    for ( const auto& waiting : waitingKeptSearches_ ) {
-        heldBeforeLoad_.push_back( waiting.search );
-    }
+    searchSet_.holdWaiting();
 }
 
 void OpenLogFile::releaseHeldSearches()
 {
-    // Before the first load they only wait for it, as any waiting Search.
-    const auto heldBeforeLoad = std::exchange( heldBeforeLoad_, {} );
-    const auto held = std::exchange( heldAfterLoad_, {} );
-    for ( const auto& waiting : held ) {
-        const auto search = waiting.search.lock();
-        if ( !search ) {
-            continue;
-        }
-        if ( search == filteredData_ ) {
-            requestSearch( waiting.pattern );
-        }
-        else {
-            search->request( withFieldReader( waiting.pattern ), searchLimits_.start,
-                             searchLimits_.end );
-        }
-    }
-    if ( !heldBeforeLoad.empty() || !held.empty() ) {
-        Q_EMIT searchesHeldNoLonger();
-    }
+    searchSet_.releaseHeld( searchLimits_ );
 }
-
-namespace {
-// Whether held, one of a list of held Searches or Waiting Searches, is search.
-bool isOf( const std::weak_ptr<LogFilteredData>& held,
-           const std::shared_ptr<LogFilteredData>& search )
-{
-    return held.lock() == search;
-}
-} // namespace
 
 bool OpenLogFile::isSearchHeld( const std::shared_ptr<LogFilteredData>& search ) const
 {
-    if ( !search ) {
-        return false;
-    }
-    return std::ranges::any_of( heldBeforeLoad_,
-                                [ &search ]( const auto& held ) { return isOf( held, search ); } )
-           || std::ranges::any_of( heldAfterLoad_, [ &search ]( const WaitingSearch& held ) {
-                  return isOf( held.search, search );
-              } );
+    return searchSet_.isHeld( search );
 }
 
 bool OpenLogFile::holdsSearches() const
 {
-    // A Search dropped since it was held is held no longer.
-    const auto alive = []( const std::weak_ptr<LogFilteredData>& held ) { return !held.expired(); };
-    return std::ranges::any_of( heldBeforeLoad_, alive )
-           || std::ranges::any_of( heldAfterLoad_, [ &alive ]( const WaitingSearch& held ) {
-                  return alive( held.search );
-              } );
-}
-
-void OpenLogFile::stopHolding( const std::shared_ptr<LogFilteredData>& search )
-{
-    const auto erasedBeforeLoad = std::erase_if(
-        heldBeforeLoad_, [ &search ]( const auto& held ) { return isOf( held, search ); } );
-    const auto erasedAfterLoad
-        = std::erase_if( heldAfterLoad_, [ &search ]( const WaitingSearch& held ) {
-              return isOf( held.search, search );
-          } );
-    if ( erasedBeforeLoad + erasedAfterLoad > 0 ) {
-        Q_EMIT searchesHeldNoLonger();
-    }
-}
-
-void OpenLogFile::keepWaitingSearch()
-{
-    if ( loadRule_.searchWaitsForLoad() ) {
-        waitingKeptSearches_.push_back( WaitingSearch{ filteredData_, searchPattern_ } );
-    }
+    return searchSet_.holdsAny();
 }
 
 SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& pattern )
 {
-    searchPattern_ = pattern;
-    stopHolding( filteredData_ );
-
-    if ( loadRule_.searchRequested() ) {
+    if ( searchSet_.requestCurrent( pattern, searchLimits_ ) ) {
         // Nothing to search yet: it runs over the Log Lines once they have
         // loaded, rather than over none now.
         SearchSessionState waiting;
@@ -403,47 +312,43 @@ SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& p
 
     // The Search Session validates the pattern itself; an invalid one goes to
     // InvalidPattern synchronously, so the state is conclusive right away.
-    filteredData_->request( withFieldReader( pattern ), searchLimits_.start, searchLimits_.end );
-    auto state = filteredData_->searchState();
+    return searchSet_.current()->searchState();
+}
 
-    if ( state.phase != SearchSessionPhase::InvalidPattern ) {
+void OpenLogFile::followCurrentRequest()
+{
+    if ( searchSet_.current()->searchState().phase != SearchSessionPhase::InvalidPattern ) {
         autoRefresh_.startSearch();
     }
     else {
         autoRefresh_.resetState();
     }
-
-    return state;
 }
 
 SearchSessionState OpenLogFile::searchState() const
 {
-    return filteredData_->searchState();
+    return searchSet_.current()->searchState();
 }
 
 LinesCount OpenLogFile::matchCount() const
 {
-    return filteredData_->getNbMatches();
+    return searchSet_.current()->getNbMatches();
 }
 
 LinesCount OpenLogFile::displayedLineCount() const
 {
-    return filteredData_->getNbLine();
+    return searchSet_.current()->getNbLine();
 }
 
 void OpenLogFile::clearSearch()
 {
-    stopHolding( filteredData_ );
-    loadRule_.searchCleared();
-    filteredData_->request();
+    searchSet_.clearCurrent();
     autoRefresh_.resetState();
 }
 
 void OpenLogFile::stopSearch()
 {
-    stopHolding( filteredData_ );
-    loadRule_.waitingSearchDropped();
-    filteredData_->stop();
+    searchSet_.stopCurrent();
     autoRefresh_.stopSearch();
 }
 
@@ -538,32 +443,36 @@ std::optional<int> OpenLogFile::chosenEncoding() const
 
 const TextEncoding* OpenLogFile::encoding() const
 {
-    // Only an Encoding this build knows is chosen (knownEncoding()), so this
-    // is never null.
-    if ( chosenEncoding_ ) {
-        return TextEncoding::forMib( *chosenEncoding_ );
-    }
-    const auto* detected = logData_->getDetectedEncoding();
-    return detected ? detected : TextEncoding::forLocale();
+    // The one decideEncoding() shows now, whatever was settled before; never
+    // null, as only an Encoding this build knows is chosen (knownEncoding()).
+    return shownEncoding( encodingDecision( std::nullopt ).shown );
+}
+
+EncodingDecision OpenLogFile::encodingDecision( std::optional<int> settled ) const
+{
+    const auto detected = encodingMib( logData_->getDetectedEncoding() );
+    return decideEncoding( settled, chosenEncoding_, detected,
+                           encodingMib( logData_->getForcedEncoding() ), detected );
 }
 
 bool OpenLogFile::settleEncoding()
 {
-    const auto* codec = encoding();
-
     // Settled after every load: a Log File that only grew keeps what was
     // read in it.
-    if ( settledEncoding_ == codec->mibEnum() ) {
+    const auto decision = encodingDecision( settledEncoding_ );
+    if ( decision.change == EncodingChange::Unchanged ) {
         return false;
     }
-    settledEncoding_ = codec->mibEnum();
+    settledEncoding_ = decision.shown;
 
+    const auto* codec = shownEncoding( decision.shown );
     LOG_INFO << "Reading the Log File as " << codec->name().constData();
 
-    // The log data loads the Log File again when the new Encoding splits it
-    // into Log Lines differently; a load in progress in the old one is of
-    // no use. Otherwise the Log Lines only decode differently, which it tells
-    // every Search.
+    // A load in progress in the old Encoding is of no use. The log data,
+    // told the new one once that load is stopped, carries out the rest of the
+    // decision: it loads the Log File again when the new Encoding splits it
+    // into Log Lines differently, otherwise it tells every Search that the
+    // Log Lines decode differently.
     logData_->interruptLoading();
     logData_->setDisplayEncoding( *codec );
     return true;
@@ -595,7 +504,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
 
     // The Log Lines the Search ran over, as it stands once the Encoding is
     // settled.
-    const auto searched = filteredData_->searchState();
+    const auto searched = searchSet_.current()->searchState();
     auto decision
         = loadRule_.loadFinished( status, lineCount, autoRefresh_, searchLimits_,
                                   LoadRule::SearchLimits{ searched.startLine, searched.endLine } );
@@ -622,8 +531,9 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         // the run rather than starting over, when it has Log Lines to run
         // over.
         if ( decision.continueOver ) {
-            filteredData_->request( withFieldReader( searched.pattern ),
-                                    decision.continueOver->start, decision.continueOver->end );
+            searchSet_.current()->request( withFieldReader( searched.pattern ),
+                                           decision.continueOver->start,
+                                           decision.continueOver->end );
         }
         break;
     case LoadRule::SearchRefresh::Restart:
@@ -636,43 +546,12 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         addMark( mark );
     }
 
-    // The Searches held when they waited for this load wait on, until they
-    // are released; a load that did not succeed drops them with the others.
-    const auto heldBeforeLoad = std::exchange( heldBeforeLoad_, {} );
-    const auto isHeld = [ &heldBeforeLoad ]( const std::shared_ptr<LogFilteredData>& search ) {
-        return std::ranges::any_of(
-            heldBeforeLoad, [ &search ]( const auto& held ) { return isOf( held, search ); } );
-    };
-    const auto succeeded = status == LoadingStatus::Successful;
-
-    if ( decision.runWaitingSearch ) {
-        if ( succeeded && isHeld( filteredData_ ) ) {
-            heldAfterLoad_.push_back( WaitingSearch{ filteredData_, searchPattern_ } );
-        }
-        else {
-            // The Search requested while the Log File loaded runs over the
-            // whole of it now.
-            requestSearch( searchPattern_ );
-        }
-    }
-    // So do the kept ones, beside it; a Log File that did not load has
-    // nothing to search. Only the first load finds any waiting.
-    for ( const auto& waiting : std::exchange( waitingKeptSearches_, {} ) ) {
-        const auto search = waiting.search.lock();
-        if ( !search || !succeeded ) {
-            continue;
-        }
-        if ( isHeld( search ) ) {
-            heldAfterLoad_.push_back( waiting );
-        }
-        else {
-            search->request( withFieldReader( waiting.pattern ), searchLimits_.start,
-                             searchLimits_.end );
-        }
-    }
-    if ( !succeeded && !heldBeforeLoad.empty() ) {
-        Q_EMIT searchesHeldNoLonger();
-    }
+    // The Searches requested while the Log File loaded run over the whole of
+    // it now, the current one and the kept ones beside it; the ones held when
+    // they waited for this load wait on, until they are released. A Log File
+    // that did not load has nothing to search: they are dropped. Only the
+    // first load finds any waiting.
+    searchSet_.loadFinished( status == LoadingStatus::Successful, searchLimits_ );
 
     if ( decision.recognizeFormat ) {
         const auto previousFormat = logFormat_;
@@ -684,10 +563,10 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         // Format (#798): the Search requested above read them through the
         // one before, so it is requested again under the one recognized now,
         // and its cached results are not those of the other Log Format.
-        if ( logFormat_ != previousFormat && searchPattern_.isBoolean
-             && hasFieldTerms( searchPattern_.pattern ) && !isHeld( filteredData_ )
-             && filteredData_->searchState().phase != SearchSessionPhase::Idle ) {
-            requestSearch( searchPattern_ );
+        const auto& pattern = searchSet_.currentPattern();
+        if ( logFormat_ != previousFormat && pattern.isBoolean
+             && hasFieldTerms( pattern.pattern ) ) {
+            searchSet_.requestCurrentAgain( searchLimits_ );
         }
     }
 
@@ -755,12 +634,11 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
     if ( decision.clearMarks ) {
         clearMarks();
     }
-    if ( decision.dropSearch ) {
-        // The Search's results no longer describe the Log File; whether it
-        // continues or starts again stays with the auto-refresh. Its cached
-        // results go once the Log File is indexed again, which tells every
-        // Search that its Log Lines changed.
-        filteredData_->request();
+    // The Search's results no longer describe a truncated Log File; whether
+    // it continues or starts again stays with the auto-refresh. Its cached
+    // results go once the Log File is indexed again, which tells every Search
+    // that its Log Lines changed.
+    if ( decision.report == LoadRule::Change::Truncated && searchSet_.dropTruncatedResults() ) {
         autoRefresh_.truncateFile();
     }
     if ( decision.forgetLogFormat ) {
@@ -782,8 +660,7 @@ void OpenLogFile::restartSearch()
 {
     LOG_INFO << "restarting the Search over the truncated Log File";
 
-    filteredData_->request();
-    requestSearch( searchPattern_ );
+    searchSet_.restartCurrent( searchLimits_ );
 }
 
 bool OpenLogFile::recognizeFormat()
@@ -803,6 +680,6 @@ bool OpenLogFile::recognizeFormat()
 void OpenLogFile::followCurrentSearch()
 {
     disconnect( searchConnection_ );
-    searchConnection_ = connect( filteredData_.get(), &LogFilteredData::searchStateChanged, this,
-                                 &OpenLogFile::searchUpdated );
+    searchConnection_ = connect( searchSet_.current().get(), &LogFilteredData::searchStateChanged,
+                                 this, &OpenLogFile::searchUpdated );
 }

@@ -36,4 +36,8 @@ enum class Changed {
     // or removed, or a Naming Rule or Naming Group checked or unchecked
     // (#647). Like the Highlighter Sets, user data and not a setting.
     ValueNames,
+    // The Predefined Filters Collection was written: a Predefined Filter
+    // added, edited, removed or imported. No Log File shows them, only each
+    // window's Filters panel (#942).
+    PredefinedFilters,
 };

@@ -5,6 +5,7 @@ add_executable(logsquirl_openlogfile_tests
     openlogfile_test.cpp
     openlogfile_policies_test.cpp
     loadrule_test.cpp
+    searchset_test.cpp
 )
 
 target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2::Catch2 Qt6::Test test_utils)

@@ -38,6 +38,7 @@
 #include "archivemember.h"
 #include "changed.h"
 #include "log.h"
+#include "logfilelifetime.h"
 #include "quickfindpattern.h"
 #include "sessioninfo.h"
 #include "settingspolicies.h"
@@ -49,6 +50,11 @@ class OpenLogFile;
 class SavedSearches;
 class TeamFolder;
 class FileAssociations;
+class QObject;
+
+namespace logsquirl::plugins {
+class ApplicationPlugins;
+}
 
 // File unreadable error
 class FileUnreadableErr {};
@@ -59,15 +65,6 @@ class FileUnreadableErr {};
 // (SavedSearches, FileHistory, QFPattern...)
 
 class WindowSession;
-
-// Whether a Log File outlives the run of the application it was opened in. A
-// Transient Log File -- the spool of standard input, the file of a merged tab,
-// what a data source writes, the text pasted from the clipboard -- exists only
-// while the application runs, so the Session does not save it: a restart
-// neither opens a file that is gone nor reports an error for it (#570).
-// Whoever opens a Log File knows which it is and says so; the Session only
-// keeps it.
-enum class LogFileLifetime { Ordinary, Transient };
 
 // Where a Log File open in the Session came from, as far as the Session keeps
 // it beside its path: whether it is Transient, the archive and member it was
@@ -172,6 +169,18 @@ public:
     // show them again (#647).
     virtual void applyValueNamesChange() {}
 
+    // The Highlighter Set Collection changed, in this window or another:
+    // show its sets and which are active again (#942).
+    virtual void applyHighlighterSetChange() {}
+
+    // The Predefined Filters Collection changed, in this window or another:
+    // list them again (#942).
+    virtual void applyPredefinedFiltersChange() {}
+
+    // The Team Folder's Filter Groups changed at a sync, or it was turned off
+    // or pointed elsewhere: list them again (#943).
+    virtual void applyTeamFilterGroupsChange() {}
+
 protected:
     SessionWindow() = default;
     ~SessionWindow() = default;
@@ -199,7 +208,10 @@ public:
     //
     // The Team Folder is the application's one, handed the Team Folder Policy
     // here, which sets it up, and again whenever a settings change alters it.
-    // Without one there are no Team groups.
+    // Without one there are no Team groups. The Session hears what its syncs
+    // bring, once for the application whatever the number of windows: it
+    // writes the Team Highlighter Sets and Naming Groups into their
+    // Collections and tells every window (#943).
     Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog,
              std::shared_ptr<PolicyFileWatchPort> fileWatch = {},
              std::shared_ptr<TeamFolder> teamFolder = {} );
@@ -392,17 +404,32 @@ public:
     //
     // Changed::HighlighterSets tells every open Log File that the Highlighter
     // Set Collection changed. Each re-reads the colors of its Color Labels and
-    // repaints; nothing is re-derived and no window is told.
+    // repaints; then every window is told, the writing one included, and
+    // shows the sets again. Nothing is re-derived.
     //
     // Changed::ValueNames tells every open Log File that the Value Names
     // Collection changed. Each view showing Value Names reads its Log Lines
-    // again; nothing is re-derived and no window is told.
+    // again; then every window is told, as for the Highlighter Sets.
+    //
+    // Changed::PredefinedFilters tells every window, the writing one included,
+    // that the Predefined Filters Collection changed, and no Log File: none
+    // shows them.
     void applyChange( Changed change );
 
     // The windows told of a settings change. A window adds itself when it is
     // built and removes itself before it is destroyed.
     void addWindow( SessionWindow* window );
     void removeWindow( SessionWindow* window );
+
+    // Takes the Filter Groups and Highlighter Sets the enabled ones of these
+    // plugins ship into the Predefined Filters and the Highlighter Set
+    // Collection once the plugins are loaded, and again whenever a plugin is
+    // enabled or disabled (#865): once for the application, whatever the
+    // number of windows, and every window is told (#943). Every window hands
+    // the application's plugins; the first call follows them, and a later
+    // one with the same plugins does nothing. A call with other plugins
+    // follows those instead (only tests make more than one).
+    void followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins );
 
     // Takes the Policies re-derived after a settings change: stores them
     // for the Log Files opened from now on, and hands the axes that
@@ -432,6 +459,9 @@ public:
     {
         exitRequested_ = isRequested;
     }
+
+    template <class T>
+    struct access_by;
 
 private:
     // Where the first load of an open Log File stands. Only the first load
@@ -494,6 +524,19 @@ private:
     void applyFontChange();
     void applyHighlighterSetChange();
     void applyValueNamesChange();
+    void applyPredefinedFiltersChange();
+
+    // Hears what the Team Folder's syncs bring.
+    void connectTeamFolder();
+    // Writes the Team Highlighter Sets into the Highlighter Set Collection and
+    // saves it, if that changed it. dropUnknownActivations as the Collection
+    // takes it.
+    void applyTeamHighlighterSets( bool dropUnknownActivations );
+    // Writes the Team Naming Groups into the Value Names Collection, if that
+    // changed it; they are never saved, the Team Folder holds them.
+    void applyTeamNamingGroups();
+    // Writes the groups the enabled plugins ship into both Collections.
+    void applyPluginGroups( logsquirl::plugins::ApplicationPlugins& plugins );
 
     // Applies the Policies as applyPolicies() does, and hands every open Log
     // File what changed together with `change`, in one call each -- nothing
@@ -525,6 +568,14 @@ private:
 
     // Handed the Team Folder Policy.
     std::shared_ptr<TeamFolder> teamFolder_;
+    // Holds the Session's connections to the Team Folder, which may outlive
+    // it.
+    std::unique_ptr<QObject> teamFolderListener_;
+
+    // The plugins whose groups the Session follows, and its connections to
+    // them; null while it follows none.
+    const logsquirl::plugins::ApplicationPlugins* followedPlugins_ = nullptr;
+    std::unique_ptr<QObject> pluginsListener_;
 
     std::shared_ptr<FileAssociations> fileAssociations_;
 
@@ -604,6 +655,12 @@ public:
     ViewInterface* getViewIfOpen( const QString& file_name ) const
     {
         return appSession_->getViewIfOpen( file_name );
+    }
+
+    // See the Session's own.
+    ViewInterface* viewShowing( const QString& fileName ) const
+    {
+        return appSession_->viewShowing( fileName );
     }
 
     // See the Session's own.
@@ -727,6 +784,12 @@ public:
     void removeWindow( SessionWindow* window )
     {
         appSession_->removeWindow( window );
+    }
+
+    // See the Session's own.
+    void followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
+    {
+        appSession_->followPluginGroups( std::move( plugins ) );
     }
 
     QString windowId() const

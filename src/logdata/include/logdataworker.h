@@ -47,6 +47,7 @@
 
 #include "indexjob.h"
 #include "indexjobrunner.h"
+#include "linetypes.h"
 #include "loadingstatus.h"
 
 // The Index of a Log File as indexing builds it, safe to read while it does.
@@ -108,8 +109,10 @@ Q_SIGNALS:
     // percent being the percentage of completion.
     void indexingProgressed( int percent );
     // Sent when an Attach, a Full or a Partial is finished, signals the
-    // client to copy the new data back. failure describes a Failed status.
-    void indexingFinished( LoadingStatus status, const QString& failure );
+    // client to copy the new data back. failure describes a Failed status;
+    // firstChanged is the first Log Line the run may have changed, as its
+    // outcome tells it.
+    void indexingFinished( LoadingStatus status, const QString& failure, LineNumber firstChanged );
 
     // Sent when a Check is finished, signals the client to copy the new data
     // back. failure is not empty when the check failed.

@@ -55,6 +55,7 @@
 #include <tbb/flow_graph.h>
 
 #include "containers.h"
+#include "digestcoverage.h"
 #include "encodingdetector.h"
 #include "indexcache.h"
 #include "indexedhash.h"
@@ -282,14 +283,15 @@ void reportFinished( LogDataWorker& worker, const RunEnd<IndexOutcome>& end )
     // run superseded before it was done tells Interrupted itself, and one
     // superseded only once it was done has its Index complete.
     if ( !end.failure.isEmpty() ) {
-        Q_EMIT worker.indexingFinished( LoadingStatus::Failed, end.failure );
+        Q_EMIT worker.indexingFinished( LoadingStatus::Failed, end.failure, 0_lnum );
         return;
     }
 
     // A signal's slot may destroy the worker: nothing here is touched after.
     std::visit( makeOverloadVisitor(
                     [ &worker, &end ]( LoadingStatus status ) {
-                        Q_EMIT worker.indexingFinished( status, end.outcome.failure );
+                        Q_EMIT worker.indexingFinished( status, end.outcome.failure,
+                                                        end.outcome.firstChanged );
                     },
                     [ &worker, &end ]( MonitoredFileStatus status ) {
                         Q_EMIT worker.checkFileChangesFinished( status, end.outcome.failure );
@@ -1045,32 +1047,6 @@ QString index_operation_detail::unbuiltFailure( const char* name, const char* wh
     }
 }
 
-DigestCoverage FullIndexOperation::cachedIndexCoverage() const
-{
-    // Following a Log File asks for no more than the header and tail, so what
-    // a growing Log File costs per change is what it was.
-    if ( request_ != FullIndexRequest::ExplicitReload ) {
-        return DigestCoverage::HeaderAndTail;
-    }
-
-    // Fast modification detection is the user saying they would rather not
-    // pay for reading a Log File again to find out that it did not change.
-    // No full digest is recorded then, so there is none to check against.
-    if ( indexingPolicy_.fastModificationDetection ) {
-        return DigestCoverage::HeaderAndTail;
-    }
-
-    // Reloading is the user asking for the Log File to be read again, so the
-    // bytes the cached Index was built from are read once more and checked
-    // against their full digest. That is the only way a rewrite in place with
-    // the same size is noticed where the file system's modification time is
-    // coarse or written late (#337). A Log File that grew is left to the
-    // header and tail: going on from the cached Index reads its indexed bytes
-    // again anyway, so checking them first would read them twice, and a
-    // change in a Log File that also grew is the risk #277 documented.
-    return DigestCoverage::FullUnlessGrown;
-}
-
 // Called in the worker thread's context
 IndexOutcome FullIndexOperation::doRun()
 {
@@ -1084,7 +1060,9 @@ IndexOutcome FullIndexOperation::doRun()
     // The cache hands out an Index only while the bytes it was built from
     // are unchanged, complete for the size it was built at. Whether that
     // is all of the Log File, or it has grown since, is decided here.
-    auto cached = indexCache.tryLoad( fileName_, cachedIndexCoverage() );
+    // A cached Index has no modification time it was last checked at.
+    auto cached = indexCache.tryLoad(
+        fileName_, digestCoverage( indexFitRequest( request_ ), indexingPolicy_, {}, {} ) );
     const auto fileSize = cached ? QFileInfo( fileName_ ).size() : qint64{ 0 };
 
     if ( cached && cached->hash.size == fileSize ) {
@@ -1106,7 +1084,7 @@ IndexOutcome FullIndexOperation::doRun()
         }
 
         reportProgress( 100 );
-        return { LoadingStatus::Successful, {} };
+        return { LoadingStatus::Successful, {}, 0_lnum };
     }
 
     bool completed = false;
@@ -1123,7 +1101,7 @@ IndexOutcome FullIndexOperation::doRun()
         // there is and start indexing the whole Log File over.
         LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
                  << fileName_;
-        return { LoadingStatus::Interrupted, {} };
+        return { LoadingStatus::Interrupted, {}, 0_lnum };
     }
     else {
         reportProgress( 0 );
@@ -1150,15 +1128,18 @@ IndexOutcome FullIndexOperation::doRun()
         }
     }
 
-    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} };
+    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted, {}, 0_lnum };
 }
 
 IndexOutcome PartialIndexOperation::doRun()
 {
     LOG_INFO << "PartialIndexOperation::run(), file " << fileName_.toStdString();
 
-    const auto initialPosition
-        = OffsetInFile( IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize() );
+    const auto [ initialPosition, linesBefore ] = [ this ] {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        return std::make_tuple( OffsetInFile( scopedAccessor.getIndexedSize() ),
+                                scopedAccessor.getNbLines() );
+    }();
 
     LOG_INFO << "PartialIndexOperation: Starting the count at " << initialPosition << " ...";
 
@@ -1168,13 +1149,17 @@ IndexOutcome PartialIndexOperation::doRun()
 
     LOG_INFO << "PartialIndexOperation: ... finished counting.";
 
-    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} };
+    // Only what was appended is new, and the last Log Line indexed before it,
+    // which the data appended may have gone on.
+    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted,
+             {},
+             linesBefore.get() > 0 ? LineNumber( linesBefore.get() - 1 ) : 0_lnum };
 }
 
 IndexOutcome CheckFileChangesOperation::doRun()
 {
     LOG_INFO << "CheckFileChangesOperation::run(), file " << fileName_.toStdString();
-    return { doCheckFileChanges(), {} };
+    return { doCheckFileChanges(), {}, 0_lnum };
 }
 
 // Nothing is dropped when checking failed: the Log File is indexed again from
@@ -1198,16 +1183,8 @@ MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
     // is not taken for checked.
     const auto modificationTime = QFileInfo( fileName_ ).lastModified();
 
-    // Without fast modification detection, a Log File that grew is still
-    // told from its header and tail, and one that did not is read end to end
-    // only when it was modified since it was last indexed or checked:
-    // following a Log File that grows by small appends does not read all of
-    // it for every change (#277).
-    auto coverage = DigestCoverage::FullUnlessGrown;
-    if ( indexingPolicy_.fastModificationDetection
-         || ( indexedModificationTime.isValid() && modificationTime == indexedModificationTime ) ) {
-        coverage = DigestCoverage::HeaderAndTail;
-    }
+    const auto coverage = digestCoverage( IndexFitRequest::CheckForChanges, indexingPolicy_,
+                                          indexedModificationTime, modificationTime );
 
     switch ( indexFit( indexedHash, fileName_, coverage ) ) {
     case IndexFit::Unchanged:

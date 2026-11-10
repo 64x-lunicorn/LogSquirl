@@ -40,7 +40,9 @@
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
+#include "filteredview.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
@@ -48,6 +50,7 @@
 #include "logsquirl_plugin_api.h"
 #include "logtableview.h"
 #include "mainwindow.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
@@ -55,6 +58,7 @@
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
+#include "source_body_format.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -69,90 +73,74 @@ struct AbstractLogView::access_by<PluginLogLinesTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<PluginLogLinesTest> {
-    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
-    {
-        return *crawler.openLogFile_;
-    }
+namespace {
 
+// The Log Format the Log Files of an OpenCrawler are recognized with: a
+// source word and a body.
+constexpr auto TestFormatName = "plugin_loglines_test";
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static LogMainView& textView( CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     // What clicking a line of the text view does.
     static void selectLine( CrawlerWidget& crawler, LineNumber line )
     {
-        crawler.logMainView_->setFocus();
-        crawler.logMainView_->selectAndDisplayLine( line );
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        view.selectAndDisplayLine( line );
     }
 
     // What double-clicking a word of a line does.
-    static void selectWord( CrawlerWidget& crawler, LineNumber line, LineColumn column );
+    static void selectWord( CrawlerWidget& crawler, LineNumber line, LineColumn column )
+    {
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        AbstractLogView::access_by<PluginLogLinesTest>::selectWord( view, line, column );
+    }
 
     static void selectAll( CrawlerWidget& crawler )
     {
-        crawler.logMainView_->setFocus();
-        crawler.logMainView_->selectAll();
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        view.selectAll();
     }
 
     // Searches for pattern; the Filtered View shows the Log Lines it finds.
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        SearchLineAccess::patternEdit( *crawler.searchLine_ )->setEditText( pattern );
-        crawler.searchLine_->requestSearch();
+        auto& searchLine = searchLineOf( crawler );
+        SearchLineAccess::patternEdit( searchLine )->setEditText( pattern );
+        searchLine.requestSearch();
     }
 
-    static LinesCount matchCount( CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->filteredData()->getNbLine();
-    }
-
-    // What the user selecting every line of the Filtered View does.
+    // What the user selecting every line of the Filtered View in front does.
     static void selectAllInFilteredView( CrawlerWidget& crawler )
     {
-        crawler.currentFilteredView()->setFocus();
-        crawler.currentFilteredView()->selectAll();
+        auto* front = frontFilteredViewOf( crawler );
+        front->setFocus();
+        front->selectAll();
     }
 
-    // Recognizes the Log File with a Log Format of its own, and shows the
-    // Table View, as the user choosing it does.
+    // Shows the Table View of the Log File, recognized with TestFormatName,
+    // as the user choosing it does.
     static LogTableView& showTableView( CrawlerWidget& crawler )
     {
-        LogFormatDefinition format;
-        format.setName( "plugin_loglines_test" );
-        format.setTitle( "Plugin Log Lines test" );
-        QHash<QString, QString> regex;
-        regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
-        format.setRegexPatterns( regex );
-        format.setBodyField( "body" );
-
-        crawler.recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
-        crawler.logTableView_->setLogFormat( crawler.recognizedFormat_.get(),
-                                             crawler.openLogFile_->logData().get() );
-        crawler.tableViewToggle_->setVisible( true );
-        crawler.tableViewToggle_->setChecked( true );
-        return *crawler.logTableView_;
+        REQUIRE( waitUiState(
+            [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
+        tableViewToggleOf( crawler ).setChecked( true );
+        return tableViewOf( crawler );
     }
 
     static bool showsTableView( const CrawlerWidget& crawler )
     {
-        return crawler.shownPresentation() == crawler.logTableView_;
+        return shownPresentationOf( crawler ) == &tableViewOf( crawler );
     }
 };
 
-void CrawlerWidget::access_by<PluginLogLinesTest>::selectWord( CrawlerWidget& crawler,
-                                                               LineNumber line, LineColumn column )
-{
-    crawler.logMainView_->setFocus();
-    AbstractLogView::access_by<PluginLogLinesTest>::selectWord( *crawler.logMainView_, line,
-                                                                column );
-}
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogLinesTest>;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginLogLineJump;
@@ -198,21 +186,20 @@ bool writeLogFile( QTemporaryFile& file, int lines )
 // finished, and a Log Line read before decodes "ä" in the locale's.
 bool loadedAll( CrawlerWidget& crawler, qsizetype lines )
 {
-    return crawler.state().loadStatus == LoadingStatus::Successful
-           && CrawlerAccess::openLogFile( crawler ).logData()->getNbLine().get()
-                  == static_cast<uint64_t>( lines );
+    const auto state = crawler.state();
+    return state.loadStatus == LoadingStatus::Successful
+           && state.lineCount.get() == static_cast<uint64_t>( lines );
 }
 
 // A Log File, of LogLineCount lines unless given, open in a Crawler Widget of
-// its own Session.
+// its own Session, which recognizes it with TestFormatName.
 struct OpenCrawler {
     explicit OpenCrawler( const QStringList& lines = logLines( LogLineCount ) )
-        : session( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() )
+        : session( recognizingPolicies(), sourceBodyFormatCatalog( TestFormatName ) )
     {
         REQUIRE( writeLogFile( file, lines ) );
-        crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
         crawler->resize( 800, 600 );
         showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this, &lines ] { return loadedAll( *crawler, lines.size() ); } ) );
@@ -467,7 +454,8 @@ SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines of the t
             // Line numbers 5, 50 to 59 and 500 to 599: 111 Log Lines.
             CrawlerAccess::search( crawler, QStringLiteral( "number 5" ) );
             REQUIRE( waitUiState(
-                [ & ] { return CrawlerAccess::matchCount( crawler ).get() == 111; }, 10'000 ) );
+                [ & ] { return openLogFileOf( crawler ).filteredData()->getNbLine().get() == 111; },
+                10'000 ) );
             QTest::qWait( 100 );
             CrawlerAccess::selectAllInFilteredView( crawler );
             const auto selection = plugin.readSelected();

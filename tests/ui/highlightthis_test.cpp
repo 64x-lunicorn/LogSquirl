@@ -33,6 +33,7 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -44,6 +45,7 @@
 #include "abstractlogview.h"
 #include "applicationplugins.h"
 #include "context_menu_entries.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "highlighterpresets.h"
 #include "highlighterset.h"
@@ -73,34 +75,34 @@ struct AbstractLogView::access_by<HighlightThisTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<HighlightThisTest> {
+namespace {
+
+using ViewAccess = AbstractLogView::access_by<HighlightThisTest>;
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *crawler.currentFilteredView();
+        return *frontFilteredViewOf( crawler );
     }
 
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
         edit->clearEditText();
         QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
         QTest::qWait( 100 );
         REQUIRE( waitUiState(
-            [ & ] { return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden(); } ) );
+            [ & ] { return SearchLineAccess::stopButton( searchLine )->isHidden(); } ) );
     }
 };
-
-namespace {
-
-using ViewAccess = AbstractLogView::access_by<HighlightThisTest>;
-using CrawlerAccess = CrawlerWidget::access_by<HighlightThisTest>;
 
 const auto HighlightThis = QStringLiteral( "Highlight this..." );
 const auto SelectedText = QStringLiteral( "a.b[1]" );

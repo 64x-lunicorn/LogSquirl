@@ -43,6 +43,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fronttabactions.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fronttabbinding.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandoutputdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlabsource.h
@@ -168,6 +170,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/fronttabactions.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/fronttabbinding.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandoutputdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlabsource.cpp
@@ -263,6 +267,7 @@ target_link_libraries(
          logsquirl_textviewscrolling
          logsquirl_searchline
          logsquirl_compression
+         logsquirl_opensteps
          logsquirl_crash_handler
          logsquirl_valuenames
          logsquirl_fileassociations

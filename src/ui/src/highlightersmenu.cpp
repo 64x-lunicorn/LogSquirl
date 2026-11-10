@@ -25,7 +25,15 @@ void HighlightersMenu::applySelectionHighlighters( QAction* action ) const
 
 void HighlightersMenu::clearHighlightersMenu()
 {
-    clear();
+    // The menu is built again whenever the Highlighter Sets change, also while
+    // one of its own actions is being triggered (#942): its actions go once
+    // the trigger is done, not under it.
+    for ( auto* action : actions() ) {
+        removeAction( action );
+        if ( action->parent() == this ) {
+            action->deleteLater();
+        }
+    }
 
     if ( highLighters_ ) {
         highLighters_->deleteLater();

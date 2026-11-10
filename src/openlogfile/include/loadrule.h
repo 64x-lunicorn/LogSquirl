@@ -31,11 +31,12 @@ class SearchAutoRefresh;
 // decided in one place and without reading the Log File (#396): whether the
 // load that finishes brings only lines that were added, whether the Marks are
 // cleared and the Log Format is recognized again, whether the Marks saved with
-// the Session are applied, whether a Search waiting for the first load
-// runs now, how the Search Limits settle and what a continuing Search runs
-// over (#644), and when watching the Log File has stopped (#575). Whether a
-// Search continues or starts again after a truncation it asks the Search's
-// auto-refresh, which keeps deciding that.
+// the Session are applied, how the Search Limits settle and what a
+// continuing Search runs over (#644), and when watching the Log File has
+// stopped (#575). Whether a Search continues or starts again after a
+// truncation it asks the Search's auto-refresh, which keeps deciding that;
+// whether a Search waits for the first load, and what that load does with it,
+// the Search Set decides (#941).
 //
 // Like the auto-refresh it is a state machine without Qt, used on the Open
 // Log File's thread only: each event goes in, a decision comes out, and the
@@ -88,9 +89,6 @@ public:
     struct ChangeDecision {
         Change report = Change::Grew;
         bool clearMarks = false;
-        // The Search's results and its cache no longer describe the Log File:
-        // they are dropped, and the auto-refresh hears of the truncation.
-        bool dropSearch = false;
         // The Log Format is forgotten; it is recognized again once the Log
         // File has loaded.
         bool forgetLogFormat = false;
@@ -107,9 +105,6 @@ public:
         // The Marks saved with the Session, to apply now: after the first
         // load, once.
         logsquirl::vector<LineNumber> savedMarksToApply;
-        // The Search requested before the first load runs now, over the whole
-        // Log File.
-        bool runWaitingSearch = false;
         // Format Recognition is taken.
         bool recognizeFormat = false;
         // The Search Limits as the load leaves them.
@@ -130,20 +125,6 @@ public:
 
     // A check of the Log File on disk found it changed.
     ChangeDecision changedOnDisk( MonitoredFileStatus status );
-
-    // A Search was requested, valid or not. Returns whether it waits for the
-    // first load, as no load has finished yet.
-    [[nodiscard]] bool searchRequested();
-    // No Search is active any longer.
-    void searchCleared();
-    // A Search waiting for the first load no longer does: it was stopped, or
-    // another one was made current.
-    void waitingSearchDropped();
-    // Whether the Search requested waits for the first load to run.
-    bool searchWaitsForLoad() const;
-    // Whether a load has finished, whatever its outcome: until one has, a
-    // Search requested waits for it.
-    bool hasLoadFinished() const;
 
     // A load of the Log File finished with lineCount Log Lines, whatever its
     // outcome. autoRefresh is the current Search's, as it stands now; limits
@@ -175,14 +156,6 @@ public:
     const logsquirl::vector<LineNumber>& savedMarks() const;
 
 private:
-    // Whether a Search was requested since the last searchCleared or reload,
-    // valid or not.
-    bool searchRequested_ = false;
-    // A Search was requested before the first load finished, and runs once it
-    // has.
-    bool searchWaitsForLoad_ = false;
-    // Whether a load of the Log File has finished, whatever its outcome.
-    bool loadFinishedOnce_ = false;
     // Whether the load from the start -- the first, or the one after a reload
     // -- has finished.
     bool firstLoadDone_ = false;

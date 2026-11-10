@@ -58,6 +58,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <vector>
 
 #include "applicationplugins.h"
@@ -66,8 +67,10 @@
 #include "crawlerwidget.h"
 #include "downloader.h"
 #include "filterspanel.h"
+#include "fronttabbinding.h"
 #include "iconloader.h"
 #include "logfileprovenance.h"
+#include "openstep.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -194,6 +197,21 @@ public:
 
     static int installLanguage( QString lang );
 
+    // One action of the window's menus and toolbar (#950): the member that
+    // holds it, its text and status tip as the translation sources of
+    // mainwindowtext.cpp (context `logsquirl::mainwindow::action`), and the
+    // id of its shortcut. A status tip or shortcut id the action has none of
+    // is null.
+    struct ActionEntry {
+        QAction* MainWindow::* action = nullptr;
+        const char* text = nullptr;
+        const char* statusTip = nullptr;
+        const char* shortcutId = nullptr;
+    };
+    // Every action the window names: created, translated again on a language
+    // change and given its shortcuts from this one table.
+    static std::span<const ActionEntry> actionTable();
+
     // The Session tells every window of a settings change, whichever window
     // it was made in, once it has re-derived the Policies (#245): the window
     // takes its QuickFind Policy, its shortcuts and its chrome again.
@@ -206,6 +224,18 @@ public:
     // The Naming Groups or their checks changed: the sidebar shows them
     // again (#647).
     void applyValueNamesChange() override;
+
+    // A Highlighter Set changed, or which are active: the Highlighters menu
+    // is built again (#942).
+    void applyHighlighterSetChange() override;
+
+    // The Predefined Filters changed: the Filters panel lists them again
+    // (#942).
+    void applyPredefinedFiltersChange() override;
+
+    // The Team Filter Groups changed: the Filters panel lists them again
+    // (#943).
+    void applyTeamFilterGroupsChange() override;
 
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
@@ -224,6 +254,10 @@ protected:
     bool eventFilter( QObject* watched, QEvent* event ) override;
 
 private:
+    // Connects the window to the tab in front and shows its state in the
+    // window's actions (#946).
+    friend class FrontTabBinding;
+
     enum class ActionInitiator { User, App };
 
     // Hand the QuickFind bar and the mux the QuickFind Policy this window's
@@ -335,8 +369,6 @@ private Q_SLOTS:
     // its tab, and a Failed one is offered to be reported.
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
 
-    // Update quick find searchable
-    void handleFilteredViewChanged();
     void showStatusMessage( QString message );
 
     // Close the tab with the passed index
@@ -382,11 +414,11 @@ private:
     RegexLabAccess regexLabAccess();
 
     void createActions();
+    // Gives every action of actionTable() its text and status tip in the
+    // language installed now.
+    void translateActions();
     void loadIcons();
     void createMenus();
-    // Enables the Edit menu and the File menu's actions on the current file
-    // while a tab holds a Log File, disables them while none does.
-    void setCurrentFileActionsEnabled( bool enabled );
     void createToolBars();
     void createTrayIcon();
     void readSettings();
@@ -396,22 +428,24 @@ private:
     // What becomes of an open: whether the Log File is open, or on its way.
     using OpenDone = std::function<void( bool isOpen )>;
     // Opens a Log File now that the plugins have loaded: shows its tab if it
-    // is open already, converts it, decompresses it or builds its tab. A
-    // converter plugin whose extensions match converts it; else, when a
-    // converter plugin claims files by their content, it is asked on a worker
-    // thread first, and the open goes on once it answered (#861). Calls done
+    // is open already, converts it, decompresses it or builds its tab, in the
+    // order nextOpenStep() gives (#949). When a converter plugin is to be
+    // asked whether it claims the file by its content, that is done on a
+    // worker thread, and the open goes on once it answered (#861). Calls done
     // once, at once or once the converters have answered; returns what it
     // will be called with, true while the converters are asked.
     bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
                   const OpenDone& done );
     // Asks the converter plugins whether one claims `fileName` by its content
-    // (#861), and goes on as openNow() says once they answered. False when no
-    // converter plugin checks content: then nothing is asked.
+    // (#861), and goes on with the step nextOpenStep() gives once they
+    // answered. False when no converter plugin checks content: then nothing
+    // is asked.
     bool checkContentAndOpen( const QString& fileName, bool followFile, const LogFileOrigin& origin,
-                              const OpenDone& done );
-    // Decompresses the Log File or builds its tab, no converter plugin
-    // claiming it.
-    bool loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+                              const OpenFacts& known, const OpenDone& done );
+    // Looks whether the Log File is compressed, then decompresses it or
+    // builds its tab, as nextOpenStep() says from what is `known` of it.
+    bool loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                  OpenFacts known );
     // Starts the Conversion of `fileName` by the converter plugin
     // `converterId` on a worker thread of the Plugin Host's, shows its
     // progress beside the window, which stays in use, with Cancel, and opens
@@ -488,12 +522,6 @@ private:
     // The tab is closing: plugins find its Log File no more (#858).
     void hideLogFileFromPlugins( const CrawlerWidget* crawler );
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
-    // Connects the window to the Log File in front, and it alone: the
-    // connections to the tab shown before go (#635). Nothing is connected for
-    // nullptr.
-    void connectFrontTab( CrawlerWidget* crawler );
-    void updateMenuBarFromDocument( const CrawlerWidget::State& state );
-    void updateGoToTimestampAction( const CrawlerWidget::State& state );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -508,14 +536,6 @@ private:
     // or point at where a moved portable LogSquirl was (#725).
     void showLostFileAssociations( const QStringList& lost, const QString& movedFrom );
     void updateTeamFolderIndicator();
-    // Hands the Team Highlighter Sets to the Highlighter Set collection.
-    // dropUnknownActivations false: the first sync has not delivered groups.
-    void applyTeamHighlighterSets( bool dropUnknownActivations = true );
-    // Hands the Team Naming Groups to ValueNamesCollection (#647).
-    void applyTeamNamingGroups();
-    // Reads the Filter Groups and Highlighter Sets the enabled plugins ship
-    // and hands them to their collections, which never store them (#865).
-    void applyPluginGroups();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
@@ -533,8 +553,8 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
-    // The connections between the window and the Log File in front.
-    std::vector<QMetaObject::Connection> frontTabConnections_;
+    // The window's ties to the Log File in front, and to it alone (#635).
+    FrontTabBinding frontTab_{ *this };
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;

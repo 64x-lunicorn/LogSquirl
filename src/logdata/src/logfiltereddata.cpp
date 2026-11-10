@@ -60,6 +60,8 @@ LogFilteredData::~LogFilteredData()
     // Disconnect all signals before members (in particular session_) are
     // destroyed, on top of session_'s own teardown safety.
     disconnect();
+    // Nor is it told of the Log Lines changed any longer.
+    QObject::disconnect( logLinesChangedConnection_ );
     // And the Displayed Lines, destroyed before session_, are told nothing
     // more.
     session_.setMatchesChangedCallback( {} );
@@ -88,6 +90,11 @@ LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& se
         }
     } );
     connect( &session_, &SearchSession::stateChanged, this, &LogFilteredData::searchStateChanged );
+
+    // Heard at once, in the log data's own call, so that a load's change has
+    // reached every Search before the log data tells loadingFinished().
+    logLinesChangedConnection_ = connect( logData, &LogData::logLinesChanged, this,
+                                          &LogFilteredData::logLinesChanged, Qt::DirectConnection );
 }
 
 void LogFilteredData::request( const RegularExpressionPattern& regExp )
@@ -105,7 +112,7 @@ void LogFilteredData::request( const RegularExpressionPattern& regExp, LineNumbe
     session_.request( regExp, startLine, endLine );
 }
 
-void LogFilteredData::request()
+void LogFilteredData::dropResults()
 {
     LOG_DEBUG << "Entering request (idle)";
     session_.request();

@@ -130,7 +130,6 @@
 #include "optionsdialog.h"
 #include "plaintext.h"
 #include "plugindialog.h"
-#include "plugingroups.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
 #include "readablesize.h"
@@ -203,6 +202,8 @@ MainWindow::MainWindow( WindowSession session,
     // the dashboard list them once they have.
     createMenus();
     createToolBars();
+    // No Log File is in front yet.
+    frontTab_.bind( nullptr );
 
     setAcceptDrops( true );
 
@@ -441,18 +442,17 @@ MainWindow::MainWindow( WindowSession session,
     connect( &archiveRestores_, &ArchiveMemberDecompression::idle, this,
              &MainWindow::closeArchiveRestoreProgress );
 
+    // The Filter Groups and Highlighter Sets the plugins ship come and go as
+    // plugins are enabled and disabled, in this window's Plugins dialog or
+    // another's (#865). The Session takes them into the Collections once for
+    // every window, and tells this one (#943).
+    session_.followPluginGroups( plugins_ );
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
         if ( welcomeDashboard_ ) {
             welcomeDashboard_->refresh();
         }
-        applyPluginGroups();
     } );
-    // The Filter Groups and Highlighter Sets the plugins ship come and go as
-    // plugins are enabled and disabled, in this window's Plugins dialog or
-    // another's (#865).
-    connect( plugins_.get(), &logsquirl::plugins::ApplicationPlugins::enabledPluginsChanged, this,
-             &MainWindow::applyPluginGroups );
 
     // A plugin installed, enabled or disabled later -- from this window's
     // Plugins dialog or another's -- shows on the dashboard right away (#710).
@@ -778,13 +778,13 @@ void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
     auto* crawler
         = tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) : nullptr;
     // The one the settings force or the user chose stays.
-    if ( crawler == nullptr || crawler->encodingMib() ) {
+    if ( crawler == nullptr || crawler->state().encodingMib ) {
         return;
     }
 
     crawler->setEncoding( source->second->outputEncoding()->mibEnum() );
     if ( crawler == currentCrawlerWidget() ) {
-        updateMenuBarFromDocument( crawler->state() );
+        frontTab_.apply();
         updateInfoLine();
     }
 }
@@ -815,172 +815,7 @@ void MainWindow::reTranslateUI()
         QApplication::translate( "logsquirl::mainwindow::toolbar", toolbar::toolbarTitle ) );
 
     // action
-    auto transAction = []( const char* text ) -> auto {
-        return QApplication::translate( "logsquirl::mainwindow::action", text );
-    };
-    newWindowAction->setText( transAction( action::newWindowText ) );
-    newWindowAction->setStatusTip( transAction( action::newWindowStatusTip ) );
-
-    openAction->setText( transAction( action::openText ) );
-    openAction->setStatusTip( transAction( action::openStatusTip ) );
-
-    recentFilesCleanup->setText( transAction( action::recentFilesCleanupText ) );
-
-    closeAction->setText( transAction( action::closeText ) );
-    closeAction->setStatusTip( transAction( action::closeStatusTip ) );
-
-    closeAllAction->setText( transAction( action::closeAllText ) );
-    closeAllAction->setStatusTip( transAction( action::closeAllStatusTip ) );
-
-    exitAction->setText( transAction( action::exitText ) );
-    exitAction->setStatusTip( transAction( action::exitStatusTip ) );
-
-    copyAction->setText( transAction( action::copyText ) );
-    copyAction->setStatusTip( transAction( action::copyStatusTip ) );
-    copyAsShownAction->setText( transAction( action::copyAsShownText ) );
-    copyAsShownAction->setStatusTip( transAction( action::copyAsShownStatusTip ) );
-
-    selectAllAction->setText( transAction( action::selectAllText ) );
-    selectAllAction->setStatusTip( transAction( action::selectAllStatusTip ) );
-
-    goToLineAction->setText( transAction( action::goToLineText ) );
-    goToLineAction->setStatusTip( transAction( action::goToLineStatusTip ) );
-
-    goToTimestampAction->setText( transAction( action::goToTimestampText ) );
-    goToTimestampAction->setStatusTip( transAction( action::goToTimestampStatusTip ) );
-
-    searchLimitsTimeRangeAction->setText( transAction( action::searchLimitsTimeRangeText ) );
-    searchLimitsTimeRangeAction->setStatusTip(
-        transAction( action::searchLimitsTimeRangeStatusTip ) );
-    searchLimitsAroundLineAction->setText( transAction( action::searchLimitsAroundLineText ) );
-    searchLimitsAroundLineAction->setStatusTip(
-        transAction( action::searchLimitsAroundLineStatusTip ) );
-
-    findAction->setText( transAction( action::findText ) );
-    findAction->setStatusTip( transAction( action::findStatusTip ) );
-
-    clearLogAction->setText( transAction( action::clearLogText ) );
-    clearLogAction->setStatusTip( transAction( action::clearLogStatusTip ) );
-
-    openContainingFolderAction->setText( transAction( action::openContainingFolderText ) );
-    openContainingFolderAction->setStatusTip(
-        transAction( action::openContainingFolderStatusTip ) );
-
-    openInEditorAction->setText( transAction( action::openInEditorText ) );
-    openInEditorAction->setStatusTip( transAction( action::openInEditorStatusTip ) );
-
-    copyPathToClipboardAction->setText( transAction( action::copyPathToClipboardText ) );
-    copyPathToClipboardAction->setStatusTip( transAction( action::copyPathToClipboardStatusTip ) );
-
-    openClipboardAction->setText( transAction( action::openClipboardText ) );
-    openClipboardAction->setStatusTip( transAction( action::openClipboardStatusTip ) );
-
-    openUrlAction->setText( transAction( action::openUrlText ) );
-    openUrlAction->setStatusTip( transAction( action::openUrlStatusTip ) );
-
-    openSessionAction->setText( transAction( action::openSessionText ) );
-    openSessionAction->setStatusTip( transAction( action::openSessionStatusTip ) );
-    saveSessionAsAction->setText( transAction( action::saveSessionAsText ) );
-    saveSessionAsAction->setStatusTip( transAction( action::saveSessionAsStatusTip ) );
-
-    openCommandOutputAction->setText( transAction( action::openCommandOutputText ) );
-    openCommandOutputAction->setStatusTip( transAction( action::openCommandOutputStatusTip ) );
-
-    mergeLogFilesAction->setText( transAction( action::mergeLogFilesText ) );
-    mergeLogFilesAction->setStatusTip( transAction( action::mergeLogFilesStatusTip ) );
-    exportAsCsvAction->setText( transAction( action::exportAsCsvText ) );
-    exportAsCsvAction->setStatusTip( transAction( action::exportAsCsvStatusTip ) );
-
-    overviewVisibleAction->setText( transAction( action::overviewVisibleText ) );
-
-    lineNumbersVisibleInMainAction->setText( transAction( action::lineNumbersVisibleInMainText ) );
-    lineNumbersVisibleInFilteredAction->setText(
-        transAction( action::lineNumbersVisibleInFilteredText ) );
-
-    followAction->setText( transAction( action::followText ) );
-    textWrapAction->setText( transAction( action::wrapText ) );
-    showValueNamesAction->setText( transAction( action::showValueNamesText ) );
-    showValueNamesAction->setStatusTip( transAction( action::showValueNamesStatusTip ) );
-    matchesOnlyAction->setText( transAction( action::matchesOnlyText ) );
-    matchesOnlyAction->setStatusTip( transAction( action::matchesOnlyStatusTip ) );
-    reloadAction->setText( transAction( action::reloadText ) );
-    stopAction->setText( transAction( action::stopText ) );
-
-    optionsAction->setText( transAction( action::optionsText ) );
-    optionsAction->setStatusTip( transAction( action::optionsStatusTip ) );
-
-    editHighlightersAction->setText( transAction( action::editHighlightersText ) );
-    editHighlightersAction->setStatusTip( transAction( action::editHighlightersStatusTip ) );
-
-    showDocumentationAction->setText( transAction( action::showDocumentationText ) );
-    showDocumentationAction->setStatusTip( transAction( action::showDocumentationStatusTip ) );
-
-    projectPageAction->setText( transAction( action::projectPageText ) );
-    projectPageAction->setStatusTip( transAction( action::projectPageStatusTip ) );
-
-    whatsNewAction->setText(
-        transAction( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ) );
-    whatsNewAction->setStatusTip( transAction( action::whatsNewStatusTip ) );
-
-    aboutAction->setText( transAction( action::aboutText ) );
-    aboutAction->setStatusTip( transAction( action::aboutStatusTip ) );
-
-    aboutQtAction->setText( transAction( action::aboutQtText ) );
-    aboutQtAction->setStatusTip( transAction( action::aboutQtStatusTip ) );
-
-    reportIssueAction->setText( transAction( action::reportIssueText ) );
-    reportIssueAction->setStatusTip( transAction( action::reportIssueStatusTip ) );
-
-    generateDumpAction->setText( transAction( action::generateDumpText ) );
-    generateDumpAction->setStatusTip( transAction( action::generateDumpStatusTip ) );
-
-    showScratchPadAction->setText( transAction( action::showScratchPadText ) );
-    showScratchPadAction->setStatusTip( transAction( action::showScratchPadStatusTip ) );
-
-    commandPaletteAction->setText( transAction( action::commandPaletteText ) );
-    commandPaletteAction->setStatusTip( transAction( action::commandPaletteStatusTip ) );
-
-    showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
-    showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
-    showValueNamesPanelAction->setText( transAction( action::showValueNamesPanelText ) );
-    showValueNamesPanelAction->setStatusTip( transAction( action::showValueNamesPanelStatusTip ) );
-
-    toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
-    toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
-
-    toggleChartPanelAction->setText( transAction( action::toggleChartPanelText ) );
-    toggleChartPanelAction->setStatusTip( transAction( action::toggleChartPanelStatusTip ) );
-
-    showFilterFrequencyAction->setText( transAction( action::showFilterFrequencyText ) );
-    showFilterFrequencyAction->setStatusTip( transAction( action::showFilterFrequencyStatusTip ) );
-
-    importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
-    importChipmunkFiltersAction->setStatusTip(
-        transAction( action::importChipmunkFiltersStatusTip ) );
-
-    auto curFavoritesIconText = addToFavoritesAction->data().toBool()
-                                    ? transAction( action::addToFavoritesText )
-                                    : transAction( action::removeFromFavoritesText );
-    addToFavoritesAction->setText( curFavoritesIconText );
-    addToFavoritesMenuAction->setText( transAction( action::addToFavoritesText ) );
-
-    removeFromFavoritesAction->setText( transAction( action::removeFromFavoritesText ) );
-
-    selectOpenFileAction->setText( transAction( action::selectOpenFileText ) );
-
-    predefinedFiltersDialogAction->setText( transAction( action::predefinedFiltersDialogText ) );
-    predefinedFiltersDialogAction->setStatusTip(
-        transAction( action::predefinedFiltersDialogStatusTip ) );
-    valueNamesDialogAction->setText( transAction( action::valueNamesDialogText ) );
-    valueNamesDialogAction->setStatusTip( transAction( action::valueNamesDialogStatusTip ) );
-
-    regexLabAction->setText( transAction( action::regexLabText ) );
-    regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
-
-    manageTabGroupsAction->setText( transAction( action::manageTabGroupsText ) );
-    manageTabGroupsAction->setStatusTip( transAction( action::manageTabGroupsStatusTip ) );
-    pluginsAction->setText( transAction( action::pluginManagementText ) );
-    pluginsAction->setStatusTip( transAction( action::pluginManagementStatusTip ) );
+    translateActions();
 
     // Built with their entries named in the language they were built in:
     // built again, the None entry and the placeholder of an empty Sources
@@ -1031,34 +866,180 @@ int MainWindow::installLanguage( QString lang )
     return 0;
 }
 
+std::span<const MainWindow::ActionEntry> MainWindow::actionTable()
+{
+    using namespace logsquirl::mainwindow;
+    using SA = ShortcutAction;
+    // In the order the actions were made in before the table (#950).
+    static const std::array table{
+        ActionEntry{ &MainWindow::newWindowAction, action::newWindowText,
+                     action::newWindowStatusTip, SA::MainWindowNewWindow },
+        ActionEntry{ &MainWindow::openAction, action::openText, action::openStatusTip,
+                     SA::MainWindowOpenFile },
+        ActionEntry{ &MainWindow::recentFilesCleanup, action::recentFilesCleanupText, nullptr,
+                     nullptr },
+        ActionEntry{ &MainWindow::closeAction, action::closeText, action::closeStatusTip,
+                     SA::MainWindowCloseFile },
+        ActionEntry{ &MainWindow::closeAllAction, action::closeAllText, action::closeAllStatusTip,
+                     SA::MainWindowCloseAll },
+        ActionEntry{ &MainWindow::exitAction, action::exitText, action::exitStatusTip,
+                     SA::MainWindowQuit },
+        ActionEntry{ &MainWindow::copyAction, action::copyText, action::copyStatusTip,
+                     SA::MainWindowCopy },
+        ActionEntry{ &MainWindow::copyAsShownAction, action::copyAsShownText,
+                     action::copyAsShownStatusTip, nullptr },
+        ActionEntry{ &MainWindow::selectAllAction, action::selectAllText,
+                     action::selectAllStatusTip, SA::MainWindowSelectAll },
+        ActionEntry{ &MainWindow::goToLineAction, action::goToLineText, action::goToLineStatusTip,
+                     SA::LogViewJumpToLine },
+        ActionEntry{ &MainWindow::goToTimestampAction, action::goToTimestampText,
+                     action::goToTimestampStatusTip, SA::LogViewJumpToTimestamp },
+        ActionEntry{ &MainWindow::searchLimitsTimeRangeAction, action::searchLimitsTimeRangeText,
+                     action::searchLimitsTimeRangeStatusTip, SA::LogViewSearchLimitsTimeRange },
+        ActionEntry{ &MainWindow::searchLimitsAroundLineAction, action::searchLimitsAroundLineText,
+                     action::searchLimitsAroundLineStatusTip, SA::LogViewSearchLimitsAroundLine },
+        ActionEntry{ &MainWindow::findAction, action::findText, action::findStatusTip,
+                     SA::MainWindowOpenQf },
+        ActionEntry{ &MainWindow::clearLogAction, action::clearLogText, action::clearLogStatusTip,
+                     SA::MainWindowClearFile },
+        ActionEntry{ &MainWindow::openContainingFolderAction, action::openContainingFolderText,
+                     action::openContainingFolderStatusTip, SA::MainWindowOpenContainingFolder },
+        ActionEntry{ &MainWindow::openInEditorAction, action::openInEditorText,
+                     action::openInEditorStatusTip, SA::MainWindowOpenInEditor },
+        ActionEntry{ &MainWindow::copyPathToClipboardAction, action::copyPathToClipboardText,
+                     action::copyPathToClipboardStatusTip, SA::MainWindowCopyPathToClipboard },
+        ActionEntry{ &MainWindow::openClipboardAction, action::openClipboardText,
+                     action::openClipboardStatusTip, SA::MainWindowOpenFromClipboard },
+        ActionEntry{ &MainWindow::openUrlAction, action::openUrlText, action::openUrlStatusTip,
+                     SA::MainWindowOpenFromUrl },
+        ActionEntry{ &MainWindow::openSessionAction, action::openSessionText,
+                     action::openSessionStatusTip, SA::MainWindowOpenSession },
+        ActionEntry{ &MainWindow::saveSessionAsAction, action::saveSessionAsText,
+                     action::saveSessionAsStatusTip, SA::MainWindowSaveSessionAs },
+        ActionEntry{ &MainWindow::openCommandOutputAction, action::openCommandOutputText,
+                     action::openCommandOutputStatusTip, SA::MainWindowOpenCommandOutput },
+        ActionEntry{ &MainWindow::mergeLogFilesAction, action::mergeLogFilesText,
+                     action::mergeLogFilesStatusTip, SA::MainWindowMergeLogFiles },
+        ActionEntry{ &MainWindow::exportAsCsvAction, action::exportAsCsvText,
+                     action::exportAsCsvStatusTip, SA::MainWindowExportAsCsv },
+        ActionEntry{ &MainWindow::overviewVisibleAction, action::overviewVisibleText, nullptr,
+                     nullptr },
+        ActionEntry{ &MainWindow::lineNumbersVisibleInMainAction,
+                     action::lineNumbersVisibleInMainText, nullptr, nullptr },
+        ActionEntry{ &MainWindow::lineNumbersVisibleInFilteredAction,
+                     action::lineNumbersVisibleInFilteredText, nullptr, nullptr },
+        ActionEntry{ &MainWindow::followAction, action::followText, nullptr,
+                     SA::MainWindowFollowFile },
+        ActionEntry{ &MainWindow::textWrapAction, action::wrapText, nullptr,
+                     SA::MainWindowTextWrap },
+        ActionEntry{ &MainWindow::showValueNamesAction, action::showValueNamesText,
+                     action::showValueNamesStatusTip, SA::MainWindowShowValueNames },
+        ActionEntry{ &MainWindow::matchesOnlyAction, action::matchesOnlyText,
+                     action::matchesOnlyStatusTip, nullptr },
+        ActionEntry{ &MainWindow::reloadAction, action::reloadText, nullptr, SA::MainWindowReload },
+        ActionEntry{ &MainWindow::stopAction, action::stopText, nullptr, SA::MainWindowStop },
+        ActionEntry{ &MainWindow::optionsAction, action::optionsText, action::optionsStatusTip,
+                     SA::MainWindowPreference },
+        ActionEntry{ &MainWindow::editHighlightersAction, action::editHighlightersText,
+                     action::editHighlightersStatusTip, nullptr },
+        ActionEntry{ &MainWindow::showDocumentationAction, action::showDocumentationText,
+                     action::showDocumentationStatusTip, nullptr },
+        ActionEntry{ &MainWindow::projectPageAction, action::projectPageText,
+                     action::projectPageStatusTip, SA::MainWindowProjectPage },
+        ActionEntry{ &MainWindow::whatsNewAction, action::whatsNewText, action::whatsNewStatusTip,
+                     SA::MainWindowWhatsNew },
+        ActionEntry{ &MainWindow::aboutAction, action::aboutText, action::aboutStatusTip, nullptr },
+        ActionEntry{ &MainWindow::aboutQtAction, action::aboutQtText, action::aboutQtStatusTip,
+                     nullptr },
+        ActionEntry{ &MainWindow::reportIssueAction, action::reportIssueText,
+                     action::reportIssueStatusTip, nullptr },
+        ActionEntry{ &MainWindow::generateDumpAction, action::generateDumpText,
+                     action::generateDumpStatusTip, nullptr },
+        ActionEntry{ &MainWindow::showScratchPadAction, action::showScratchPadText,
+                     action::showScratchPadStatusTip, SA::MainWindowScratchpad },
+        ActionEntry{ &MainWindow::commandPaletteAction, action::commandPaletteText,
+                     action::commandPaletteStatusTip, SA::MainWindowCommandPalette },
+        ActionEntry{ &MainWindow::showFiltersPanelAction, action::showFiltersPanelText,
+                     action::showFiltersPanelStatusTip, nullptr },
+        ActionEntry{ &MainWindow::showValueNamesPanelAction, action::showValueNamesPanelText,
+                     action::showValueNamesPanelStatusTip, nullptr },
+        ActionEntry{ &MainWindow::toggleSidebarAction, action::toggleSidebarText,
+                     action::toggleSidebarStatusTip, SA::MainWindowToggleSidebar },
+        ActionEntry{ &MainWindow::toggleChartPanelAction, action::toggleChartPanelText,
+                     action::toggleChartPanelStatusTip, nullptr },
+        ActionEntry{ &MainWindow::showFilterFrequencyAction, action::showFilterFrequencyText,
+                     action::showFilterFrequencyStatusTip, nullptr },
+        ActionEntry{ &MainWindow::importChipmunkFiltersAction, action::importChipmunkFiltersText,
+                     action::importChipmunkFiltersStatusTip, nullptr },
+        ActionEntry{ &MainWindow::addToFavoritesAction, action::addToFavoritesText, nullptr,
+                     nullptr },
+        ActionEntry{ &MainWindow::addToFavoritesMenuAction, action::addToFavoritesText, nullptr,
+                     nullptr },
+        ActionEntry{ &MainWindow::removeFromFavoritesAction, action::removeFromFavoritesText,
+                     nullptr, nullptr },
+        ActionEntry{ &MainWindow::selectOpenFileAction, action::selectOpenFileText, nullptr,
+                     SA::MainWindowSelectOpenFile },
+        ActionEntry{ &MainWindow::predefinedFiltersDialogAction,
+                     action::predefinedFiltersDialogText, action::predefinedFiltersDialogStatusTip,
+                     nullptr },
+        ActionEntry{ &MainWindow::valueNamesDialogAction, action::valueNamesDialogText,
+                     action::valueNamesDialogStatusTip, nullptr },
+        ActionEntry{ &MainWindow::regexLabAction, action::regexLabText, action::regexLabStatusTip,
+                     nullptr },
+        ActionEntry{ &MainWindow::manageTabGroupsAction, action::manageTabGroupsText,
+                     action::manageTabGroupsStatusTip, nullptr },
+        ActionEntry{ &MainWindow::pluginsAction, action::pluginManagementText,
+                     action::pluginManagementStatusTip, nullptr },
+    };
+    return table;
+}
+
+void MainWindow::translateActions()
+{
+    using namespace logsquirl::mainwindow;
+    // The context lupdate gives the sources of mainwindowtext.cpp, by their
+    // namespace.
+    const auto translated = []( const char* source ) {
+        return QApplication::translate( "logsquirl::mainwindow::action", source );
+    };
+    for ( const auto& entry : actionTable() ) {
+        auto* action = this->*entry.action;
+        action->setText( translated( entry.text ) );
+        if ( entry.statusTip != nullptr ) {
+            action->setStatusTip( translated( entry.statusTip ) );
+        }
+    }
+
+    // The two whose text is more than their translation: What's New names
+    // the version, and the toolbar's star says it removes the tab in front
+    // from the favorites once it is one.
+    whatsNewAction->setText(
+        whatsNewAction->text().arg( logsquirl::versioncheck::runningVersionMonth() ) );
+    if ( !addToFavoritesAction->data().toBool() ) {
+        addToFavoritesAction->setText( translated( action::removeFromFavoritesText ) );
+    }
+}
+
 // Menu actions
 void MainWindow::createActions()
 {
     const auto& config = Configuration::get();
-    const auto shortcuts = config.shortcuts();
 
-    using namespace logsquirl::mainwindow;
+    for ( const auto& entry : actionTable() ) {
+        this->*entry.action = new QAction( this );
+    }
 
-    newWindowAction = new QAction( tr( action::newWindowText ), this );
-    newWindowAction->setStatusTip( tr( action::newWindowStatusTip ) );
     connect( newWindowAction, &QAction::triggered, [ this ] { Q_EMIT newWindow(); } );
     newWindowAction->setVisible( config.allowMultipleWindows() );
 
-    openAction = new QAction( tr( action::openText ), this );
-    openAction->setStatusTip( tr( action::openStatusTip ) );
     connect( openAction, &QAction::triggered, [ this ]( auto ) { this->open(); } );
 
-    recentFilesCleanup = new QAction( tr( action::recentFilesCleanupText ), this );
     connect( recentFilesCleanup, &QAction::triggered, this,
              [ this ]( auto ) { this->clearRecentFileActions(); } );
 
-    closeAction = new QAction( tr( action::closeText ), this );
-    closeAction->setStatusTip( tr( action::closeStatusTip ) );
     connect( closeAction, &QAction::triggered, this,
              [ this ]( auto ) { this->closeTab( ActionInitiator::User ); } );
 
-    closeAllAction = new QAction( tr( action::closeAllText ), this );
-    closeAllAction->setStatusTip( tr( action::closeAllStatusTip ) );
     connect( closeAllAction, &QAction::triggered, this,
              [ this ]( auto ) { this->closeAll( ActionInitiator::User ); } );
 
@@ -1073,96 +1054,52 @@ void MainWindow::createActions()
         recentFileActions[ i ]->setActionGroup( recentFilesGroup );
     }
 
-    exitAction = new QAction( tr( action::exitText ), this );
-    exitAction->setStatusTip( tr( action::exitStatusTip ) );
     connect( exitAction, &QAction::triggered, this, &MainWindow::exitRequested );
 
-    copyAction = new QAction( tr( action::copyText ), this );
-    copyAction->setStatusTip( tr( action::copyStatusTip ) );
     connect( copyAction, &QAction::triggered, this, [ this ]( auto ) { this->copy(); } );
 
-    copyAsShownAction = new QAction( tr( action::copyAsShownText ), this );
-    copyAsShownAction->setStatusTip( tr( action::copyAsShownStatusTip ) );
     connect( copyAsShownAction, &QAction::triggered, this,
              [ this ]( auto ) { this->copyAsShown(); } );
 
-    selectAllAction = new QAction( tr( action::selectAllText ), this );
-    selectAllAction->setStatusTip( tr( action::selectAllStatusTip ) );
     connect( selectAllAction, &QAction::triggered, this, [ this ]( auto ) { this->selectAll(); } );
 
-    goToLineAction = new QAction( tr( action::goToLineText ), this );
-    goToLineAction->setStatusTip( tr( action::goToLineStatusTip ) );
-
-    goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
-    goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
-
-    searchLimitsTimeRangeAction = new QAction( tr( action::searchLimitsTimeRangeText ), this );
-    searchLimitsTimeRangeAction->setStatusTip( tr( action::searchLimitsTimeRangeStatusTip ) );
-
-    searchLimitsAroundLineAction = new QAction( tr( action::searchLimitsAroundLineText ), this );
-    searchLimitsAroundLineAction->setStatusTip( tr( action::searchLimitsAroundLineStatusTip ) );
-
-    findAction = new QAction( tr( action::findText ), this );
-    findAction->setStatusTip( tr( action::findStatusTip ) );
     // Named for the benchmark mode, which opens QuickFind as the user does (#668).
     findAction->setObjectName( "findAction" );
     connect( findAction, &QAction::triggered, this, [ this ]( auto ) { this->find(); } );
 
-    clearLogAction = new QAction( tr( action::clearLogText ), this );
-    clearLogAction->setStatusTip( tr( action::clearLogStatusTip ) );
     connect( clearLogAction, &QAction::triggered, this, [ this ]( auto ) { this->clearLog(); } );
 
-    openContainingFolderAction = new QAction( tr( action::openContainingFolderText ), this );
-    openContainingFolderAction->setStatusTip( tr( action::openContainingFolderStatusTip ) );
     connect( openContainingFolderAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openContainingFolder(); } );
 
-    openInEditorAction = new QAction( tr( action::openInEditorText ), this );
-    openInEditorAction->setStatusTip( tr( action::openInEditorStatusTip ) );
     connect( openInEditorAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openInEditor(); } );
 
-    copyPathToClipboardAction = new QAction( tr( action::copyPathToClipboardText ), this );
-    copyPathToClipboardAction->setStatusTip( tr( action::copyPathToClipboardStatusTip ) );
     connect( copyPathToClipboardAction, &QAction::triggered, this,
              [ this ]( auto ) { this->copyFullPath(); } );
 
-    openClipboardAction = new QAction( tr( action::openClipboardText ), this );
-    openClipboardAction->setStatusTip( tr( action::openClipboardStatusTip ) );
     connect( openClipboardAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openClipboard(); } );
 
-    openUrlAction = new QAction( tr( action::openUrlText ), this );
-    openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
-    openSessionAction = new QAction( tr( action::openSessionText ), this );
-    openSessionAction->setStatusTip( tr( action::openSessionStatusTip ) );
     connect( openSessionAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openSession(); } );
 
-    saveSessionAsAction = new QAction( tr( action::saveSessionAsText ), this );
-    saveSessionAsAction->setStatusTip( tr( action::saveSessionAsStatusTip ) );
     connect( saveSessionAsAction, &QAction::triggered, this,
              [ this ]( auto ) { this->saveSessionAs(); } );
 
-    openCommandOutputAction = new QAction( tr( action::openCommandOutputText ), this );
-    openCommandOutputAction->setStatusTip( tr( action::openCommandOutputStatusTip ) );
     connect( openCommandOutputAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openCommandOutputDialog(); } );
 
     // The tab bar's Merge... and the context menu's Export as CSV..., in the
     // File menu (#890).
-    mergeLogFilesAction = new QAction( tr( action::mergeLogFilesText ), this );
     mergeLogFilesAction->setObjectName( "mergeLogFilesAction" );
-    mergeLogFilesAction->setStatusTip( tr( action::mergeLogFilesStatusTip ) );
     mergeLogFilesAction->setEnabled( false );
     connect( mergeLogFilesAction, &QAction::triggered, this,
              [ this ]( auto ) { mainTabWidget_.chooseFilesToMerge(); } );
 
-    exportAsCsvAction = new QAction( tr( action::exportAsCsvText ), this );
     exportAsCsvAction->setObjectName( "exportAsCsvAction" );
-    exportAsCsvAction->setStatusTip( tr( action::exportAsCsvStatusTip ) );
     exportAsCsvAction->setEnabled( false );
     connect( exportAsCsvAction, &QAction::triggered, this, [ this ]( auto ) {
         if ( auto* crawler = currentCrawlerWidget() ) {
@@ -1170,27 +1107,21 @@ void MainWindow::createActions()
         }
     } );
 
-    overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
     connect( overviewVisibleAction, &QAction::toggled, this,
              &MainWindow::toggleOverviewVisibility );
 
-    lineNumbersVisibleInMainAction
-        = new QAction( tr( action::lineNumbersVisibleInMainText ), this );
     lineNumbersVisibleInMainAction->setCheckable( true );
     lineNumbersVisibleInMainAction->setChecked( config.mainLineNumbersVisible() );
     connect( lineNumbersVisibleInMainAction, &QAction::toggled, this,
              &MainWindow::toggleMainLineNumbersVisibility );
 
-    lineNumbersVisibleInFilteredAction
-        = new QAction( tr( action::lineNumbersVisibleInFilteredText ), this );
     lineNumbersVisibleInFilteredAction->setCheckable( true );
     lineNumbersVisibleInFilteredAction->setChecked( config.filteredLineNumbersVisible() );
     connect( lineNumbersVisibleInFilteredAction, &QAction::toggled, this,
              &MainWindow::toggleFilteredLineNumbersVisibility );
 
-    followAction = new QAction( tr( action::followText ), this );
     // Named for the benchmark mode, which follows a growing Log File as the
     // user does (#670).
     followAction->setObjectName( "followAction" );
@@ -1198,109 +1129,70 @@ void MainWindow::createActions()
     followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
     connect( followAction, &QAction::toggled, this, &MainWindow::followSet );
 
-    textWrapAction = new QAction( tr( action::wrapText ), this );
     textWrapAction->setCheckable( true );
     textWrapAction->setEnabled( true );
     connect( textWrapAction, &QAction::toggled, this, &MainWindow::textWrapSet );
 
-    showValueNamesAction = new QAction( tr( action::showValueNamesText ), this );
-    showValueNamesAction->setStatusTip( tr( action::showValueNamesStatusTip ) );
     showValueNamesAction->setCheckable( true );
     connect( showValueNamesAction, &QAction::toggled, this, &MainWindow::valueNamesShownSet );
 
     // Matches Only (#798): the Table View's, enabled for a tab that has one.
-    matchesOnlyAction = new QAction( tr( action::matchesOnlyText ), this );
     matchesOnlyAction->setObjectName( "matchesOnlyAction" );
-    matchesOnlyAction->setStatusTip( tr( action::matchesOnlyStatusTip ) );
     matchesOnlyAction->setCheckable( true );
     matchesOnlyAction->setEnabled( false );
     connect( matchesOnlyAction, &QAction::toggled, this, &MainWindow::matchesOnlySet );
 
-    reloadAction = new QAction( tr( action::reloadText ), this );
-
-    stopAction = new QAction( tr( action::stopText ), this );
     stopAction->setEnabled( true );
 
-    optionsAction = new QAction( tr( action::optionsText ), this );
     optionsAction->setMenuRole( QAction::PreferencesRole );
-    optionsAction->setStatusTip( tr( action::optionsStatusTip ) );
     connect( optionsAction, &QAction::triggered, this, [ this ]( auto ) { this->options(); } );
 
-    editHighlightersAction = new QAction( tr( action::editHighlightersText ), this );
     editHighlightersAction->setMenuRole( QAction::NoRole );
-    editHighlightersAction->setStatusTip( tr( action::editHighlightersStatusTip ) );
     connect( editHighlightersAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editHighlighters(); } );
 
-    showDocumentationAction = new QAction( tr( action::showDocumentationText ), this );
-    showDocumentationAction->setStatusTip( tr( action::showDocumentationStatusTip ) );
     connect( showDocumentationAction, &QAction::triggered, this,
              [ this ]( auto ) { this->documentation(); } );
 
-    projectPageAction = new QAction( tr( action::projectPageText ), this );
-    projectPageAction->setStatusTip( tr( action::projectPageStatusTip ) );
     connect( projectPageAction, &QAction::triggered, this, []( auto ) {
         QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::ProjectPageUrl ) );
     } );
 
-    whatsNewAction = new QAction(
-        tr( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ), this );
-    whatsNewAction->setStatusTip( tr( action::whatsNewStatusTip ) );
     connect( whatsNewAction, &QAction::triggered, this, []( auto ) {
         QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::runningReleaseNotesUrl() ) );
     } );
 
-    aboutAction = new QAction( tr( action::aboutText ), this );
-    aboutAction->setStatusTip( tr( action::aboutStatusTip ) );
     connect( aboutAction, &QAction::triggered, this, [ this ]( auto ) { this->about(); } );
 
-    aboutQtAction = new QAction( tr( action::aboutQtText ), this );
-    aboutQtAction->setStatusTip( tr( action::aboutQtStatusTip ) );
     connect( aboutQtAction, &QAction::triggered, this, [ this ]( auto ) { this->aboutQt(); } );
 
-    reportIssueAction = new QAction( tr( action::reportIssueText ), this );
-    reportIssueAction->setStatusTip( tr( action::reportIssueStatusTip ) );
     connect( reportIssueAction, &QAction::triggered, this,
              []( auto ) { IssueReporter::reportIssue( IssueTemplate::Bug ); } );
 
-    generateDumpAction = new QAction( tr( action::generateDumpText ), this );
-    generateDumpAction->setStatusTip( tr( action::generateDumpStatusTip ) );
     connect( generateDumpAction, &QAction::triggered, this,
              [ this ]( auto ) { this->generateDump(); } );
 
-    showScratchPadAction = new QAction( tr( action::showScratchPadText ), this );
-    showScratchPadAction->setStatusTip( tr( action::showScratchPadStatusTip ) );
     connect( showScratchPadAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showScratchPad(); } );
 
-    commandPaletteAction = new QAction( tr( action::commandPaletteText ), this );
-    commandPaletteAction->setStatusTip( tr( action::commandPaletteStatusTip ) );
     connect( commandPaletteAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showCommandPalette(); } );
 
-    showFiltersPanelAction = new QAction( tr( action::showFiltersPanelText ), this );
-    showFiltersPanelAction->setStatusTip( tr( action::showFiltersPanelStatusTip ) );
     connect( showFiltersPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showFiltersPanel(); } );
 
-    showValueNamesPanelAction = new QAction( tr( action::showValueNamesPanelText ), this );
-    showValueNamesPanelAction->setStatusTip( tr( action::showValueNamesPanelStatusTip ) );
     connect( showValueNamesPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showValueNamesPanel(); } );
 
-    toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
     toggleSidebarAction->setObjectName( "toggleSidebarAction" );
-    toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
     // Checked while the sidebar shows, in the View menu and on the toolbar
     // alike (#890); the sidebar's own state sets it.
     toggleSidebarAction->setCheckable( true );
     connect( toggleSidebarAction, &QAction::triggered, this,
              [ this ]( auto ) { this->toggleSidebar(); } );
 
-    toggleChartPanelAction = new QAction( tr( action::toggleChartPanelText ), this );
     // Named for the benchmark mode, which shows the chart as the user does (#670).
     toggleChartPanelAction->setObjectName( "toggleChartPanelAction" );
-    toggleChartPanelAction->setStatusTip( tr( action::toggleChartPanelStatusTip ) );
     connect( toggleChartPanelAction, &QAction::triggered, this, [ this ]( auto ) {
         auto* crawler = currentCrawlerWidget();
         if ( crawler != nullptr ) {
@@ -1308,8 +1200,6 @@ void MainWindow::createActions()
         }
     } );
 
-    showFilterFrequencyAction = new QAction( tr( action::showFilterFrequencyText ), this );
-    showFilterFrequencyAction->setStatusTip( tr( action::showFilterFrequencyStatusTip ) );
     connect( showFilterFrequencyAction, &QAction::triggered, this, [ this ]( auto ) {
         auto* crawler = currentCrawlerWidget();
         if ( crawler != nullptr ) {
@@ -1317,8 +1207,6 @@ void MainWindow::createActions()
         }
     } );
 
-    importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
-    importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
     connect( importChipmunkFiltersAction, &QAction::triggered, this,
              [ this ]( auto ) { this->importChipmunkFilters(); } );
 
@@ -1331,47 +1219,34 @@ void MainWindow::createActions()
     openedFilesGroup = new QActionGroup( this );
     connect( openedFilesGroup, &QActionGroup::triggered, this, &MainWindow::switchToOpenedFile );
 
-    addToFavoritesAction = new QAction( tr( action::addToFavoritesText ), this );
     addToFavoritesAction->setData( true );
     connect( addToFavoritesAction, &QAction::triggered, this,
              [ this ]( auto ) { this->addToFavorites(); } );
 
-    addToFavoritesMenuAction = new QAction( tr( action::addToFavoritesText ), this );
     connect( addToFavoritesMenuAction, &QAction::triggered, this,
              [ this ]( auto ) { this->addToFavorites(); } );
 
-    removeFromFavoritesAction = new QAction( tr( action::removeFromFavoritesText ), this );
     connect( removeFromFavoritesAction, &QAction::triggered, this,
              [ this ]( auto ) { this->removeFromFavorites(); } );
 
-    selectOpenFileAction = new QAction( tr( action::selectOpenFileText ), this );
     connect( selectOpenFileAction, &QAction::triggered, this,
              [ this ]( auto ) { this->selectOpenedFile(); } );
 
-    predefinedFiltersDialogAction = new QAction( tr( action::predefinedFiltersDialogText ), this );
-    predefinedFiltersDialogAction->setStatusTip( tr( action::predefinedFiltersDialogStatusTip ) );
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
 
-    valueNamesDialogAction = new QAction( tr( action::valueNamesDialogText ), this );
-    valueNamesDialogAction->setStatusTip( tr( action::valueNamesDialogStatusTip ) );
     connect( valueNamesDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editValueNames(); } );
 
-    regexLabAction = new QAction( tr( action::regexLabText ), this );
-    regexLabAction->setStatusTip( tr( action::regexLabStatusTip ) );
     connect( regexLabAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openRegexLab(); } );
 
-    manageTabGroupsAction = new QAction( tr( action::manageTabGroupsText ), this );
-    manageTabGroupsAction->setStatusTip( tr( action::manageTabGroupsStatusTip ) );
     connect( manageTabGroupsAction, &QAction::triggered, this,
              [ this ]( auto ) { this->manageTabGroups(); } );
 
-    pluginsAction = new QAction( tr( action::pluginManagementText ), this );
-    pluginsAction->setStatusTip( tr( action::pluginManagementStatusTip ) );
     connect( pluginsAction, &QAction::triggered, this, &MainWindow::showPluginDialog );
 
+    translateActions();
     updateShortcuts();
 }
 
@@ -1407,45 +1282,12 @@ void MainWindow::updateShortcuts()
                                       ShortcutAction::MainWindowMin,
                                       [ this ] { this->showMinimized(); } );
 
-    auto setShortcuts = [ &shortcuts ]( auto* action, const auto& actionName ) {
-        action->setShortcuts( ShortcutAction::shortcutKeys( actionName, shortcuts ) );
-    };
-
-    setShortcuts( newWindowAction, ShortcutAction::MainWindowNewWindow );
-    setShortcuts( openAction, ShortcutAction::MainWindowOpenFile );
-    setShortcuts( closeAction, ShortcutAction::MainWindowCloseFile );
-    setShortcuts( closeAllAction, ShortcutAction::MainWindowCloseAll );
-    setShortcuts( exitAction, ShortcutAction::MainWindowQuit );
-    setShortcuts( copyAction, ShortcutAction::MainWindowCopy );
-    setShortcuts( selectAllAction, ShortcutAction::MainWindowSelectAll );
-    setShortcuts( findAction, ShortcutAction::MainWindowOpenQf );
-    setShortcuts( clearLogAction, ShortcutAction::MainWindowClearFile );
-    setShortcuts( openContainingFolderAction, ShortcutAction::MainWindowOpenContainingFolder );
-    setShortcuts( openInEditorAction, ShortcutAction::MainWindowOpenInEditor );
-    setShortcuts( copyPathToClipboardAction, ShortcutAction::MainWindowCopyPathToClipboard );
-    setShortcuts( openClipboardAction, ShortcutAction::MainWindowOpenFromClipboard );
-    setShortcuts( openUrlAction, ShortcutAction::MainWindowOpenFromUrl );
-    setShortcuts( openSessionAction, ShortcutAction::MainWindowOpenSession );
-    setShortcuts( saveSessionAsAction, ShortcutAction::MainWindowSaveSessionAs );
-    setShortcuts( openCommandOutputAction, ShortcutAction::MainWindowOpenCommandOutput );
-    setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
-    setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
-    setShortcuts( showValueNamesAction, ShortcutAction::MainWindowShowValueNames );
-    setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
-    setShortcuts( stopAction, ShortcutAction::MainWindowStop );
-    setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
-    setShortcuts( mergeLogFilesAction, ShortcutAction::MainWindowMergeLogFiles );
-    setShortcuts( exportAsCsvAction, ShortcutAction::MainWindowExportAsCsv );
-    setShortcuts( toggleSidebarAction, ShortcutAction::MainWindowToggleSidebar );
-    setShortcuts( commandPaletteAction, ShortcutAction::MainWindowCommandPalette );
-    setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
-    setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
-    setShortcuts( goToTimestampAction, ShortcutAction::LogViewJumpToTimestamp );
-    setShortcuts( searchLimitsTimeRangeAction, ShortcutAction::LogViewSearchLimitsTimeRange );
-    setShortcuts( searchLimitsAroundLineAction, ShortcutAction::LogViewSearchLimitsAroundLine );
-    setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
-    setShortcuts( projectPageAction, ShortcutAction::MainWindowProjectPage );
-    setShortcuts( whatsNewAction, ShortcutAction::MainWindowWhatsNew );
+    for ( const auto& entry : actionTable() ) {
+        if ( entry.shortcutId != nullptr ) {
+            ( this->*entry.action )
+                ->setShortcuts( ShortcutAction::shortcutKeys( entry.shortcutId, shortcuts ) );
+        }
+    }
 }
 
 // Whether the tab at `index` is the welcome dashboard itself, for what only
@@ -1543,7 +1385,6 @@ void MainWindow::createMenus()
     editMenu->addSeparator();
     editMenu->addAction( searchLimitsTimeRangeAction );
     editMenu->addAction( searchLimitsAroundLineAction );
-    setCurrentFileActionsEnabled( false );
 
     viewMenu = menuBar()->addMenu( tr( menu::viewTitle ) );
     openedFilesMenu = viewMenu->addMenu( tr( menu::openedFilesTitle ) );
@@ -1614,22 +1455,6 @@ void MainWindow::createMenus()
     helpMenu->addSeparator();
     helpMenu->addAction( aboutQtAction );
     helpMenu->addAction( aboutAction );
-}
-
-void MainWindow::setCurrentFileActionsEnabled( bool enabled )
-{
-    // The Edit menu works on the Log Lines of the current tab, and the file
-    // actions of the File menu on its file: without one, neither does anything.
-    editMenu->setEnabled( enabled );
-    copyPathToClipboardAction->setEnabled( enabled );
-    openContainingFolderAction->setEnabled( enabled );
-    openInEditorAction->setEnabled( enabled );
-    clearLogAction->setEnabled( enabled );
-    // Export as CSV... needs a Log Format besides: the tab's state enables it
-    // (updateMenuBarFromDocument()).
-    if ( !enabled ) {
-        exportAsCsvAction->setEnabled( false );
-    }
 }
 
 void MainWindow::createToolBars()
@@ -2048,11 +1873,10 @@ void MainWindow::editHighlighters()
                           &TeamFolder::highlighterGroupRevisions );
     }
 
-    // Reaches every open Log File, in every window, not only the current tab.
-    connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
-        session_.applyChange( Changed::HighlighterSets );
-        updateHighlightersMenu();
-    } );
+    // Reaches every open Log File and every window's Highlighters menu, not
+    // only the current tab.
+    connect( &dialog, &HighlightersDialog::optionsChanged,
+             [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     dialog.exec();
 }
@@ -2061,10 +1885,10 @@ void MainWindow::highlightThis( const QString& selectedText, const QString& logL
 {
     HighlightThisDialog dialog( selectedText, logLine, this );
     // The dialog reads the sets from the settings store, as the Highlighters
-    // dialog does; OK changed them, and every open Log File is recolored.
+    // dialog does; OK changed them, and every open Log File is recolored and
+    // every window's Highlighters menu built again.
     if ( dialog.exec() == QDialog::Accepted ) {
         session_.applyChange( Changed::HighlighterSets );
-        updateHighlightersMenu();
     }
 }
 
@@ -2127,10 +1951,10 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
                           &TeamFolder::filterGroupRevisions );
     }
 
-    // The Predefined Filters are no setting a Log File shows: only the filters
-    // panel lists them.
+    // The Predefined Filters are no setting a Log File shows: only the Filters
+    // panel of every window lists them.
     connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
-             [ this ]() { filtersPanel_.refreshFilters(); } );
+             [ this ]() { session_.applyChange( Changed::PredefinedFilters ); } );
 
     dialog.exec();
 }
@@ -2142,8 +1966,8 @@ void MainWindow::addAsPredefinedFilter( const QString& selectedText )
         return;
     }
     // Saved as the Predefined Filters dialog saves them; only the Filters
-    // panel lists them.
-    filtersPanel_.refreshFilters();
+    // panel of every window lists them.
+    session_.applyChange( Changed::PredefinedFilters );
     if ( dialog.applyNow() ) {
         if ( auto* crawler = currentCrawlerWidget() ) {
             crawler->searchWithPredefinedFilter( dialog.filter() );
@@ -2207,6 +2031,23 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
 void MainWindow::applyValueNamesChange()
 {
     valueNamesPanel_.refresh();
+}
+
+void MainWindow::applyHighlighterSetChange()
+{
+    updateHighlightersMenu();
+}
+
+void MainWindow::applyPredefinedFiltersChange()
+{
+    filtersPanel_.refreshFilters();
+}
+
+void MainWindow::applyTeamFilterGroupsChange()
+{
+    if ( const auto teamFolder = session_.teamFolder() ) {
+        filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    }
 }
 
 // Opens the 'Options' modal dialog box
@@ -2308,34 +2149,17 @@ void MainWindow::connectTeamFolder()
 
     connect( teamFolder.get(), &TeamFolder::stateChanged, this,
              &MainWindow::updateTeamFolderIndicator );
-    // A changed or removed Team group shows at the next sync, in every
-    // window's Filters panel.
-    connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
-             [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
-    // A changed or removed Team Highlighter Set re-colors every open Log File
-    // at once, and a removed one is no longer active.
-    connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
-             [ this ] { applyTeamHighlighterSets( true ); } );
-    // A changed or removed Team Naming Group names values anew in every open
-    // Log File, and shows in the Value Names tab.
-    connect( teamFolder.get(), &TeamFolder::namingGroupsChanged, this,
-             &MainWindow::applyTeamNamingGroups );
-    // A sync that reached the repository knows the groups, however few: only
-    // then is an activation of a Team set that is not there dropped.
-    connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
-        if ( const auto folder = session_.teamFolder();
-             folder && folder->state() == TeamFolder::State::Synced ) {
-            applyTeamHighlighterSets( true );
-        }
-    } );
+    // What a sync brings the Session hears, once for every window: it writes
+    // the Team Highlighter Sets and Naming Groups and tells this window, as it
+    // does of changed Team Filter Groups (#943).
     connect( teamFolder.get(), &TeamFolder::publishFinished, this,
              &MainWindow::askAboutPublishConflicts );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
+    // The Team Filter Groups only this window's Filters panel holds. Set
+    // directly: this runs while the window is built, so not through the
+    // SessionWindow hook.
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
-    // Before the first sync no group is known yet: nothing is dropped.
-    applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
-    applyTeamNamingGroups();
     updateTeamFolderIndicator();
 }
 
@@ -2422,62 +2246,6 @@ void MainWindow::askAboutPendingConflicts()
         else if ( question.clickedButton() == takeTheirs ) {
             teamFolder->resolveConflict( result.request, ConflictChoice::TakeTheirs );
         }
-    }
-}
-
-void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
-{
-    const auto teamFolder = session_.teamFolder();
-    if ( !teamFolder ) {
-        return;
-    }
-
-    // Every window comes here for the same sync; the first one changes the
-    // collection and saves it, the others only bring their menu up to date.
-    auto& collection = HighlighterSetCollection::get();
-    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups(),
-                                            dropUnknownActivations ) ) {
-        collection.save();
-        session_.applyChange( Changed::HighlighterSets );
-    }
-    updateHighlightersMenu();
-}
-
-void MainWindow::applyPluginGroups()
-{
-    // The enabled plugins stand in the configuration, which Plugin Management
-    // writes before it says that one was enabled or disabled.
-    const auto groups = logsquirl::plugingroups::readEnabled(
-        plugins_->catalog().discoveredPlugins(), Configuration::get().enabledPlugins() );
-
-    // Every window comes here for the same change; the first one changes the
-    // collections, the others only bring their panel and menu up to date.
-    // Neither collection stores the plugins' groups: saving the Highlighter
-    // Sets keeps only which of them are active, and a plugin's set that is
-    // gone is no longer.
-    PredefinedFiltersCollection::get().setPluginFilterGroups( groups.filterGroups );
-    filtersPanel_.refreshFilters();
-
-    auto& collection = HighlighterSetCollection::get();
-    if ( collection.setPluginHighlighterSets( groups.highlighterSets ) ) {
-        collection.save();
-        session_.applyChange( Changed::HighlighterSets );
-    }
-    updateHighlightersMenu();
-}
-
-void MainWindow::applyTeamNamingGroups()
-{
-    const auto teamFolder = session_.teamFolder();
-    if ( !teamFolder ) {
-        return;
-    }
-
-    // Every window comes here for the same sync; the first one changes the
-    // collection, which tells every window. The Team groups are never saved:
-    // the Team Folder holds them.
-    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->namingGroups() ) ) {
-        session_.applyChange( Changed::ValueNames );
     }
 }
 
@@ -2854,20 +2622,18 @@ void MainWindow::importChipmunkFilters()
         highlighterCollection.setHighlighterSets( sets );
         highlighterCollection.save();
         highlighterAdded = true;
-        updateHighlightersMenu();
     }
 
-    // Refresh the filters panel if visible
-    filtersPanel_.refreshFilters();
+    // Every window lists the imported group in its Filters panel and the set
+    // in its Highlighters menu. The set may be active: every open Log File is
+    // painted again with it, not only the one the current tab shows.
+    session_.applyChange( Changed::PredefinedFilters );
+    session_.applyChange( Changed::HighlighterSets );
 
     QMessageBox::information( this, tr( "Import result" ),
                               tr( "Imported %1 filter(s) and %2 highlighter set." )
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
-
-    // The imported Highlighter Set may be active: paint every open Log File
-    // again with it, not only the one the current tab shows.
-    session_.applyChange( Changed::HighlighterSets );
 }
 
 void MainWindow::encodingChanged( QAction* action )
@@ -3007,8 +2773,7 @@ void MainWindow::showLoadingProgress( int progress )
 
     showInfoLabels( false );
 
-    stopAction->setEnabled( true );
-    reloadAction->setEnabled( false );
+    frontTab_.apply();
 }
 
 void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
@@ -3029,17 +2794,11 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
 
         infoLine->hideGauge();
         showInfoLabels( true );
-        stopAction->setEnabled( false );
-        reloadAction->setEnabled( true );
 
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        const auto state = crawler->state();
-        updateGoToTimestampAction( state );
-        matchesOnlyAction->setEnabled( state.hasTableView );
-        exportAsCsvAction->setEnabled( state.hasTableView );
-        changeMatchesOnly( state.matchesOnly );
+        frontTab_.apply();
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -3049,8 +2808,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         // the Log File stays open with what it shows, and the newer load goes
         // on (#621). Only a first load that never finished closes the tab.
         infoLine->hideGauge();
-        stopAction->setEnabled( false );
-        reloadAction->setEnabled( true );
+        frontTab_.apply();
     }
     else {
         if ( status == LoadingStatus::NoMemory ) {
@@ -3085,18 +2843,6 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
 void MainWindow::showStatusMessage( QString message )
 {
     statusBar()->showMessage( message, 8000 );
-}
-
-void MainWindow::handleFilteredViewChanged()
-{
-    int currentIndex = mainTabWidget_.currentIndex();
-    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
-        auto* crawler_widget
-            = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
-        if ( crawler_widget ) {
-            quickFindMux_.registerSelector( crawler_widget );
-        }
-    }
 }
 
 void MainWindow::applyQuickFindPolicy()
@@ -3212,8 +2958,7 @@ void MainWindow::currentTabChanged( int index )
             session_.activate( crawler_widget );
         }
 
-        connectFrontTab( crawler_widget );
-        quickFindMux_.registerSelector( crawler_widget );
+        frontTab_.bind( crawler_widget );
 
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).
@@ -3238,11 +2983,9 @@ void MainWindow::currentTabChanged( int index )
         // first (#692).
         const auto state = crawler_widget->state();
         lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
-        updateMenuBarFromDocument( state );
+        frontTab_.apply();
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
-
-        setCurrentFileActionsEnabled( true );
 
         // Notify plugins about the active file change
         plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
@@ -3250,8 +2993,7 @@ void MainWindow::currentTabChanged( int index )
     else {
         // No tab, or one that holds no Log File, such as the dashboard -- clear
         // the document state
-        connectFrontTab( nullptr );
-        quickFindMux_.registerSelector( nullptr );
+        frontTab_.bind( nullptr );
 
         infoLine->hideGauge();
         infoLine->clear();
@@ -3266,7 +3008,6 @@ void MainWindow::currentTabChanged( int index )
             updateTitleBar( QString() );
         }
 
-        setCurrentFileActionsEnabled( false );
         addToFavoritesAction->setEnabled( false );
         addToFavoritesMenuAction->setEnabled( false );
 
@@ -3278,60 +3019,6 @@ void MainWindow::currentTabChanged( int index )
             showDashboardOrTabs();
         }
     }
-}
-
-void MainWindow::connectFrontTab( CrawlerWidget* crawler )
-{
-    for ( const auto& connection : frontTabConnections_ ) {
-        disconnect( connection );
-    }
-    frontTabConnections_.clear();
-    if ( crawler == nullptr ) {
-        return;
-    }
-
-    frontTabConnections_ = {
-        // What the window asks of the Log File in front
-        connect( this, &MainWindow::followSet, crawler, &CrawlerWidget::followSet ),
-        connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
-        connect( this, &MainWindow::valueNamesShownSet, crawler,
-                 &CrawlerWidget::valueNamesShownSet ),
-        connect( this, &MainWindow::matchesOnlySet, crawler, &CrawlerWidget::setMatchesOnly ),
-        connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
-        connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
-                 &CrawlerWidget::exitingQuickFind ),
-        connect( goToLineAction, &QAction::triggered, crawler, &CrawlerWidget::goToLine ),
-        connect( goToTimestampAction, &QAction::triggered, crawler, &CrawlerWidget::goToTimestamp ),
-        connect( searchLimitsTimeRangeAction, &QAction::triggered, crawler,
-                 &CrawlerWidget::setSearchLimitsToTimeRange ),
-        connect( searchLimitsAroundLineAction, &QAction::triggered, crawler,
-                 &CrawlerWidget::setSearchLimitsAroundCurrentLine ),
-        connect( reloadAction, &QAction::triggered, crawler, &CrawlerWidget::reload ),
-        connect( stopAction, &QAction::triggered, crawler, &CrawlerWidget::stopLoading ),
-
-        // What the Log File in front tells the window
-        connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
-        connect( crawler, &CrawlerWidget::matchesOnlyChanged, this,
-                 &MainWindow::changeMatchesOnly ),
-        connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
-        connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
-                 &MainWindow::newPredefinedFilterHandler ),
-        connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
-        connect( crawler, &CrawlerWidget::nameValueRequested, this, &MainWindow::nameValue ),
-        connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
-                 &MainWindow::replaceDataInScratchpad ),
-        connect( crawler, &CrawlerWidget::loadingProgressed, this,
-                 &MainWindow::updateLoadingProgress ),
-        connect( crawler, &CrawlerWidget::loadingFinished, this,
-                 &MainWindow::handleLoadingFinished ),
-        connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
-        connect( crawler, &CrawlerWidget::highlightThisRequested, this,
-                 &MainWindow::highlightThis ),
-        connect( crawler, &CrawlerWidget::addAsPredefinedFilterRequested, this,
-                 &MainWindow::addAsPredefinedFilter ),
-        connect( crawler, &CrawlerWidget::filteredViewChanged, this,
-                 &MainWindow::handleFilteredViewChanged ),
-    };
 }
 
 void MainWindow::changeQFPattern( const QString& newPattern )
@@ -3717,7 +3404,8 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
     // plugins have loaded. A file asked for before -- from the command line,
     // by another instance, dropped at once -- waits for them rather than
     // being opened without its converter (#303).
-    if ( plugins_->isLoaded() ) {
+    if ( nextOpenStep( OpenFacts{ .pluginsLoaded = plugins_->isLoaded() } )
+         != OpenStep::WaitForPlugins ) {
         return open();
     }
     LOG_INFO << "Opening " << fileName << " once the plugins have loaded";
@@ -3756,61 +3444,90 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
         return isOpen;
     };
 
-    // First check if the file is already open, or converted (#615), in any
-    // window: the Session knows, and the window showing it brings its tab to
-    // the front (#642).
-    if ( session_.showOpen( fileName ) ) {
-        return finish( true );
-    }
-
-    // A converter plugin handling this file's extension converts it, in the
-    // background; its tab comes once it is done (#795). Asked for again
-    // meanwhile, it waits for that same Conversion, or for the converter
-    // plugins to say whether one claims it by its content (#861).
-    if ( conversions_.contains( fileName ) || contentChecks_.contains( fileName ) ) {
-        return finish( true );
-    }
+    // Whether the file is already open, or converted (#615), in any window:
+    // the Session knows. A converter plugin handling this file's extension
+    // converts it in the background, its tab coming once it is done (#795);
+    // asked for again meanwhile, it waits for that same Conversion, or for
+    // the converter plugins to say whether one claims it by its content
+    // (#861).
     const auto ext = QFileInfo( fileName ).suffix().toLower();
-    if ( const auto converterId = plugins_->host().converterForExtension( ext );
-         !converterId.isEmpty() ) {
-        convertAndOpen( converterId, fileName, followFile, origin );
-        return finish( true );
-    }
+    const auto converterId = plugins_->host().converterForExtension( ext );
+    auto known = OpenFacts{
+        .pluginsLoaded = true,
+        .alreadyOpen = session_.viewShowing( fileName ) != nullptr
+                       || conversions_.contains( fileName ) || contentChecks_.contains( fileName ),
+        .extensionConverter = !converterId.isEmpty(),
+        .lifetime = origin.lifetime,
+    };
 
-    // Else a converter plugin may claim it by its content, as it is on disk,
+    auto step = nextOpenStep( known );
+    // A converter plugin may claim it by its content, as it is on disk,
     // before it is decompressed (#861). A Transient Log File is LogSquirl's
     // own -- a stream's spool, a merge, the clipboard's text, what a
     // Conversion wrote -- and is not offered.
-    if ( origin.lifetime == LogFileLifetime::Ordinary
-         && checkContentAndOpen( fileName, followFile, origin, done ) ) {
-        return true;
+    if ( step == OpenStep::AskContentClaim ) {
+        if ( checkContentAndOpen( fileName, followFile, origin, known, done ) ) {
+            return true;
+        }
+        // No converter plugin checks content: none claims it.
+        known.contentClaim = ContentClaim::NotClaimed;
+        step = nextOpenStep( known );
     }
 
-    return finish( loadNow( fileName, followFile, origin ) );
+    switch ( step ) {
+    case OpenStep::ShowOpenTab:
+        // The window showing it brings its tab to the front (#642).
+        session_.showOpen( fileName );
+        return finish( true );
+    case OpenStep::ConvertByExtension:
+        convertAndOpen( converterId, fileName, followFile, origin );
+        return finish( true );
+    case OpenStep::WaitForPlugins:
+    case OpenStep::AskContentClaim:
+    case OpenStep::ConvertByClaim:
+    case OpenStep::LookForCompression:
+    case OpenStep::Decompress:
+    case OpenStep::Open:
+        break;
+    }
+    return finish( loadNow( fileName, followFile, origin, known ) );
 }
 
 bool MainWindow::checkContentAndOpen( const QString& fileName, bool followFile,
-                                      const LogFileOrigin& origin, const OpenDone& done )
+                                      const LogFileOrigin& origin, const OpenFacts& known,
+                                      const OpenDone& done )
 {
     const QPointer<MainWindow> window( this );
     const auto id
         = plugins_->host().checkContent( fileName, [ this, window, fileName, followFile, origin,
-                                                     done ]( const QString& converterId ) {
+                                                     known, done ]( const QString& converterId ) {
               if ( !window ) {
                   return;
               }
               contentChecks_.erase( fileName );
-              // Opened in another window meanwhile.
-              if ( session_.showOpen( fileName ) ) {
+              // It may have been opened in another window meanwhile.
+              auto answered = known;
+              answered.alreadyOpen = session_.viewShowing( fileName ) != nullptr;
+              answered.contentClaim
+                  = converterId.isEmpty() ? ContentClaim::NotClaimed : ContentClaim::Claimed;
+              switch ( nextOpenStep( answered ) ) {
+              case OpenStep::ShowOpenTab:
+                  session_.showOpen( fileName );
                   done( true );
                   return;
-              }
-              if ( converterId.isEmpty() ) {
-                  done( loadNow( fileName, followFile, origin ) );
+              case OpenStep::ConvertByClaim:
+                  convertAndOpen( converterId, fileName, followFile, origin );
+                  done( true );
                   return;
+              case OpenStep::WaitForPlugins:
+              case OpenStep::ConvertByExtension:
+              case OpenStep::AskContentClaim:
+              case OpenStep::LookForCompression:
+              case OpenStep::Decompress:
+              case OpenStep::Open:
+                  break;
               }
-              convertAndOpen( converterId, fileName, followFile, origin );
-              done( true );
+              done( loadNow( fileName, followFile, origin, answered ) );
           } );
     if ( id == 0 ) {
         return false;
@@ -3823,12 +3540,13 @@ bool MainWindow::checkContentAndOpen( const QString& fileName, bool followFile,
 // Create a CrawlerWidget for the passed file, start its loading
 // and update the title bar.
 // The loading is done asynchronously.
-bool MainWindow::loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+bool MainWindow::loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                          OpenFacts known )
 {
-    const auto decompressAction = Decompressor::action( fileName );
+    known.decompressAction = Decompressor::action( fileName );
+    known.extractArchives = session_.fileAccessPolicy().extractArchives;
 
-    if ( decompressAction == DecompressAction::None
-         || !session_.fileAccessPolicy().extractArchives ) {
+    if ( nextOpenStep( known ) != OpenStep::Decompress ) {
         // Load the file
         loadingFileName = fileName;
 
@@ -4208,49 +3926,6 @@ void MainWindow::clearRecentFileActions()
     recentFiles.removeAll();
     recentFiles.save();
     updateRecentFileActions();
-}
-// Update our menu bar to match the settings of the crawler
-// (used when the tab is changed)
-void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
-{
-    const auto& encodingMib = state.encodingMib;
-
-    auto encodingActions = encodingGroup->actions();
-    auto encodingItem = std::find_if( encodingActions.begin(), encodingActions.end(),
-                                      [ &encodingMib ]( const auto& action ) {
-                                          return ( !encodingMib && !action->data().isValid() )
-                                                 || ( encodingMib && action->data().isValid()
-                                                      && *encodingMib == action->data().toInt() );
-                                      } );
-
-    if ( encodingItem != encodingActions.end() ) {
-        ( *encodingItem )->setChecked( true );
-    }
-
-    changeFollowMode( state.follows );
-    textWrapAction->setChecked( state.textWrap );
-    showValueNamesAction->setChecked( state.valueNamesShown );
-    matchesOnlyAction->setEnabled( state.hasTableView );
-    // The context menus offer Export as CSV... for a Log Format only.
-    exportAsCsvAction->setEnabled( state.hasTableView );
-    changeMatchesOnly( state.matchesOnly );
-    updateGoToTimestampAction( state );
-}
-
-// "Go to timestamp" is there for a Log File whose Log Format has a timestamp
-// field; without one it says why it is not.
-void MainWindow::updateGoToTimestampAction( const CrawlerWidget::State& state )
-{
-    const auto& reason = state.goToTimestampUnavailable;
-    goToTimestampAction->setEnabled( reason.isEmpty() );
-    goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
-
-    // The time Search Limits need the same: a Timestamp on the Log Lines.
-    const auto& limitsReason = state.searchLimitsByTimeUnavailable;
-    for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
-        action->setEnabled( limitsReason.isEmpty() );
-        action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
-    }
 }
 
 // Update the top info line from the session

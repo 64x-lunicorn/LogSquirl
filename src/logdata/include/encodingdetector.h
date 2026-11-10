@@ -32,6 +32,8 @@ struct EncodingParameters {
     EncodingParameters() = default;
     explicit EncodingParameters( const TextEncoding* codec );
 
+    // UTF-8 itself; isUtf8Compatible holds for US-ASCII too.
+    bool isUtf8{ false };
     bool isUtf8Compatible{ false };
     bool isUtf16LE{ false };
     bool isUtf16BE{ false };

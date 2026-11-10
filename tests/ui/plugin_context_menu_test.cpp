@@ -25,6 +25,7 @@
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
@@ -34,6 +35,7 @@
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
+#include "source_body_format.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -46,6 +48,7 @@
 #include <QLibrary>
 #include <QMenu>
 #include <QStandardPaths>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -57,6 +60,13 @@
 #include <vector>
 
 struct PluginContextMenuTest {};
+
+namespace {
+
+// The Log Format the Session recognizes the Log Files with.
+constexpr auto TestFormatName = "plugin_context_menu_test";
+
+} // namespace
 
 template <>
 struct AbstractLogView::access_by<PluginContextMenuTest> {
@@ -98,68 +108,54 @@ struct LogTableView::access_by<PluginContextMenuTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<PluginContextMenuTest> {
-    static AbstractLogView& textView( const CrawlerWidget& crawler )
-    {
-        return *crawler.logMainView_;
-    }
-
-    static AbstractLogView& filteredView( const CrawlerWidget& crawler )
-    {
-        return *crawler.currentFilteredView();
-    }
-
-    static LogTableView& tableView( const CrawlerWidget& crawler )
-    {
-        return *crawler.logTableView_;
-    }
-
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
-
-    // Runs a Search for pattern, as the Search Line does, until it is done.
-    static void search( CrawlerWidget& crawler, const QString& pattern )
-    {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
-        edit->clearEditText();
-        QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
-        QTest::qWait( 100 );
-        REQUIRE( waitUiState(
-            [ & ] { return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden(); } ) );
-    }
-
-    // Recognizes the Log File with a Log Format of its own, the first word
-    // a field and the rest the body, and shows the Table View.
-    static void showTableView( CrawlerWidget& crawler )
-    {
-        LogFormatDefinition format;
-        format.setName( "plugin_context_menu_test" );
-        format.setTitle( "Plugin context menu test" );
-        QHash<QString, QString> regex;
-        regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
-        format.setRegexPatterns( regex );
-        format.setBodyField( "body" );
-
-        crawler.recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
-        crawler.logTableView_->setLogFormat( crawler.recognizedFormat_.get(),
-                                             crawler.openLogFile_->logData().get() );
-        crawler.tableViewToggle_->setVisible( true );
-        crawler.tableViewToggle_->setChecked( true );
-        QTest::qWait( 50 );
-    }
-};
-
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 
 namespace {
 
-using CrawlerAccess = CrawlerWidget::access_by<PluginContextMenuTest>;
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
+    static AbstractLogView& textView( const CrawlerWidget& crawler )
+    {
+        return textViewOf( crawler );
+    }
+
+    // The Filtered View in front, as the State says.
+    static AbstractLogView& filteredView( const CrawlerWidget& crawler )
+    {
+        return *frontFilteredViewOf( crawler );
+    }
+
+    static LogTableView& tableView( const CrawlerWidget& crawler )
+    {
+        return tableViewOf( crawler );
+    }
+
+    // Runs a Search for pattern, as the Search Line does, until it is done.
+    static void search( CrawlerWidget& crawler, const QString& pattern )
+    {
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
+        edit->clearEditText();
+        QTest::keyClicks( edit, pattern );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
+        QTest::qWait( 100 );
+        REQUIRE( waitUiState(
+            [ & ] { return SearchLineAccess::stopButton( searchLine )->isHidden(); } ) );
+    }
+
+    // Shows the Table View of the Log File, once recognized with
+    // TestFormatName: the first word a field and the rest the body.
+    static void showTableView( CrawlerWidget& crawler )
+    {
+        REQUIRE( waitUiState(
+            [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
+        tableViewToggleOf( crawler ).setChecked( true );
+        QTest::qWait( 50 );
+    }
+};
+
 using TextViewAccess = AbstractLogView::access_by<PluginContextMenuTest>;
 using TableViewAccess = LogTableView::access_by<PluginContextMenuTest>;
 
@@ -387,8 +383,8 @@ struct ContextMenuWindows {
                 loadErrors
                     = host.autoLoadPlugins( { .autoLoad = true, .enabled = { PluginId } } ).errors;
             } );
-        const auto session = std::make_shared<Session>( testSettingsPolicies(),
-                                                        std::make_shared<LogFormatCatalog>() );
+        const auto session = std::make_shared<Session>( recognizingPolicies(),
+                                                        sourceBodyFormatCatalog( TestFormatName ) );
         first = std::make_unique<MainWindow>( WindowSession{ session, "First", 0 }, plugins );
         showUntilExposed( *first );
         REQUIRE( waitUiState( [ this ] { return plugins->isLoaded(); }, 5000 ) );
@@ -435,7 +431,7 @@ struct ContextMenuWindows {
             [ & ] {
                 opened = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
                 return opened != nullptr && opened->state().loadStatus == LoadingStatus::Successful
-                       && CrawlerAccess::lineCount( *opened ).get() > 0;
+                       && opened->state().lineCount.get() > 0;
             },
             10'000 ) );
         QTest::qWait( 50 );

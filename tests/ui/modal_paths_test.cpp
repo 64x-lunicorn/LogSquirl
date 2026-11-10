@@ -62,6 +62,7 @@
 #include "archivemember.h"
 #include "chartpanel.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "highlighteredit.h"
@@ -73,6 +74,7 @@
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "modal_answers.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "predefinedfiltersdialog.h"
 #include "recentfiles.h"
@@ -91,43 +93,35 @@
 
 using namespace logsquirl::teamfolder;
 
-// What the tests below read from a Crawler Widget beyond its public face: the
-// state the paths leave behind.
-struct ModalPathsAccess {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<ModalPathsAccess> {
+// What the tests below read of a tab, open in session, beyond its State: the
+// state the paths leave behind -- the Search Limits of its Open Log File and
+// the Search line's pattern.
+struct CrawlerState {
     CrawlerWidget& crawler;
+    const Session& session;
 
     LineNumber searchStart() const
     {
-        return crawler.openLogFile_->searchStartLine();
+        return openLogFileOf( session, crawler ).searchStartLine();
     }
 
     LineNumber searchEnd() const
     {
-        return crawler.openLogFile_->searchEndLine();
+        return openLogFileOf( session, crawler ).searchEndLine();
     }
 
     LineNumber currentLine() const
     {
-        return crawler.currentLineNumber_;
+        return crawler.state().selectedLine;
     }
 
     QString searchText() const
     {
-        return crawler.searchLine_->pattern();
-    }
-
-    LinesCount nbLines() const
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
+        return searchLineOf( crawler ).pattern();
     }
 };
-
-using CrawlerState = CrawlerWidget::access_by<ModalPathsAccess>;
-
-namespace {
 
 constexpr int LineCount = 300;
 
@@ -236,7 +230,7 @@ struct WindowFixture {
         CrawlerWidget* found = nullptr;
         REQUIRE( waitUiState( [ & ] {
             for ( auto* crawler : mainWindow->findChildren<CrawlerWidget*>() ) {
-                if ( CrawlerState{ *crawler }.nbLines().get() > 0 ) {
+                if ( crawler->state().lineCount.get() > 0 ) {
                     found = crawler;
                 }
             }
@@ -811,7 +805,7 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
         const auto tabs = logFileTabs( window );
         REQUIRE( tabs.size() == 3 );
         for ( auto* tab : tabs ) {
-            REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() > 0; } ) );
+            REQUIRE( waitUiState( [ tab ] { return tab->state().lineCount.get() > 0; } ) );
         }
         const auto downloadedPath = window.session->getFilename( tabs.back() );
 
@@ -837,7 +831,7 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
     REQUIRE( waitUiState( [ & ] { return logFileTabs( restarted ).size() == 2; } ) );
     const auto tabs = logFileTabs( restarted );
     for ( auto* tab : tabs ) {
-        REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
+        REQUIRE( waitUiState( [ tab ] { return tab->state().lineCount.get() == 2; } ) );
     }
     CHECK_FALSE( modals.seen() );
 }
@@ -1008,7 +1002,7 @@ TEST_CASE( "A Log File from an archive is known by its archive to the recent fil
         const auto tabs = logFileTabs( window );
         REQUIRE( tabs.size() == 2 );
         for ( auto* tab : tabs ) {
-            REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() > 0; } ) );
+            REQUIRE( waitUiState( [ tab ] { return tab->state().lineCount.get() > 0; } ) );
         }
 
         // Opening them listed the archives, never the temporary paths.
@@ -1040,7 +1034,7 @@ TEST_CASE( "A Log File from an archive is known by its archive to the recent fil
     REQUIRE( waitUiState( [ & ] { return logFileTabs( restarted ).size() == 2; } ) );
     const auto tabs = logFileTabs( restarted );
     for ( auto* tab : tabs ) {
-        REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
+        REQUIRE( waitUiState( [ tab ] { return tab->state().lineCount.get() == 2; } ) );
     }
     CHECK_FALSE( modals.seen() );
 
@@ -1101,7 +1095,7 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     WindowFixture window;
     auto* crawler = window.open( file.path );
     waitForTimeActions( *window.mainWindow );
-    CrawlerState state{ *crawler };
+    CrawlerState state{ *crawler, *window.session };
     ModalAnswers modals;
     const auto trigger = [ & ]( const char* text ) {
         auto* action = actionNamed( *window.mainWindow, text );
@@ -1191,7 +1185,7 @@ TEST_CASE( "Go to timestamp in a sorted Table View selects the Row of the Log Li
     WindowFixture window;
     auto* crawler = window.open( file.path );
     waitForTimeActions( *window.mainWindow );
-    CrawlerState state{ *crawler };
+    CrawlerState state{ *crawler, *window.session };
     ModalAnswers modals;
 
     auto* toggle = crawler->findChild<QToolButton*>( "tableViewToggle" );
@@ -1230,7 +1224,7 @@ TEST_CASE( "A Log File truncated while a time dialog is open is not read through
     WindowFixture window;
     auto* crawler = window.open( file.path );
     waitForTimeActions( *window.mainWindow );
-    CrawlerState state{ *crawler };
+    CrawlerState state{ *crawler, *window.session };
     const auto wholeEnd = state.searchEnd();
     ModalAnswers modals;
 
@@ -1240,9 +1234,9 @@ TEST_CASE( "A Log File truncated while a time dialog is open is not read through
     const auto truncate = [ & ] {
         REQUIRE( writeFile( file.path, "nothing to recognize here\n" ) );
         REQUIRE( window.fileWatch->reportChange( file.path ) );
-        REQUIRE( waitUiState( [ & ] { return state.nbLines().get() == 1; }, 60'000 ) );
+        REQUIRE( waitUiState( [ & ] { return crawler->state().lineCount.get() == 1; }, 60'000 ) );
         REQUIRE( waitUiState(
-            [ & ] { return !crawler->searchLimitsByTimeUnavailableReason().isEmpty(); }, 60'000 ) );
+            [ & ] { return !crawler->state().searchLimitsByTimeUnavailable.isEmpty(); }, 60'000 ) );
     };
     modals.inputText( "12:10:00", truncate ).inputText( "12:20:00" );
 
@@ -1490,9 +1484,9 @@ TEST_CASE( "A click on a value of a Value Count searches for it", "[ui][modal][v
 
     WindowFixture window( {}, {}, std::make_shared<FakeFileWatch>(), catalog );
     auto* crawler = window.open( file.path );
-    REQUIRE( waitUiState( [ & ] { return crawler->goToTimestampUnavailableReason().isEmpty(); },
+    REQUIRE( waitUiState( [ & ] { return crawler->state().goToTimestampUnavailable.isEmpty(); },
                           30'000 ) );
-    CrawlerState state{ *crawler };
+    CrawlerState state{ *crawler, *window.session };
 
     auto* chart = crawler->findChild<ChartPanel*>();
     REQUIRE( chart != nullptr );

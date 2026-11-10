@@ -69,7 +69,8 @@ class LogFilteredData : public AbstractLogData {
 public:
     // Constructor used by LogData, which hands on the Search Policy it was
     // built with: everything this object and its Search Session know about
-    // the settings arrives here.
+    // the settings arrives here. It hears of the Log Lines changed through
+    // LogData::logLinesChanged(), which it connects itself to.
     LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy );
 
     // Destructor: disconnects signals before member destruction to prevent
@@ -85,9 +86,10 @@ public:
                   LineNumber endLine );
     // Shortcut for request() on the whole file.
     void request( const RegularExpressionPattern& regExp );
-    // Go idle: clears the pattern and the results. The cached results stay:
-    // they go when the Log Lines they were found in change (logLinesChanged()).
-    void request();
+    // Drops the results and goes idle: clears the pattern and the results.
+    // The cached results stay: they go when the Log Lines they were found in
+    // change (logLinesChanged()).
+    void dropResults();
     // Stops the in-flight run, if any, keeping whatever has been found so
     // far. A no-op if nothing is running.
     void stop();
@@ -158,9 +160,9 @@ public:
     uint64_t displayedLinesRewrites() const;
 
     // Replaces the Search Policy, for this object and its Search Session.
-    // Called when a setting on the Search axis changed; the Log File this
-    // was built from does the calling, so every LogFilteredData is reached,
-    // not only the one the active tab happens to be showing.
+    // Called when a setting on the Search axis changed; the Open Log File's
+    // Search Set does the calling, so every Search is reached, not only the
+    // one the active tab happens to be showing (#941).
     void setSearchPolicy( const SearchPolicy& searchPolicy );
 
     // The Search Session's current typed state (pattern, range, match
@@ -206,6 +208,8 @@ private:
     void doDetachReader() const override;
 
     const LogData* sourceLogData_;
+    // To LogData::logLinesChanged(), cut in the destructor.
+    QMetaObject::Connection logLinesChangedConnection_;
 
     // Owns the pattern, the run in flight, its Matches and its progress.
     SearchSession session_;

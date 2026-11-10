@@ -25,9 +25,11 @@
 
 #include "applicationplugins.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logdata.h"
 #include "logformatcatalog.h"
+#include "open_log_file_of.h"
 #include "plugindialog.h"
 #include "pluginlogformats.h"
 #include "savedsearches.h"
@@ -50,39 +52,41 @@ using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 
-struct PluginLogFormatsAccess {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
+// A tab, observed through its State and its child widgets.
+struct CrawlerAccess {
     std::unique_ptr<CrawlerWidget> crawler;
 
-    explicit access_by( ViewInterface* view )
+    explicit CrawlerAccess( ViewInterface* view )
         : crawler( static_cast<CrawlerWidget*>( view ) )
     {
     }
 
+    // The Log Format the tab shows, as its State names it: the one its Open
+    // Log File recognized. None while the tab names none, or another.
     const LogFormatDefinition* logFormat() const
     {
-        return crawler->recognizedFormat_.get();
+        const auto shown = crawler->state().logFormatName;
+        const auto recognized = openLogFileOf( *crawler ).logFormat();
+        return !shown.isEmpty() && recognized != nullptr && recognized->name() == shown
+                   ? recognized.get()
+                   : nullptr;
     }
 
     bool isTableViewToggled() const
     {
-        return crawler->tableViewToggle_->isChecked();
+        return tableViewToggleOf( *crawler ).isChecked();
     }
 
     bool waitLoaded( LinesCount lines )
     {
         return waitUiState( [ this, lines ] {
-            return crawler->openLogFile_->logData()->getNbLine() == lines
-                   && crawler->lastLoadStatus_.has_value();
+            const auto state = crawler->state();
+            return state.lineCount == lines && state.loadStatus.has_value();
         } );
     }
 };
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogFormatsAccess>;
-
-namespace {
 
 constexpr int LineCount = 60;
 
@@ -211,8 +215,7 @@ SettingsPolicies recognitionShownAsTable()
 
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {
-    return std::make_unique<CrawlerAccess>(
-        session.open( path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) );
+    return std::make_unique<CrawlerAccess>( session.open( path, buildCrawlerWidget ) );
 }
 
 /// The Enable or Disable button of the only plugin card in Plugin Management.
