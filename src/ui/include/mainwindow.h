@@ -58,6 +58,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <vector>
 
 #include "applicationplugins.h"
@@ -195,6 +196,21 @@ public:
     void reTranslateUI();
 
     static int installLanguage( QString lang );
+
+    // One action of the window's menus and toolbar (#950): the member that
+    // holds it, its text and status tip as the translation sources of
+    // mainwindowtext.cpp (context `logsquirl::mainwindow::action`), and the
+    // id of its shortcut. A status tip or shortcut id the action has none of
+    // is null.
+    struct ActionEntry {
+        QAction* MainWindow::* action = nullptr;
+        const char* text = nullptr;
+        const char* statusTip = nullptr;
+        const char* shortcutId = nullptr;
+    };
+    // Every action the window names: created, translated again on a language
+    // change and given its shortcuts from this one table.
+    static std::span<const ActionEntry> actionTable();
 
     // The Session tells every window of a settings change, whichever window
     // it was made in, once it has re-derived the Policies (#245): the window
@@ -398,6 +414,9 @@ private:
     RegexLabAccess regexLabAccess();
 
     void createActions();
+    // Gives every action of actionTable() its text and status tip in the
+    // language installed now.
+    void translateActions();
     void loadIcons();
     void createMenus();
     void createToolBars();
