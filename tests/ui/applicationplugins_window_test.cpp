@@ -54,22 +54,16 @@
 #include <algorithm>
 #include <memory>
 
-struct ApplicationPluginsWindowTest {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<ApplicationPluginsWindowTest> {
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
+// The text of the first Log Line of the tab's Log File, as a Search reads it.
+QString firstLine( const CrawlerWidget& crawler )
+{
+    const auto lines = crawler.logLineTextReader()( { LineNumber( 0 ) } );
+    return lines.empty() ? QString{} : lines.front();
+}
 
-    static QString firstLine( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getLineString( LineNumber( 0 ) );
-    }
-};
-
-using CrawlerAccess = CrawlerWidget::access_by<ApplicationPluginsWindowTest>;
+} // namespace
 
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
@@ -911,8 +905,8 @@ SCENARIO( "A data source that ended its own stream starts again from the Sources
                 = qobject_cast<CrawlerWidget*>( tabs->widget( tabs->logFileTabs().back() ) );
             REQUIRE( firstTab );
             const auto firstPath = plugins->host().streamWriter( LifecycleProbeId )->filePath();
-            REQUIRE( waitUiState(
-                [ & ] { return CrawlerAccess::lineCount( *firstTab ) == 1_lcount; }, 10000 ) );
+            REQUIRE(
+                waitUiState( [ & ] { return firstTab->state().lineCount == 1_lcount; }, 10000 ) );
             reinterpret_cast<Command>( probe.resolve( "logsquirl_lifecycle_probe_signal_eos" ) )();
             REQUIRE( waitUiState( [ & ] { return events() == "init,start,eos,stop"; }, 5000 ) );
             REQUIRE( plugins->host().streamWriter( LifecycleProbeId ) == nullptr );
@@ -934,8 +928,8 @@ SCENARIO( "A data source that ended its own stream starts again from the Sources
                     QTest::qWait( 1000 );
                     REQUIRE( QFile::exists( firstPath ) );
                     REQUIRE( firstTab );
-                    REQUIRE( CrawlerAccess::lineCount( *firstTab ) == 1_lcount );
-                    REQUIRE( CrawlerAccess::firstLine( *firstTab ) == "lifecycle probe opened" );
+                    REQUIRE( firstTab->state().lineCount == 1_lcount );
+                    REQUIRE( firstLine( *firstTab ) == "lifecycle probe opened" );
                 }
             }
         }

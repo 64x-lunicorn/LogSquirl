@@ -47,6 +47,7 @@
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "regexlabwindow.h"
 #include "savedsearches.h"
@@ -60,11 +61,6 @@ struct RegexLabSearchLineTest {};
 
 template <>
 struct CrawlerWidget::access_by<RegexLabSearchLineTest> {
-    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
-    {
-        return *crawler.openLogFile_;
-    }
-
     static SearchLineWidget& searchLine( CrawlerWidget& crawler )
     {
         return *crawler.searchLine_;
@@ -107,14 +103,12 @@ struct OpenCrawler {
         file.flush();
         session.savedSearches().clear();
 
-        crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
         crawler->resize( 800, 600 );
         showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this ] {
-            return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
-                   == static_cast<uint64_t>( LogLineCount );
+            return crawler->state().lineCount.get() == static_cast<uint64_t>( LogLineCount );
         } ) );
         QTest::qWait( 100 );
     }
@@ -154,13 +148,13 @@ struct OpenCrawler {
 
     LinesCount matchCount()
     {
-        return CrawlerAccess::openLogFile( *crawler ).filteredData()->getNbMatches();
+        return openLogFileOf( *crawler ).filteredData()->getNbMatches();
     }
 
     // The Log Lines the Search found.
     std::set<int> matchingLines()
     {
-        const auto filtered = CrawlerAccess::openLogFile( *crawler ).filteredData();
+        const auto filtered = openLogFileOf( *crawler ).filteredData();
         std::set<int> lines;
         for ( std::uint64_t i = 0; i < filtered->getNbMatches().get(); ++i ) {
             lines.insert(

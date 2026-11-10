@@ -61,16 +61,11 @@ struct PluginMarksTest {};
 
 template <>
 struct CrawlerWidget::access_by<PluginMarksTest> {
-    static LinesCount lineCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->logData()->getNbLine();
-    }
-
-    // Whether the bullet margin shows the Log Line, numbered from 0, as marked.
+    // Whether the Log File has the Log Line, numbered from 0, marked: what the
+    // bullet margin shows.
     static bool isMarked( const CrawlerWidget& crawler, LineNumber::UnderlyingType line )
     {
-        return crawler.openLogFile_->lineType( LineNumber( line ) )
-            .testFlag( AbstractLogData::LineTypeFlags::Mark );
+        return crawler.marks().contains( LineNumber( line ) );
     }
 
     // Marks Log Lines, numbered from 0, as the user does from the Text View.
@@ -249,7 +244,7 @@ struct MarksWindow {
                 crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
                 return crawler != nullptr
                        && crawler->state().loadStatus == LoadingStatus::Successful
-                       && CrawlerAccess::lineCount( *crawler ) == lines;
+                       && crawler->state().lineCount == lines;
             },
             10'000 ) );
         QTest::qWait( 50 );

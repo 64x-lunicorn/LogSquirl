@@ -36,6 +36,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -53,6 +54,7 @@
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "predefinedfilters.h"
 #include "predefinedfiltersdialog.h"
@@ -86,9 +88,11 @@ struct CrawlerWidget::access_by<AddPredefinedFilterTest> {
         return *crawler.logMainView_;
     }
 
+    // The Filtered View in front, as the State says.
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *crawler.currentFilteredView();
+        return *qobject_cast<AbstractLogView*>(
+            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
     }
 
     static QString searchPattern( const CrawlerWidget& crawler )
@@ -104,11 +108,6 @@ struct CrawlerWidget::access_by<AddPredefinedFilterTest> {
     static QToolButton* useRegexpButton( const CrawlerWidget& crawler )
     {
         return SearchLineAccess::useRegexpButton( *crawler.searchLine_ );
-    }
-
-    static LinesCount matchCount( const CrawlerWidget& crawler )
-    {
-        return crawler.openLogFile_->filteredData()->getNbLine();
     }
 
     static void search( CrawlerWidget& crawler, const QString& pattern )
@@ -231,8 +230,8 @@ struct AddFilterWindow {
                         .toUtf8() );
         file.close();
 
-        const auto session = std::make_shared<Session>( testSettingsPolicies(),
-                                                        std::make_shared<LogFormatCatalog>() );
+        session = std::make_shared<Session>( testSettingsPolicies(),
+                                             std::make_shared<LogFormatCatalog>() );
         window = std::make_unique<MainWindow>(
             WindowSession{ session, QStringLiteral( "Main" ), 0 },
             std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
@@ -255,6 +254,7 @@ struct AddFilterWindow {
     AddFilterWindow& operator=( const AddFilterWindow& ) = delete;
 
     QTemporaryDir dir;
+    std::shared_ptr<Session> session;
     std::unique_ptr<MainWindow> window;
     CrawlerWidget* crawler = nullptr;
 };
@@ -658,7 +658,10 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( waitUiState( [ & ] {
                 return CrawlerAccess::searchPattern( *shown.crawler ) == EscapedText
                        && CrawlerAccess::searchStopped( *shown.crawler )
-                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+                       && openLogFileOf( *shown.session, *shown.crawler )
+                                  .filteredData()
+                                  ->getNbLine()
+                              == 1_lcount;
             } ) );
         }
     }
@@ -679,7 +682,10 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( waitUiState( [ & ] {
                 return CrawlerAccess::searchPattern( *shown.crawler ) == SelectedText
                        && CrawlerAccess::searchStopped( *shown.crawler )
-                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+                       && openLogFileOf( *shown.session, *shown.crawler )
+                                  .filteredData()
+                                  ->getNbLine()
+                              == 1_lcount;
             } ) );
         }
     }
@@ -699,7 +705,10 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( storedGroup( defaultFilterSetId() ).filters().front().pattern == TwoWords );
             REQUIRE( waitUiState( [ & ] {
                 return CrawlerAccess::searchStopped( *shown.crawler )
-                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+                       && openLogFileOf( *shown.session, *shown.crawler )
+                                  .filteredData()
+                                  ->getNbLine()
+                              == 1_lcount;
             } ) );
         }
     }
@@ -720,7 +729,10 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( waitUiState( [ & ] {
                 return CrawlerAccess::searchPattern( *shown.crawler ) == EscapedText
                        && CrawlerAccess::searchStopped( *shown.crawler )
-                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+                       && openLogFileOf( *shown.session, *shown.crawler )
+                                  .filteredData()
+                                  ->getNbLine()
+                              == 1_lcount;
             } ) );
         }
     }
@@ -728,7 +740,8 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
     WHEN( "the selection in the Filtered View is added without apply now" )
     {
         CrawlerAccess::search( *shown.crawler, QStringLiteral( "ERROR|WARN" ) );
-        REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 2_lcount );
+        REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
+                 == 2_lcount );
         auto& filteredView = CrawlerAccess::filteredView( *shown.crawler );
         selectText( filteredView );
         const auto menu = ViewAccess::contextMenu( filteredView );
@@ -740,7 +753,8 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( storedGroup( defaultFilterSetId() ).filters().size() == 1 );
             REQUIRE( CrawlerAccess::searchPattern( *shown.crawler )
                      == QStringLiteral( "ERROR|WARN" ) );
-            REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 2_lcount );
+            REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
+                     == 2_lcount );
         }
     }
 }
@@ -754,7 +768,8 @@ SCENARIO( "Refreshing the Filters panel with no filter checked leaves the Search
 
     const AddFilterWindow shown;
     CrawlerAccess::search( *shown.crawler, QStringLiteral( "ERROR" ) );
-    REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
+    REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
+             == 1_lcount );
 
     WHEN( "the Predefined Filters editor is opened and OK clicked without checking a filter" )
     {
@@ -781,7 +796,8 @@ SCENARIO( "Refreshing the Filters panel with no filter checked leaves the Search
         {
             REQUIRE( CrawlerAccess::searchPattern( *shown.crawler ) == QStringLiteral( "ERROR" ) );
             REQUIRE( CrawlerAccess::searchStopped( *shown.crawler ) );
-            REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
+            REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
+                     == 1_lcount );
         }
     }
 
@@ -793,7 +809,8 @@ SCENARIO( "Refreshing the Filters panel with no filter checked leaves the Search
         THEN( "the Search pattern is as it was" )
         {
             REQUIRE( CrawlerAccess::searchPattern( *shown.crawler ) == QStringLiteral( "ERROR" ) );
-            REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
+            REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
+                     == 1_lcount );
         }
     }
 }

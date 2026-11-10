@@ -319,7 +319,7 @@ private:
         if ( !follow->isChecked() ) {
             follow->trigger();
         }
-        if ( !crawler.isFollowEnabled() ) {
+        if ( !crawler.state().follows ) {
             run_->fail( QStringLiteral( "the follow action did not follow the Log File" ) );
             return;
         }
@@ -329,7 +329,7 @@ private:
     // The last Log Line the Text View shows, when it follows the end.
     std::optional<std::uint64_t> displayedThrough() const
     {
-        if ( !crawler_ || !mainView_ || !crawler_->isFollowEnabled() ) {
+        if ( !crawler_ || !mainView_ || !crawler_->state().follows ) {
             return {};
         }
         const auto* bar = mainView_->verticalScrollBar();

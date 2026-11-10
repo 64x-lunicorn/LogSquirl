@@ -23,14 +23,17 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QSignalSpy>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 
 #include <chrono>
 
 #include "fake_file_watch.h"
+#include "filteredview.h"
 #include "formatrecognition.h"
 #include "logformatcatalog.h"
+#include "open_log_file_of.h"
 #include "savedsearches.h"
 #include "session.h"
 #include "test_policies.h"
@@ -112,34 +115,43 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     bool isLoadingFinished() const
     {
-        return crawler->lastLoadStatus_.has_value();
+        return crawler->state().loadStatus.has_value();
     }
 
     LinesCount nbLines() const
     {
-        return crawler->openLogFile_->logData()->getNbLine();
+        return crawler->state().lineCount;
     }
 
     int recognitionCount() const
     {
-        return crawler->openLogFile_->formatRecognitionCount();
+        return openLogFileOf( *crawler ).formatRecognitionCount();
     }
 
+    // The Log Format the tab shows, as its State names it: the one its Open
+    // Log File recognized. None while the tab names none, or another.
     const LogFormatDefinition* logFormat() const
     {
-        return crawler->recognizedFormat_.get();
+        const auto shown = crawler->state().logFormatName;
+        const auto recognized = openLogFileOf( *crawler ).logFormat();
+        return !shown.isEmpty() && recognized != nullptr && recognized->name() == shown
+                   ? recognized.get()
+                   : nullptr;
     }
 
     const LogFormatCatalog* logFormatCatalog() const
     {
-        return crawler->openLogFile_->logFormatCatalog().get();
+        return openLogFileOf( *crawler ).logFormatCatalog().get();
     }
 
-    // The names of the columns the Filtered View's Export as CSV offers.
+    // The names of the columns the Filtered View in front's Export as CSV
+    // offers.
     QStringList filteredViewCsvColumns() const
     {
+        const auto* front = qobject_cast<FilteredView*>(
+            crawler->tabbedFilteredView_->widget( crawler->state().frontFilteredView ) );
         QStringList names;
-        for ( const auto& column : crawler->currentFilteredView()->csvExportSetup().columns ) {
+        for ( const auto& column : front->csvExportSetup().columns ) {
             names << column.name;
         }
         return names;
@@ -171,8 +183,7 @@ namespace {
 
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {
-    return std::make_unique<CrawlerAccess>(
-        session.open( path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) );
+    return std::make_unique<CrawlerAccess>( session.open( path, buildCrawlerWidget ) );
 }
 
 SettingsPolicies recognitionEnabled()
@@ -467,9 +478,8 @@ SCENARIO( "A Sort Order is saved nowhere: a new tab and a restored one open in L
             session.close( logFile->crawler.get() );
             logFile.reset();
 
-            auto restored = std::make_unique<CrawlerAccess>( session.open(
-                path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); },
-                saved ) );
+            auto restored = std::make_unique<CrawlerAccess>(
+                session.open( path, buildCrawlerWidget, saved ) );
             auto* restoredTable = tableOf( *restored );
 
             THEN( "its Table View is in Log Line order" )

@@ -59,10 +59,12 @@
 #include "infoline.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "open_log_file_of.h"
 #include "quickfindmux.h"
 #include "quickfindpattern.h"
 #include "searchlinewidget_access.h"
 #include "shortcuts.h"
+#include "source_body_format.h"
 #include "textviewscrolling.h"
 #include "viewstatecodec.h"
 
@@ -102,6 +104,17 @@ bool generateDataFiles( QTemporaryFile& file )
     }
 
     return true;
+}
+
+// The Log Format the Table View tests have their Log Files recognized with:
+// a source word and a body, as every Log Line generateDataFiles() writes.
+constexpr auto PresentationsFormatName = "crawlerwidget_test_presentations";
+
+// The Log Format Catalog of a Session whose Log Files are recognized with
+// PresentationsFormatName, its Policies recognizingPolicies().
+std::shared_ptr<LogFormatCatalog> presentationsCatalog()
+{
+    return sourceBodyFormatCatalog( PresentationsFormatName );
 }
 
 } // namespace
@@ -174,7 +187,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isLoadingFinished()
     {
-        return crawler->lastLoadStatus_.has_value();
+        return crawler->state().loadStatus.has_value();
     }
 
     // Whether a time lookup of the Time Navigation is under way.
@@ -191,22 +204,23 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // How the last load of the Log File ended, if one has.
     std::optional<LoadingStatus> lastLoadStatus() const
     {
-        return crawler->lastLoadStatus_;
+        return crawler->state().loadStatus;
     }
 
-    OpenLogFile& openLogFile()
+    // The Open Log File the Session built the tab with (#944).
+    OpenLogFile& openLogFile() const
     {
-        return *crawler->openLogFile_;
+        return openLogFileOf( *crawler );
     }
 
     LinesCount getLogNbLines()
     {
-        return crawler->openLogFile_->logData()->getNbLine();
+        return crawler->state().lineCount;
     }
 
     LinesCount getLogFilteredNbLines()
     {
-        return crawler->openLogFile_->filteredData()->getNbLine();
+        return openLogFile().filteredData()->getNbLine();
     }
 
     void selectAllInMainView()
@@ -216,7 +230,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void selectAllInFilteredView()
     {
-        crawler->currentFilteredView()->selectAll();
+        filteredView()->selectAll();
     }
 
     QString mainViewSelectedText()
@@ -226,7 +240,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString filteredViewSelectedText()
     {
-        return crawler->currentFilteredView()->getSelectedText();
+        return filteredView()->getSelectedText();
     }
 
     void setSearchPattern( const QString& pattern )
@@ -313,28 +327,16 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void selectInFilteredView( LineNumber line )
     {
-        crawler->currentFilteredView()->selectAndDisplayLine( line );
+        filteredView()->selectAndDisplayLine( line );
     }
 
-    // Recognizes the Log File with a Log Format of its own, and shows the
-    // Table View or the Text View.
+    // Shows the Table View or the Text View of a Log File the Session's Log
+    // Format Catalog recognized: one opened in a Session made with
+    // recognizingPolicies() and presentationsCatalog().
     void showTableView( bool tableView )
     {
-        if ( !crawler->recognizedFormat_ ) {
-            LogFormatDefinition format;
-            format.setName( "crawlerwidget_test_presentations" );
-            format.setTitle( "Presentations test" );
-            QHash<QString, QString> regex;
-            regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
-            format.setRegexPatterns( regex );
-            format.setBodyField( "body" );
-
-            crawler->recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
-            crawler->logTableView_->setLogFormat( crawler->recognizedFormat_.get(),
-                                                  crawler->openLogFile_->logData().get() );
-            crawler->tableViewToggle_->setVisible( true );
-        }
-
+        REQUIRE( waitUiState(
+            [ this ] { return crawler->state().logFormatName == PresentationsFormatName; } ) );
         crawler->tableViewToggle_->setChecked( tableView );
         QTest::qWait( 50 );
     }
@@ -356,7 +358,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isMarked( LineNumber line )
     {
-        return crawler->openLogFile_->filteredData()->lineTypeByLine( line ).testFlag(
+        return openLogFile().filteredData()->lineTypeByLine( line ).testFlag(
             AbstractLogData::LineTypeFlags::Mark );
     }
 
@@ -365,14 +367,9 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return SearchLineAccess::patternEdit( *crawler->searchLine_ )->currentText();
     }
 
-    FilteredView* filteredView()
-    {
-        return crawler->currentFilteredView();
-    }
-
     QString logLineString( LineNumber line )
     {
-        return crawler->openLogFile_->logData()->getLineString( line );
+        return openLogFile().logData()->getLineString( line );
     }
 
     void clearSearchPattern()
@@ -388,14 +385,14 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     }
 
     // The Filtered View in tab index, current or not.
-    FilteredView* filteredViewInTab( int index )
+    FilteredView* filteredViewInTab( int index ) const
     {
         return qobject_cast<FilteredView*>( crawler->tabbedFilteredView_->widget( index ) );
     }
 
     int currentFilteredViewTab()
     {
-        return crawler->tabbedFilteredView_->currentIndex();
+        return crawler->state().frontFilteredView;
     }
 
     // What the Color Label shortcuts and menus do: the text selected in the
@@ -461,7 +458,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     int filteredViewTabCount() const
     {
-        return crawler->tabbedFilteredView_->count();
+        return crawler->state().filteredViewCount;
     }
 
     QWidget* filteredViewTab( int index ) const
@@ -472,7 +469,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // The current Search, held no longer than the Log File holds it.
     std::weak_ptr<const LogFilteredData> currentSearch() const
     {
-        return crawler->openLogFile_->filteredData();
+        return openLogFile().filteredData();
     }
 
     // The Search the Table View shows the Marks and Matches of.
@@ -487,10 +484,11 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         crawler->closeFilteredView( index );
     }
 
-    // The Filtered View of the current Search.
+    // The Filtered View of the current Search: the tab in front, as the
+    // State says.
     FilteredView* filteredView() const
     {
-        return crawler->currentFilteredView();
+        return filteredViewInTab( crawler->state().frontFilteredView );
     }
 
     // Whether the overview of this Log File is shown beside the main view.
@@ -652,8 +650,8 @@ SCENARIO( "Crawler widget search", "[ui]" )
     REQUIRE( session.savedSearches().recentSearches().empty() );
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -781,8 +779,8 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( path, buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
                && crawlerVisitor.isLoadingFinished();
@@ -845,8 +843,8 @@ SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling c
     const auto fileWatch = std::make_shared<FakeFileWatch>();
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( path, buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
                && crawlerVisitor.isLoadingFinished();
@@ -890,8 +888,8 @@ SCENARIO( "Search Limits set on a Log File stay as it grows", "[ui][limits]" )
     const auto fileWatch = std::make_shared<FakeFileWatch>();
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( path, buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
                && crawlerVisitor.isLoadingFinished();
@@ -953,8 +951,8 @@ SCENARIO( "The chart extracts its points again under a changed Encoding", "[ui][
 
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( path, buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
                && crawlerVisitor.isLoadingFinished();
@@ -995,8 +993,8 @@ SCENARIO( "Selecting a Match in the Filtered View moves the main view only when 
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -1048,8 +1046,8 @@ void openCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& 
     REQUIRE( generateDataFiles( file ) );
     session.savedSearches().clear();
 
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -1079,7 +1077,7 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
 
         THEN( "every text view of the Log File wraps" )
         {
-            REQUIRE( crawlerVisitor.crawler->isTextWrapEnabled() );
+            REQUIRE( crawlerVisitor.crawler->state().textWrap );
             REQUIRE( crawlerVisitor.filteredView()->isTextWrapEnabled() );
         }
 
@@ -1114,7 +1112,7 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
 
         THEN( "no text view of the Log File wraps" )
         {
-            REQUIRE( !crawlerVisitor.crawler->isTextWrapEnabled() );
+            REQUIRE( !crawlerVisitor.crawler->state().textWrap );
             REQUIRE( !crawlerVisitor.filteredView()->isTextWrapEnabled() );
         }
     }
@@ -1142,7 +1140,7 @@ SCENARIO( "The Crawler Widget shows Value Names as its Policy and its switch say
 
             THEN( "the Text View and the Filtered View show them as it says" )
             {
-                REQUIRE( crawler.isValueNamesShownSet() == shown );
+                REQUIRE( crawler.state().valueNamesShown == shown );
                 REQUIRE( crawler.state().valueNamesShown == shown );
                 REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == shown );
                 REQUIRE( crawlerVisitor.filteredView()->showsValueNames() == shown );
@@ -1154,7 +1152,7 @@ SCENARIO( "The Crawler Widget shows Value Names as its Policy and its switch say
 
                 THEN( "both views follow it" )
                 {
-                    REQUIRE( crawler.isValueNamesShownSet() == !shown );
+                    REQUIRE( crawler.state().valueNamesShown == !shown );
                     REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == !shown );
                 }
             }
@@ -1166,7 +1164,7 @@ SCENARIO( "Save selected to file writes the selection of the Presentation shown"
           "[ui][presentation]" )
 {
     QTemporaryFile file{ "crawler_test_XXXXXX" };
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    Session session{ recognizingPolicies(), presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
@@ -1213,7 +1211,7 @@ SCENARIO( "Save selected to file writes the selection of the Presentation shown"
 SCENARIO( "Both Presentations report to the CrawlerWidget alike", "[ui][presentation]" )
 {
     QTemporaryFile file{ "crawler_test_XXXXXX" };
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    Session session{ recognizingPolicies(), presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
@@ -1422,7 +1420,7 @@ SCENARIO( "Every shared signal reaches the Crawler Widget from a Presentation an
             auto recording = build;
             recording.changeReport
                 = [ &reported ]( Changed change ) { reported.push_back( change ); };
-            return new CrawlerWidget( recording );
+            return buildCrawlerWidget( recording );
         } ) ) );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
     crawlerVisitor.showSized();
@@ -1462,7 +1460,7 @@ SCENARIO( "A Row selected in the Table View is selected in the Filtered View too
           "[ui][presentation]" )
 {
     QTemporaryFile file{ "crawler_test_XXXXXX" };
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    Session session{ recognizingPolicies(), presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
@@ -1666,8 +1664,8 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
     policies.decoding.hideAnsiColorSequences = false;
     Session session{ policies, std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -1716,8 +1714,8 @@ void writeAnsiLogFile( QTemporaryFile& file )
 void openAnsiCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
 {
     writeAnsiLogFile( file );
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -1819,7 +1817,7 @@ const QColor AnsiTruecolorBack{ 0x12, 0x34, 0x56 };
 
 // A Log File whose second Log Line has an ANSI truecolor background, a word
 // after it and a tab after that, and whose third a basic background the
-// Theme colors. Its source and body fit the Log Format showTableView() sets.
+// Theme colors. Its source and body fit PresentationsFormatName.
 void writeAnsiColoredLogFile( QTemporaryFile& file )
 {
     REQUIRE( file.open() );
@@ -1855,13 +1853,13 @@ SCENARIO( "Show colors paints the ANSI colors in the main and the Filtered View"
     Theme::apply( Theme::LightKey );
 
     // Hide, as the settings derive it.
-    auto policies = testSettingsPolicies();
+    auto policies = recognizingPolicies();
     policies.decoding.hideAnsiColorSequences = true;
     policies.decoration.showAnsiColors = false;
-    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    Session session{ policies, presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -2397,8 +2395,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
     const auto configuredSize = shippedFont.pointSize() + 4;
     const ConfiguredFont configured{ QFont{ shippedFont.family(), configuredSize }, true, true };
 
-    auto policies = testSettingsPolicies();
-    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    auto policies = recognizingPolicies();
+    Session session{ policies, presentationsCatalog() };
 
     GIVEN( "a Log File just opened, not yet painted" )
     {
@@ -2406,9 +2404,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
         session.savedSearches().clear();
 
         CrawlerWidgetVisitor crawlerVisitor;
-        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawlerVisitor.crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
 
         THEN( "every view already holds the assembled font" )
         {
@@ -2502,9 +2499,8 @@ SCENARIO( "A zoom steps to the next offered font size from any configured size",
         REQUIRE( generateDataFiles( file ) );
 
         CrawlerWidgetVisitor crawlerVisitor;
-        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawlerVisitor.crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
         waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
 
         WHEN( "the user zooms in" )
@@ -3084,7 +3080,7 @@ struct RestoredWindow {
     ViewFactory factory()
     {
         return [ this ]( const ViewBuild& build ) {
-            tabs.emplace_back( new CrawlerWidget( build ) );
+            tabs.emplace_back( static_cast<CrawlerWidget*>( buildCrawlerWidget( build ) ) );
             return tabs.back().get();
         };
     }
@@ -3125,9 +3121,8 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
     const auto savedContext = [ & ] {
         Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
         CrawlerWidgetVisitor earlier;
-        earlier.crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( marked.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        earlier.crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( marked.fileName(), buildCrawlerWidget ) ) );
         REQUIRE( waitUiState( [ & ] { return earlier.isLoadingFinished(); } ) );
         earlier.markLogLine( 3_lnum );
         earlier.markLogLine( 7_lnum );
@@ -3927,8 +3922,8 @@ SCENARIO( "A word with quotes added to a Search keeps its pattern valid", "[ui][
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 20;
     } ) );
@@ -4041,8 +4036,8 @@ SCENARIO( "Adding a word to a plain Search keeps both words searchable", "[ui][s
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 20;
     } ) );
@@ -4095,8 +4090,8 @@ SCENARIO( "A Search started without typing runs the pattern the Search line show
     session.savedSearches().addRecent( "10" );
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.isLoadingFinished()
                && crawlerVisitor.getLogNbLines().get() == SL_NB_LINES;
@@ -4153,8 +4148,8 @@ SCENARIO( "Filter frequency counts the patterns the Search matches", "[ui][searc
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 12;
     } ) );
@@ -4284,8 +4279,8 @@ SCENARIO( "Filter frequency follows the Search's Match case and regexp groups",
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 12;
     } ) );
@@ -4388,7 +4383,7 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
           "[ui][presentation][search]" )
 {
     QTemporaryFile file{ "crawler_kept_searches_XXXXXX" };
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    Session session{ recognizingPolicies(), presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
@@ -4502,7 +4497,7 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
           "[ui][presentation][quickfind]" )
 {
     QTemporaryFile file{ "crawler_quickfind_XXXXXX" };
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    Session session{ recognizingPolicies(), presentationsCatalog() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
     crawlerVisitor.crawler->activateWindow();
@@ -4778,8 +4773,8 @@ SCENARIO( "A Log File tells the window its state in one value", "[ui][loading]" 
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     auto& crawler = *crawlerVisitor.crawler;
 
     REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
@@ -4798,18 +4793,50 @@ SCENARIO( "A Log File tells the window its state in one value", "[ui][loading]" 
 
         THEN( "its state says what the window's menus show of it" )
         {
+            REQUIRE( state.lineCount == LinesCount( SL_NB_LINES ) );
             REQUIRE( state.selectedLine == 0_lnum );
             REQUIRE_FALSE( state.follows );
-            REQUIRE( state.textWrap == crawler.isTextWrapEnabled() );
+            REQUIRE( state.textWrap == crawlerVisitor.textView()->isTextWrapEnabled() );
+            REQUIRE( state.valueNamesShown == crawlerVisitor.textView()->isValueNamesShownSet() );
             REQUIRE_FALSE( state.encodingMib.has_value() );
-            // No Log Format is recognized for it: no time navigation.
+            // No Log Format is recognized for it: no Table View and no time
+            // navigation.
+            REQUIRE( state.logFormatName.isEmpty() );
+            REQUIRE_FALSE( state.hasTableView );
             REQUIRE_FALSE( state.goToTimestampUnavailable.isEmpty() );
-            REQUIRE( state.goToTimestampUnavailable == crawler.goToTimestampUnavailableReason() );
-            REQUIRE( state.searchLimitsByTimeUnavailable
-                     == crawler.searchLimitsByTimeUnavailableReason() );
+            REQUIRE_FALSE( state.searchLimitsByTimeUnavailable.isEmpty() );
+            // The one Filtered View, of the current Search.
+            REQUIRE( state.filteredViewCount == 1 );
+            REQUIRE( state.frontFilteredView == 0 );
             REQUIRE(
                 state.quickFindSearchable
                 == static_cast<const SearchableWidgetInterface*>( crawlerVisitor.textView() ) );
+        }
+
+        WHEN( "a Search is kept and another one run" )
+        {
+            crawlerVisitor.showSized();
+            searchForOneLine( crawlerVisitor, "line 000003" );
+            crawlerVisitor.keepSearchResults();
+            searchForOneLine( crawlerVisitor, "line 000007" );
+
+            THEN( "its state counts a Filtered View tab for each, the new one in front" )
+            {
+                const auto kept = crawler.state();
+                REQUIRE( kept.filteredViewCount == 2 );
+                REQUIRE( kept.frontFilteredView == 1 );
+            }
+
+            AND_WHEN( "the first tab is brought to the front" )
+            {
+                crawlerVisitor.makeFilteredViewTabCurrent( 0 );
+
+                THEN( "its state says the first one is in front" )
+                {
+                    REQUIRE( crawler.state().filteredViewCount == 2 );
+                    REQUIRE( crawler.state().frontFilteredView == 0 );
+                }
+            }
         }
 
         WHEN( "it is followed and an Encoding is chosen for it" )
@@ -4867,6 +4894,26 @@ SCENARIO( "A Log File tells the window its state in one value", "[ui][loading]" 
                 REQUIRE( failed.loadFailure == finished.last().at( 1 ).toString() );
             }
         }
+    }
+}
+
+SCENARIO( "A Log File tells in its state the Log Format recognized", "[ui][loading]" )
+{
+    QTemporaryFile file{ "crawler_state_format_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+    Session session{ recognizingPolicies(), presentationsCatalog() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
+    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
+
+    THEN( "its state names the Log Format, and says the tab has a Table View" )
+    {
+        const auto state = crawlerVisitor.crawler->state();
+        REQUIRE( state.logFormatName == PresentationsFormatName );
+        REQUIRE( state.hasTableView );
+        REQUIRE( state.lineCount == LinesCount( SL_NB_LINES ) );
     }
 }
 
@@ -5035,13 +5082,13 @@ SCENARIO( "A reload or a forgotten Log Format cancels a time lookup under way",
     policies.recognition.enabled = true;
     Session session{ policies, catalog };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
     auto& crawler = *crawlerVisitor.crawler;
     REQUIRE( waitUiState(
         [ & ] {
             return crawlerVisitor.isLoadingFinished()
-                   && crawler.goToTimestampUnavailableReason().isEmpty();
+                   && crawler.state().goToTimestampUnavailable.isEmpty();
         },
         10000 ) );
 

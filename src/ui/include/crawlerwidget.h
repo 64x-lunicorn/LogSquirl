@@ -179,8 +179,6 @@ public:
     // is interacting with
     void selectAll();
 
-    std::optional<int> encodingMib() const;
-
     // Get the text description of the encoding effectively used,
     // suitable to display to the user.
     QString encodingText() const;
@@ -188,10 +186,6 @@ public:
     // The IANA name of the Encoding the Log Lines are decoded in, as last
     // settled: the one chosen, else the one detected (#803).
     QString encodingName() const;
-
-    // Whether the Log File is followed, as its View Set, the owner of follow,
-    // says (#558).
-    bool isFollowEnabled() const;
 
     // The Log File grows no more -- the command or standard input that wrote
     // it has ended (#575): once what it holds is loaded, it is no longer
@@ -205,12 +199,6 @@ public:
         return hasLoaded_;
     }
 
-    // Why "Go to timestamp" is not available for this Log File, empty when it
-    // is: it needs a recognized Log Format with a timestamp field.
-    QString goToTimestampUnavailableReason() const;
-    // The same for the Search Limits given as a time.
-    QString searchLimitsByTimeUnavailableReason() const;
-
     // The window's File > Export as CSV... (#890): what Export as CSV... in
     // the context menu of the view last in focus does -- the Filtered View's
     // when it was, else the Table View's, which holds every Row of the Log
@@ -218,22 +206,24 @@ public:
     // recognized, as the context menus then offer no such entry.
     void exportAsCsv();
 
-    bool isTextWrapEnabled() const;
-    // Whether the View menu's Show Value Names is on for this tab (#647).
-    bool isValueNamesShownSet() const;
     // The selection's text as the view shows it: Copy as Shown.
     QString getSelectedTextAsShown() const;
 
-    // What the window shows of this tab's Log File. The window hears only the
-    // tab in front, so it reads this once when the tab comes to the front,
-    // and what happened meanwhile -- a load that ended, failed or is under
-    // way (#540) -- is told by it (#635).
+    // What the window shows of this tab's Log File, and the one way to
+    // observe the tab (#944). The window hears only the tab in front, so it
+    // reads this once when the tab comes to the front, and what happened
+    // meanwhile -- a load that ended, failed or is under way (#540) -- is
+    // told by it (#635).
     struct State {
         // How the last load ended, and the failure of a Failed one; none
         // while a load is under way, which has come as far as loadingProgress.
         std::optional<LoadingStatus> loadStatus;
         QString loadFailure;
         int loadingProgress = 0;
+        // How many Log Lines the Log File has, as far as it is loaded.
+        LinesCount lineCount;
+        // The Log Format recognized, empty when none is.
+        QString logFormatName;
         // The Log Line selected last.
         LineNumber selectedLine;
         // Whether the Log File is followed, as its View Set holds it (#558).
@@ -251,6 +241,10 @@ public:
         // available, empty when they are: the Time Navigation.
         QString goToTimestampUnavailable;
         QString searchLimitsByTimeUnavailable;
+        // How many Filtered View tabs the tab has -- one, and one more for
+        // each kept Search -- and the index of the one in front.
+        int filteredViewCount = 0;
+        int frontFilteredView = 0;
         // The view QuickFind searches now; for the QuickFind mux, which the
         // window still re-points by a direct call (a follow-up of #635).
         const SearchableWidgetInterface* quickFindSearchable = nullptr;

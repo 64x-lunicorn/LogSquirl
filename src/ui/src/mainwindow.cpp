@@ -778,7 +778,7 @@ void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
     auto* crawler
         = tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) : nullptr;
     // The one the settings force or the user chose stays.
-    if ( crawler == nullptr || crawler->encodingMib() ) {
+    if ( crawler == nullptr || crawler->state().encodingMib ) {
         return;
     }
 

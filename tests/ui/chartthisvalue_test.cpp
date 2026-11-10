@@ -34,6 +34,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -82,7 +83,8 @@ struct CrawlerWidget::access_by<ChartThisValueTest> {
 
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *crawler.currentFilteredView();
+        return *qobject_cast<AbstractLogView*>(
+            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
     }
 
     static ChartPanel& chartPanel( const CrawlerWidget& crawler )

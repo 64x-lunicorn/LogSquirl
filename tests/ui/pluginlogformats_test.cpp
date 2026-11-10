@@ -28,6 +28,7 @@
 #include "crawlerwidget.h"
 #include "logdata.h"
 #include "logformatcatalog.h"
+#include "open_log_file_of.h"
 #include "plugindialog.h"
 #include "pluginlogformats.h"
 #include "savedsearches.h"
@@ -61,9 +62,15 @@ struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
     {
     }
 
+    // The Log Format the tab shows, as its State names it: the one its Open
+    // Log File recognized. None while the tab names none, or another.
     const LogFormatDefinition* logFormat() const
     {
-        return crawler->recognizedFormat_.get();
+        const auto shown = crawler->state().logFormatName;
+        const auto recognized = openLogFileOf( *crawler ).logFormat();
+        return !shown.isEmpty() && recognized != nullptr && recognized->name() == shown
+                   ? recognized.get()
+                   : nullptr;
     }
 
     bool isTableViewToggled() const
@@ -74,8 +81,8 @@ struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
     bool waitLoaded( LinesCount lines )
     {
         return waitUiState( [ this, lines ] {
-            return crawler->openLogFile_->logData()->getNbLine() == lines
-                   && crawler->lastLoadStatus_.has_value();
+            const auto state = crawler->state();
+            return state.lineCount == lines && state.loadStatus.has_value();
         } );
     }
 };
@@ -211,8 +218,7 @@ SettingsPolicies recognitionShownAsTable()
 
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {
-    return std::make_unique<CrawlerAccess>(
-        session.open( path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) );
+    return std::make_unique<CrawlerAccess>( session.open( path, buildCrawlerWidget ) );
 }
 
 /// The Enable or Disable button of the only plugin card in Plugin Management.

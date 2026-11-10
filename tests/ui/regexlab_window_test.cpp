@@ -56,6 +56,7 @@
 #include "logmainview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "regexlabsource.h"
 #include "regexlabwindow.h"
@@ -69,11 +70,6 @@ struct RegexLabTest {};
 
 template <>
 struct CrawlerWidget::access_by<RegexLabTest> {
-    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
-    {
-        return *crawler.openLogFile_;
-    }
-
     static void selectInMainView( CrawlerWidget& crawler, LineNumber line )
     {
         crawler.logMainView_->setFocus();
@@ -115,14 +111,12 @@ struct OpenCrawler {
         : session( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() )
     {
         REQUIRE( writeLogFile( file, LogLineCount ) );
-        crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(),
-                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        crawler.reset(
+            static_cast<CrawlerWidget*>( session.open( file.fileName(), buildCrawlerWidget ) ) );
         crawler->resize( 800, 600 );
         showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this ] {
-            return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
-                   == static_cast<uint64_t>( LogLineCount );
+            return crawler->state().lineCount.get() == static_cast<uint64_t>( LogLineCount );
         } ) );
         QTest::qWait( 100 );
     }
@@ -293,11 +287,7 @@ SCENARIO( "The Regex Lab opens from the Tools menu for the tab in front", "[ui][
             [ & ] { return qobject_cast<CrawlerWidget*>( tabs->currentWidget() ) != nullptr; },
             10'000 ) );
         auto* crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
-        REQUIRE( waitUiState(
-            [ & ] {
-                return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get() == 50;
-            },
-            10'000 ) );
+        REQUIRE( waitUiState( [ & ] { return crawler->state().lineCount.get() == 50; }, 10'000 ) );
 
         action->trigger();
         auto* lab = window->findChild<RegexLabWindow*>();
@@ -517,7 +507,7 @@ SCENARIO( "The Regex Lab counts the Log Lines a Search with the same pattern and
           "[ui][regexlab]" )
 {
     OpenCrawler open;
-    auto& openLogFile = CrawlerAccess::openLogFile( *open.crawler );
+    auto& openLogFile = openLogFileOf( *open.crawler );
 
     const auto searched = GENERATE(
         RegularExpressionPattern( "ERROR", true, false, false, false ),

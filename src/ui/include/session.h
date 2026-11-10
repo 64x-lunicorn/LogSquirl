@@ -446,6 +446,9 @@ public:
         exitRequested_ = isRequested;
     }
 
+    template <class T>
+    struct access_by;
+
 private:
     // Where the first load of an open Log File stands. Only the first load
     // counts: a Log File growing or reloaded later holds nobody up.

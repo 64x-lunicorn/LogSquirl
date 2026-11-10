@@ -30,6 +30,7 @@
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
+#include "source_body_format.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -56,24 +57,21 @@
 
 struct TableViewFollowTest {};
 
+namespace {
+
+// The Log Format the Session recognizes the Log Files with.
+constexpr auto TestFormatName = "tableview_follow_test";
+
+} // namespace
+
 template <>
 struct CrawlerWidget::access_by<TableViewFollowTest> {
-    // Recognizes the Log File with a Log Format of its own, and shows the
-    // Table View.
+    // Shows the Table View of the Log File, once recognized with
+    // TestFormatName.
     static LogTableView* showTableView( CrawlerWidget& crawler )
     {
-        LogFormatDefinition format;
-        format.setName( "tableview_follow_test" );
-        format.setTitle( "Follow test" );
-        QHash<QString, QString> regex;
-        regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
-        format.setRegexPatterns( regex );
-        format.setBodyField( "body" );
-
-        crawler.recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
-        crawler.logTableView_->setLogFormat( crawler.recognizedFormat_.get(),
-                                             crawler.openLogFile_->logData().get() );
-        crawler.tableViewToggle_->setVisible( true );
+        REQUIRE( waitUiState(
+            [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
         crawler.tableViewToggle_->setChecked( true );
         return crawler.logTableView_;
     }
@@ -139,7 +137,7 @@ struct LogFileViews {
     // Whether every view follows as expected, and the Crawler Widget says so.
     bool allFollow( const CrawlerWidget& crawler, bool expected ) const
     {
-        bool agree = crawler.isFollowEnabled() == expected && text->isFollowEnabled() == expected
+        bool agree = crawler.state().follows == expected && text->isFollowEnabled() == expected
                      && LogTableView::access_by<TableViewFollowTest>::follows( *table ) == expected;
         for ( const auto* view : filtered ) {
             agree = agree && view->isFollowEnabled() == expected;
@@ -182,7 +180,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
 
     const auto fileWatch = std::make_shared<FakeFileWatch>();
     const auto appSession = std::make_shared<Session>(
-        testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch );
+        recognizingPolicies(), sourceBodyFormatCatalog( TestFormatName ), fileWatch );
     auto mainWindow = std::make_unique<MainWindow>(
         WindowSession{ appSession, QUuid::createUuid().toString( QUuid::WithoutBraces ), 0 },
         std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
@@ -206,7 +204,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
         REQUIRE( waitUiState(
             [ & ] { return table->model() != nullptr && table->model()->rowCount() == 200; } ) );
         followAction->setChecked( true );
-        REQUIRE( crawler->isFollowEnabled() );
+        REQUIRE( crawler->state().follows );
         REQUIRE( isAtBottom( *table ) );
         REQUIRE( fileWatch->grow( path, logLines( 200, 2 ) ) );
         REQUIRE( waitUiState(
@@ -226,7 +224,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
             {
                 REQUIRE( table->rowAt( 0 ) == 0 );
                 REQUIRE_FALSE( followAction->isChecked() );
-                REQUIRE_FALSE( crawler->isFollowEnabled() );
+                REQUIRE_FALSE( crawler->state().follows );
             }
         }
 
@@ -242,7 +240,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
             {
                 REQUIRE_FALSE( isAtBottom( *table ) );
                 REQUIRE_FALSE( followAction->isChecked() );
-                REQUIRE_FALSE( crawler->isFollowEnabled() );
+                REQUIRE_FALSE( crawler->state().follows );
             }
         }
 
@@ -255,7 +253,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
             {
                 REQUIRE_FALSE( isAtBottom( *table ) );
                 REQUIRE_FALSE( followAction->isChecked() );
-                REQUIRE_FALSE( crawler->isFollowEnabled() );
+                REQUIRE_FALSE( crawler->state().follows );
             }
         }
 
@@ -266,7 +264,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
             THEN( "follow stays on" )
             {
                 REQUIRE( followAction->isChecked() );
-                REQUIRE( crawler->isFollowEnabled() );
+                REQUIRE( crawler->state().follows );
             }
         }
 
@@ -280,7 +278,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
             {
                 REQUIRE( table->selectionModel()->isRowSelected( row ) );
                 REQUIRE( waitUiState( [ & ] { return !followAction->isChecked(); } ) );
-                REQUIRE_FALSE( crawler->isFollowEnabled() );
+                REQUIRE_FALSE( crawler->state().follows );
             }
         }
     }
@@ -302,7 +300,7 @@ SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
 
     const auto fileWatch = std::make_shared<FakeFileWatch>();
     const auto appSession = std::make_shared<Session>(
-        testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch );
+        recognizingPolicies(), sourceBodyFormatCatalog( TestFormatName ), fileWatch );
     auto mainWindow = std::make_unique<MainWindow>(
         WindowSession{ appSession, QUuid::createUuid().toString( QUuid::WithoutBraces ), 0 },
         std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
@@ -399,7 +397,7 @@ SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
                   "first still follows" )
             {
                 REQUIRE_FALSE( followAction->isChecked() );
-                REQUIRE_FALSE( other->isFollowEnabled() );
+                REQUIRE_FALSE( other->state().follows );
                 REQUIRE( views.allFollow( *crawler, true ) );
             }
 
@@ -424,7 +422,7 @@ SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
                 {
                     REQUIRE( followAction->isChecked() );
                     REQUIRE( views.allFollow( *crawler, true ) );
-                    REQUIRE_FALSE( other->isFollowEnabled() );
+                    REQUIRE_FALSE( other->state().follows );
                 }
 
                 THEN( "leaving follow from any of its views leaves it in every one, and the "
