@@ -26,6 +26,13 @@ most N times that bound plus a constant, and a Search's block is bounded by its 
 well as by its Log Lines, however long the Log File's lines are (#825).
 _Avoid_: record, entry, row (row belongs to the Table View)
 
+**Log Line Reader**:
+What every read of Log Lines goes through -- the views', the Search's, the plugins' and the
+grep CLI's -- built from a snapshot of the Log File, its Index and its decoder. It applies the
+rules of a Log Line's text once: the too-long Log Line, the carriage return and byte order
+mark trimmed, UTF-8 passed through. It reads on the thread of whoever made it.
+_Avoid_: line reader, file reader
+
 **Index**:
 The mapping from line numbers to byte offsets that makes a Log File navigable without
 reading it end to end. Built once per file and cached across sessions.
