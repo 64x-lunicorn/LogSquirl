@@ -2157,7 +2157,7 @@ void MainWindow::connectTeamFolder()
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
     // The Team Filter Groups only this window's Filters panel holds.
-    filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    applyTeamFilterGroupsChange();
     updateTeamFolderIndicator();
 }
 

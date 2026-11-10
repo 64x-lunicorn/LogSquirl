@@ -288,7 +288,9 @@ private:
     // What a read of Log Lines holds of this object (#832). Every read of
     // Log Lines goes through a Log Line Reader built from them: the views'
     // and the plugins' on their own threads through reader(), the Search's on
-    // its threads through searchBlockSource().
+    // its threads through searchBlockSource(). It copies the handles without a
+    // lock: the Index and the file holder are set once, when the Log File is
+    // attached, and only what they point to changes, under their own locks.
     ReadHandles readHandles() const;
     LogLineReader reader() const;
 

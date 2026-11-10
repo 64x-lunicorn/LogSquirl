@@ -93,12 +93,13 @@ public:
         std::function<std::shared_ptr<Search>()> newSearch;
         // The pattern a Search is requested with, as requested: with the
         // reader of the Log Format's fields, say (#798).
-        std::function<RegularExpressionPattern( RegularExpressionPattern )> preparePattern;
+        std::function<RegularExpressionPattern( RegularExpressionPattern )> preparePattern
+            = []( RegularExpressionPattern pattern ) { return pattern; };
         // The current Search was just requested, as the user requests it, and
         // has not waited.
-        std::function<void()> currentRequested;
+        std::function<void()> currentRequested = [] {};
         // Fewer Searches are held than before.
-        std::function<void()> heldNoLonger;
+        std::function<void()> heldNoLonger = [] {};
     };
 
     explicit SearchSet( Hooks hooks )

@@ -427,7 +427,8 @@ public:
     // enabled or disabled (#865): once for the application, whatever the
     // number of windows, and every window is told (#943). Every window hands
     // the application's plugins; the first call follows them, and a later
-    // one with the same plugins does nothing.
+    // one with the same plugins does nothing. A call with other plugins
+    // follows those instead (only tests make more than one).
     void followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins );
 
     // Takes the Policies re-derived after a settings change: stores them

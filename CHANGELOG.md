@@ -71,6 +71,16 @@
 - **A Highlighter Set or Predefined Filter changed in one window shows in
   every window**: with two windows open, the other window's Highlighters
   menu and Filters panel no longer keep the old state until a restart. (#942)
+- **A truncated Log File restarts the Search in front with its own
+  pattern**: after switching between Filtered View tabs, a Log File that was
+  truncated under an auto-refreshing Search restarted the Search in front
+  with the pattern of the tab shown before. Each Search now keeps its own
+  pattern. (#941)
+- **Stop and Reload are not offered on the Welcome Dashboard**: with no Log
+  File in front, the toolbar's Stop and Reload were enabled, and Matches
+  Only, Go to timestamp and the time Search Limits kept the state of the tab
+  shown last. They are now disabled and unchecked until a Log File is in
+  front. (#946)
 
 ## Internal
 
@@ -106,7 +116,7 @@
   alone (none for the Welcome Dashboard) what the Encoding, Follow, Text
   Wrap, Show Value Names, Matches Only, Export as CSV..., Go to timestamp,
   the time Search Limits, Stop, Reload and the actions that need a Log File
-  show, and is tested without a window. A Front Tab binding owns the
+  show, and is tested without a window. A front-tab binding owns the
   connections to that tab and its place in the QuickFind mux. (#946)
 - **One rule decides how a changed Encoding takes effect**: which Encoding a
   Log File is shown in, and whether a change indexes it again or only decodes
