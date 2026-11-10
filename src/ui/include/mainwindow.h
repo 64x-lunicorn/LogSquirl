@@ -216,6 +216,10 @@ public:
     // (#942).
     void applyPredefinedFiltersChange() override;
 
+    // The Team Filter Groups changed: the Filters panel lists them again
+    // (#943).
+    void applyTeamFilterGroupsChange() override;
+
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)
@@ -519,14 +523,6 @@ private:
     // or point at where a moved portable LogSquirl was (#725).
     void showLostFileAssociations( const QStringList& lost, const QString& movedFrom );
     void updateTeamFolderIndicator();
-    // Hands the Team Highlighter Sets to the Highlighter Set collection.
-    // dropUnknownActivations false: the first sync has not delivered groups.
-    void applyTeamHighlighterSets( bool dropUnknownActivations = true );
-    // Hands the Team Naming Groups to ValueNamesCollection (#647).
-    void applyTeamNamingGroups();
-    // Reads the Filter Groups and Highlighter Sets the enabled plugins ship
-    // and hands them to their collections, which never store them (#865).
-    void applyPluginGroups();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );

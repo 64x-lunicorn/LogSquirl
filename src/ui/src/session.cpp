@@ -24,13 +24,20 @@
 #include <algorithm>
 #include <cassert>
 
+#include <QObject>
+
+#include "applicationplugins.h"
 #include "configuration.h"
+#include "highlighterset.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
+#include "plugingroups.h"
 #include "policyfilewatchport.h"
+#include "predefinedfilters.h"
 #include "savedsearches.h"
 #include "sessioninfo.h"
 #include "teamfolder.h"
+#include "valuenamescollection.h"
 #include "viewinterface.h"
 
 Session::Session( const SettingsPolicies& policies,
@@ -47,9 +54,16 @@ Session::Session( const SettingsPolicies& policies,
         fileWatch_->setWatchPolicy( policies_.watch );
     }
 
-    // Sets it up and starts its first sync, off the main thread.
+    // Sets it up and starts its first sync, off the main thread. Heard from
+    // before, so that the groups of the last sync, read as it is set up, are
+    // taken.
     if ( teamFolder_ ) {
+        connectTeamFolder();
         teamFolder_->setUp( policies_.teamFolder );
+        // A Team Folder set up before holds its groups already. Before the
+        // first sync no group is known yet: no activation is dropped.
+        applyTeamHighlighterSets( teamFolder_->state() == TeamFolder::State::Synced );
+        applyTeamNamingGroups();
     }
 
     // Get the global search history (it remains the property
@@ -422,6 +436,95 @@ void Session::addWindow( SessionWindow* window )
 void Session::removeWindow( SessionWindow* window )
 {
     windows_.erase( std::remove( windows_.begin(), windows_.end(), window ), windows_.end() );
+}
+
+void Session::connectTeamFolder()
+{
+    teamFolderListener_ = std::make_unique<QObject>();
+    auto* listener = teamFolderListener_.get();
+
+    // A changed or removed Team group shows in every window's Filters panel.
+    // The Team Folder holds them; no Collection does.
+    QObject::connect( teamFolder_.get(), &TeamFolder::groupsChanged, listener, [ this ] {
+        for ( auto* window : windows_ ) {
+            window->applyTeamFilterGroupsChange();
+        }
+    } );
+    // A changed or removed Team Highlighter Set re-colors every open Log File
+    // at once, and a removed one is no longer active.
+    QObject::connect( teamFolder_.get(), &TeamFolder::highlighterGroupsChanged, listener,
+                      [ this ] { applyTeamHighlighterSets( true ); } );
+    // A changed or removed Team Naming Group names values anew in every open
+    // Log File, and shows in every window's Value Names tab.
+    QObject::connect( teamFolder_.get(), &TeamFolder::namingGroupsChanged, listener,
+                      [ this ] { applyTeamNamingGroups(); } );
+    // A sync that reached the repository knows the groups, however few: only
+    // then is an activation of a Team set that is not there dropped.
+    QObject::connect( teamFolder_.get(), &TeamFolder::syncFinished, listener, [ this ] {
+        if ( teamFolder_->state() == TeamFolder::State::Synced ) {
+            applyTeamHighlighterSets( true );
+        }
+    } );
+}
+
+void Session::applyTeamHighlighterSets( bool dropUnknownActivations )
+{
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setTeamHighlighterSets( teamFolder_->highlighterGroups(),
+                                            dropUnknownActivations ) ) {
+        collection.save();
+        applyChange( Changed::HighlighterSets );
+    }
+}
+
+void Session::applyTeamNamingGroups()
+{
+    if ( ValueNamesCollection::get().setTeamGroups( teamFolder_->namingGroups() ) ) {
+        applyChange( Changed::ValueNames );
+    }
+}
+
+void Session::followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
+{
+    if ( !plugins || plugins.get() == followedPlugins_ ) {
+        return;
+    }
+
+    pluginsListener_ = std::make_unique<QObject>();
+    auto* listener = pluginsListener_.get();
+    auto* followed = plugins.get();
+    followedPlugins_ = followed;
+
+    // Plugins that are gone are followed no longer; others may come.
+    QObject::connect( followed, &QObject::destroyed, listener,
+                      [ this ] { followedPlugins_ = nullptr; } );
+    // The groups are read once the plugins were discovered, and again
+    // whenever a plugin is enabled or disabled, in any window's Plugins
+    // dialog (#865).
+    followed->whenLoaded( listener, [ this, followed ] { applyPluginGroups( *followed ); } );
+    QObject::connect( followed, &logsquirl::plugins::ApplicationPlugins::enabledPluginsChanged,
+                      listener, [ this, followed ] { applyPluginGroups( *followed ); } );
+}
+
+void Session::applyPluginGroups( logsquirl::plugins::ApplicationPlugins& plugins )
+{
+    // The enabled plugins stand in the configuration, which Plugin Management
+    // writes before it says that one was enabled or disabled.
+    const auto groups = logsquirl::plugingroups::readEnabled(
+        plugins.catalog().discoveredPlugins(), Configuration::get().enabledPlugins() );
+
+    // Neither Collection stores the plugins' groups: saving the Highlighter
+    // Sets keeps only which of them are active, and a plugin's set that is
+    // gone is no longer.
+    if ( PredefinedFiltersCollection::get().setPluginFilterGroups( groups.filterGroups ) ) {
+        applyChange( Changed::PredefinedFilters );
+    }
+
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setPluginHighlighterSets( groups.highlighterSets ) ) {
+        collection.save();
+        applyChange( Changed::HighlighterSets );
+    }
 }
 
 void Session::applySettingsChange()

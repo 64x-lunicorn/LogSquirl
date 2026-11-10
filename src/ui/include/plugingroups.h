@@ -33,7 +33,8 @@
 // The Filter Groups and Highlighter Sets the enabled plugins ship (#865): the
 // files every enabled plugin names in the `predefined_filters` and
 // `highlighter_sets` keys of its manifest, whether or not its library is
-// loaded. Each window reads them once the plugins have been discovered and
+// loaded. The Session reads them, once for every window (#943), once the
+// plugins have been discovered and
 // again whenever a plugin is enabled or disabled, the points the Log Format
 // Catalog takes the plugins' Log Formats at, and hands them to the Predefined
 // Filters Collection and the Highlighter Set Collection, which never store

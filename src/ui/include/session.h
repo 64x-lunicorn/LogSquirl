@@ -50,6 +50,11 @@ class OpenLogFile;
 class SavedSearches;
 class TeamFolder;
 class FileAssociations;
+class QObject;
+
+namespace logsquirl::plugins {
+class ApplicationPlugins;
+}
 
 // File unreadable error
 class FileUnreadableErr {};
@@ -172,6 +177,10 @@ public:
     // list them again (#942).
     virtual void applyPredefinedFiltersChange() {}
 
+    // The Team Folder's Filter Groups changed at a sync, or it was turned off
+    // or pointed elsewhere: list them again (#943).
+    virtual void applyTeamFilterGroupsChange() {}
+
 protected:
     SessionWindow() = default;
     ~SessionWindow() = default;
@@ -199,7 +208,10 @@ public:
     //
     // The Team Folder is the application's one, handed the Team Folder Policy
     // here, which sets it up, and again whenever a settings change alters it.
-    // Without one there are no Team groups.
+    // Without one there are no Team groups. The Session hears what its syncs
+    // bring, once for the application whatever the number of windows: it
+    // writes the Team Highlighter Sets and Naming Groups into their
+    // Collections and tells every window (#943).
     Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog,
              std::shared_ptr<PolicyFileWatchPort> fileWatch = {},
              std::shared_ptr<TeamFolder> teamFolder = {} );
@@ -409,6 +421,15 @@ public:
     void addWindow( SessionWindow* window );
     void removeWindow( SessionWindow* window );
 
+    // Takes the Filter Groups and Highlighter Sets the enabled ones of these
+    // plugins ship into the Predefined Filters and the Highlighter Set
+    // Collection once the plugins are loaded, and again whenever a plugin is
+    // enabled or disabled (#865): once for the application, whatever the
+    // number of windows, and every window is told (#943). Every window hands
+    // the application's plugins; the first call follows them, and a later
+    // one with the same plugins does nothing.
+    void followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins );
+
     // Takes the Policies re-derived after a settings change: stores them
     // for the Log Files opened from now on, and hands the axes that
     // actually changed to the Log Files already open -- every one of them,
@@ -504,6 +525,18 @@ private:
     void applyValueNamesChange();
     void applyPredefinedFiltersChange();
 
+    // Hears what the Team Folder's syncs bring.
+    void connectTeamFolder();
+    // Writes the Team Highlighter Sets into the Highlighter Set Collection and
+    // saves it, if that changed it. dropUnknownActivations as the Collection
+    // takes it.
+    void applyTeamHighlighterSets( bool dropUnknownActivations );
+    // Writes the Team Naming Groups into the Value Names Collection, if that
+    // changed it; they are never saved, the Team Folder holds them.
+    void applyTeamNamingGroups();
+    // Writes the groups the enabled plugins ship into both Collections.
+    void applyPluginGroups( logsquirl::plugins::ApplicationPlugins& plugins );
+
     // Applies the Policies as applyPolicies() does, and hands every open Log
     // File what changed together with `change`, in one call each -- nothing
     // when nothing did.
@@ -534,6 +567,14 @@ private:
 
     // Handed the Team Folder Policy.
     std::shared_ptr<TeamFolder> teamFolder_;
+    // Holds the Session's connections to the Team Folder, which may outlive
+    // it.
+    std::unique_ptr<QObject> teamFolderListener_;
+
+    // The plugins whose groups the Session follows, and its connections to
+    // them; null while it follows none.
+    const logsquirl::plugins::ApplicationPlugins* followedPlugins_ = nullptr;
+    std::unique_ptr<QObject> pluginsListener_;
 
     std::shared_ptr<FileAssociations> fileAssociations_;
 
@@ -742,6 +783,12 @@ public:
     void removeWindow( SessionWindow* window )
     {
         appSession_->removeWindow( window );
+    }
+
+    // See the Session's own.
+    void followPluginGroups( std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
+    {
+        appSession_->followPluginGroups( std::move( plugins ) );
     }
 
     QString windowId() const

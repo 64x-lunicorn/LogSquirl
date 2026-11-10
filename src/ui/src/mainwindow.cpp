@@ -130,7 +130,6 @@
 #include "optionsdialog.h"
 #include "plaintext.h"
 #include "plugindialog.h"
-#include "plugingroups.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
 #include "readablesize.h"
@@ -441,18 +440,17 @@ MainWindow::MainWindow( WindowSession session,
     connect( &archiveRestores_, &ArchiveMemberDecompression::idle, this,
              &MainWindow::closeArchiveRestoreProgress );
 
+    // The Filter Groups and Highlighter Sets the plugins ship come and go as
+    // plugins are enabled and disabled, in this window's Plugins dialog or
+    // another's (#865). The Session takes them into the Collections once for
+    // every window, and tells this one (#943).
+    session_.followPluginGroups( plugins_ );
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
         if ( welcomeDashboard_ ) {
             welcomeDashboard_->refresh();
         }
-        applyPluginGroups();
     } );
-    // The Filter Groups and Highlighter Sets the plugins ship come and go as
-    // plugins are enabled and disabled, in this window's Plugins dialog or
-    // another's (#865).
-    connect( plugins_.get(), &logsquirl::plugins::ApplicationPlugins::enabledPluginsChanged, this,
-             &MainWindow::applyPluginGroups );
 
     // A plugin installed, enabled or disabled later -- from this window's
     // Plugins dialog or another's -- shows on the dashboard right away (#710).
@@ -2218,6 +2216,13 @@ void MainWindow::applyPredefinedFiltersChange()
     filtersPanel_.refreshFilters();
 }
 
+void MainWindow::applyTeamFilterGroupsChange()
+{
+    if ( const auto teamFolder = session_.teamFolder() ) {
+        filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    }
+}
+
 // Opens the 'Options' modal dialog box
 void MainWindow::options()
 {
@@ -2317,34 +2322,15 @@ void MainWindow::connectTeamFolder()
 
     connect( teamFolder.get(), &TeamFolder::stateChanged, this,
              &MainWindow::updateTeamFolderIndicator );
-    // A changed or removed Team group shows at the next sync, in every
-    // window's Filters panel.
-    connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
-             [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
-    // A changed or removed Team Highlighter Set re-colors every open Log File
-    // at once, and a removed one is no longer active.
-    connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
-             [ this ] { applyTeamHighlighterSets( true ); } );
-    // A changed or removed Team Naming Group names values anew in every open
-    // Log File, and shows in the Value Names tab.
-    connect( teamFolder.get(), &TeamFolder::namingGroupsChanged, this,
-             &MainWindow::applyTeamNamingGroups );
-    // A sync that reached the repository knows the groups, however few: only
-    // then is an activation of a Team set that is not there dropped.
-    connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
-        if ( const auto folder = session_.teamFolder();
-             folder && folder->state() == TeamFolder::State::Synced ) {
-            applyTeamHighlighterSets( true );
-        }
-    } );
+    // What a sync brings the Session hears, once for every window: it writes
+    // the Team Highlighter Sets and Naming Groups and tells this window, as it
+    // does of changed Team Filter Groups (#943).
     connect( teamFolder.get(), &TeamFolder::publishFinished, this,
              &MainWindow::askAboutPublishConflicts );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
+    // The Team Filter Groups only this window's Filters panel holds.
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
-    // Before the first sync no group is known yet: nothing is dropped.
-    applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
-    applyTeamNamingGroups();
     updateTeamFolderIndicator();
 }
 
@@ -2431,62 +2417,6 @@ void MainWindow::askAboutPendingConflicts()
         else if ( question.clickedButton() == takeTheirs ) {
             teamFolder->resolveConflict( result.request, ConflictChoice::TakeTheirs );
         }
-    }
-}
-
-void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
-{
-    const auto teamFolder = session_.teamFolder();
-    if ( !teamFolder ) {
-        return;
-    }
-
-    // Every window comes here for the same sync; the first one changes the
-    // collection and saves it, the others only bring their menu up to date.
-    auto& collection = HighlighterSetCollection::get();
-    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups(),
-                                            dropUnknownActivations ) ) {
-        collection.save();
-        session_.applyChange( Changed::HighlighterSets );
-    }
-    updateHighlightersMenu();
-}
-
-void MainWindow::applyPluginGroups()
-{
-    // The enabled plugins stand in the configuration, which Plugin Management
-    // writes before it says that one was enabled or disabled.
-    const auto groups = logsquirl::plugingroups::readEnabled(
-        plugins_->catalog().discoveredPlugins(), Configuration::get().enabledPlugins() );
-
-    // Every window comes here for the same change; the first one changes the
-    // collections, the others only bring their panel and menu up to date.
-    // Neither collection stores the plugins' groups: saving the Highlighter
-    // Sets keeps only which of them are active, and a plugin's set that is
-    // gone is no longer.
-    PredefinedFiltersCollection::get().setPluginFilterGroups( groups.filterGroups );
-    filtersPanel_.refreshFilters();
-
-    auto& collection = HighlighterSetCollection::get();
-    if ( collection.setPluginHighlighterSets( groups.highlighterSets ) ) {
-        collection.save();
-        session_.applyChange( Changed::HighlighterSets );
-    }
-    updateHighlightersMenu();
-}
-
-void MainWindow::applyTeamNamingGroups()
-{
-    const auto teamFolder = session_.teamFolder();
-    if ( !teamFolder ) {
-        return;
-    }
-
-    // Every window comes here for the same sync; the first one changes the
-    // collection, which tells every window. The Team groups are never saved:
-    // the Team Folder holds them.
-    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->namingGroups() ) ) {
-        session_.applyChange( Changed::ValueNames );
     }
 }
 
