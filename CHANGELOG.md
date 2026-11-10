@@ -22,6 +22,16 @@
   the Search line and, with the Search run on a change of its pattern,
   starting the Search again. The search only shows other filters now;
   checking or unchecking one still updates the Search at once. (#928)
+- **The Scratchpad's text and fields share the width by a splitter**: the
+  splitter between the text and the conversion fields (CRC32, File time,
+  Dec->Hex, Hex->Dec, Time) gives either side more width, the fields keep the
+  width their rows need, and every Scratchpad tab keeps the position until
+  LogSquirl is closed. The empty bar with a size grip below is gone; *Copied
+  to clipboard* or *Empty transformation* shows as a tooltip at the button.
+  The Scratchpad's buttons, field labels, messages and tab names are
+  translated. (#925)
+- **The Scratchpad's Time and TimeZone labels are translated**: they showed
+  English in every language although their translations existed. (#930)
 
 ## Internal
 

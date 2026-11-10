@@ -1452,8 +1452,9 @@ New tabs can be opened in Scratchpad using the `Ctrl+N` hotkey.
 The buttons above the text transform the selected text, or all of it when
 nothing is selected: `From base64`, `To base64`, `From hex`, `To hex`,
 `Decode url`, `Decode JWT`, `Format json` and `Format xml`. The result replaces
-the text and is copied to the clipboard; a transformation that gives nothing
-leaves the text as it is and says `Empty transformation`. `Format json` starts at
+the text and is copied to the clipboard, which a tooltip at the button confirms;
+a transformation that gives nothing leaves the text as it is and says
+`Empty transformation` there instead. `Format json` starts at
 the first `{` or `[`, so a JSON object can be formatted straight from a log
 line; text that is not valid XML stays unchanged.
 
@@ -1461,6 +1462,9 @@ Beside the text, and updated as you type or select, the Scratchpad shows the
 same text read as numbers: `CRC32 hex` and `CRC32 dec` (its checksum),
 `File time` (a Windows FILETIME as a UTC date), `Dec->Hex`, `Hex->Dec`, and
 `Time`, which reads Unix seconds as a date in the time zone chosen below it.
+The splitter between the text and these fields gives either side more width;
+the fields never get narrower than their rows need, and every Scratchpad tab
+keeps the splitter where it was last left until LogSquirl is closed.
 
 #### JWT token decoder
 

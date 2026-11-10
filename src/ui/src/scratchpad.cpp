@@ -27,6 +27,7 @@
 #include <QByteArray>
 #include <QClipboard>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDomDocument>
 #include <QFormLayout>
@@ -34,9 +35,10 @@
 #include <QJsonObject>
 #include <QLineEdit>
 #include <QPlainTextEdit>
-#include <QStatusBar>
+#include <QSplitter>
 #include <QTimeZone>
 #include <QToolBar>
+#include <QToolTip>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -47,6 +49,10 @@
 namespace logsquirl {
 
 class DateTimeBox : public QFormLayout {
+    // QFormLayout's own tr() would look the labels up in its context, not in
+    // the one lupdate puts them in.
+    Q_DECLARE_TR_FUNCTIONS( logsquirl::DateTimeBox )
+
 public:
     DateTimeBox();
     ~DateTimeBox() = default;
@@ -77,7 +83,15 @@ QString formatDec( T value )
     return QString::fromLatin1( QByteArray::number( value, 10 ) );
 }
 
-constexpr int StatusTimeout = 2000;
+constexpr int MessageTimeout = 2000;
+
+// Where the splitter between text and fields stands, shared by every
+// Scratchpad while LogSquirl runs (#925).
+QByteArray& sharedSplitterState()
+{
+    static QByteArray state;
+    return state;
+}
 
 constexpr qint64 FileTimeTicks = 10000000;
 constexpr qint64 SecondsToEpoch = 11644473600LL;
@@ -101,46 +115,20 @@ ScratchPad::ScratchPad( QWidget* parent )
     textEdit->setUndoRedoEnabled( true );
 
     auto toolBar = std::make_unique<QToolBar>();
+    toolBar_ = toolBar.get();
 
-    auto decodeBase64Action = std::make_unique<QAction>( "From base64" );
-    connect( decodeBase64Action.get(), &QAction::triggered, [ this ]( auto ) { decodeBase64(); } );
-    toolBar->addAction( decodeBase64Action.release() );
-
-    auto encodeBase64Action = std::make_unique<QAction>( "To base64" );
-    connect( encodeBase64Action.get(), &QAction::triggered, [ this ]( auto ) { encodeBase64(); } );
-    toolBar->addAction( encodeBase64Action.release() );
-
-    auto decodeHexAction = std::make_unique<QAction>( "From hex" );
-    connect( decodeHexAction.get(), &QAction::triggered, [ this ]( auto ) { decodeHex(); } );
-    toolBar->addAction( decodeHexAction.release() );
-
-    auto encodeHexAction = std::make_unique<QAction>( "To hex" );
-    connect( encodeHexAction.get(), &QAction::triggered, [ this ]( auto ) { encodeHex(); } );
-    toolBar->addAction( encodeHexAction.release() );
-
-    auto decodeUrlAction = std::make_unique<QAction>( "Decode url" );
-    connect( decodeUrlAction.get(), &QAction::triggered, [ this ]( auto ) { decodeUrl(); } );
-    toolBar->addAction( decodeUrlAction.release() );
-
-    toolBar->addSeparator();
-
-    auto decodeJwtAction = std::make_unique<QAction>( "Decode JWT" );
-    connect( decodeJwtAction.get(), &QAction::triggered, [ this ]( auto ) { decodeJwt(); } );
-    toolBar->addAction( decodeJwtAction.release() );
-
-    toolBar->addSeparator();
-
-    auto formatJsonAction = std::make_unique<QAction>( "Format json" );
-    connect( formatJsonAction.get(), &QAction::triggered, [ this ]( auto ) { formatJson(); } );
-    toolBar->addAction( formatJsonAction.release() );
-
-    auto formatXmlAction = std::make_unique<QAction>( "Format xml" );
-    connect( formatXmlAction.get(), &QAction::triggered, [ this ]( auto ) { formatXml(); } );
-    toolBar->addAction( formatXmlAction.release() );
+    addTransformation( tr( "From base64" ), &ScratchPad::decodeBase64 );
+    addTransformation( tr( "To base64" ), &ScratchPad::encodeBase64 );
+    addTransformation( tr( "From hex" ), &ScratchPad::decodeHex );
+    addTransformation( tr( "To hex" ), &ScratchPad::encodeHex );
+    addTransformation( tr( "Decode url" ), &ScratchPad::decodeUrl );
+    toolBar_->addSeparator();
+    addTransformation( tr( "Decode JWT" ), &ScratchPad::decodeJwt );
+    toolBar_->addSeparator();
+    addTransformation( tr( "Format json" ), &ScratchPad::formatJson );
+    addTransformation( tr( "Format xml" ), &ScratchPad::formatXml );
 
     toolBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
-
-    auto statusBar = std::make_unique<QStatusBar>();
 
     auto transLayout = std::make_unique<QFormLayout>();
 
@@ -154,34 +142,75 @@ ScratchPad::ScratchPad( QWidget* parent )
               connect( this, &ScratchPad::updateTransformation, this, changeFunction );
           };
 
-    addBoxToLayout( "CRC32 hex", &crc32HexBox_, &ScratchPad::crc32Hex );
-    addBoxToLayout( "CRC32 dec", &crc32DecBox_, &ScratchPad::crc32Dec );
-    addBoxToLayout( "File time", &fileTimeBox_, &ScratchPad::fileTime );
-    addBoxToLayout( "Dec->Hex", &decToHexBox_, &ScratchPad::decToHex );
-    addBoxToLayout( "Hex->Dec", &hexToDecBox_, &ScratchPad::hexToDec );
+    addBoxToLayout( tr( "CRC32 hex" ), &crc32HexBox_, &ScratchPad::crc32Hex );
+    addBoxToLayout( tr( "CRC32 dec" ), &crc32DecBox_, &ScratchPad::crc32Dec );
+    addBoxToLayout( tr( "File time" ), &fileTimeBox_, &ScratchPad::fileTime );
+    addBoxToLayout( tr( "Dec->Hex" ), &decToHexBox_, &ScratchPad::decToHex );
+    addBoxToLayout( tr( "Hex->Dec" ), &hexToDecBox_, &ScratchPad::hexToDec );
     timeBox_ = new logsquirl::DateTimeBox();
     transLayout->addRow( timeBox_ );
     connect( this, &ScratchPad::updateTransformation, [ this ]() {
         transformText( [ this ]( QString text ) { return timeBox_->displayTime( text ); } );
     } );
 
-    auto hLayout = std::make_unique<QHBoxLayout>();
-    hLayout->addWidget( textEdit.get(), 3 );
-    hLayout->addLayout( transLayout.release(), 2 );
+    auto fields = std::make_unique<QWidget>();
+    transLayout->setContentsMargins( 0, 0, 0, 0 );
+    fields->setLayout( transLayout.release() );
+
+    // The text and the fields share the width by a splitter (#925). Neither
+    // collapses: the fields keep the width their rows need, and the text the
+    // larger share until the user moves the splitter. Where it stands is shared
+    // by all Scratchpads while LogSquirl runs.
+    auto splitter = std::make_unique<QSplitter>( Qt::Horizontal );
+    splitter_ = splitter.get();
+    splitter_->setChildrenCollapsible( false );
+    splitter_->addWidget( textEdit.get() );
+    splitter_->addWidget( fields.release() );
+    splitter_->setCollapsible( 0, false );
+    splitter_->setCollapsible( 1, false );
+    splitter_->setStretchFactor( 0, 3 );
+    splitter_->setStretchFactor( 1, 2 );
+    splitter_->setSizes( { 300, 200 } );
+    if ( !sharedSplitterState().isEmpty() ) {
+        splitter_->restoreState( sharedSplitterState() );
+    }
+    connect( splitter_, &QSplitter::splitterMoved, this,
+             [ this ] { sharedSplitterState() = splitter_->saveState(); } );
 
     auto vLayout = std::make_unique<QVBoxLayout>();
     vLayout->addWidget( toolBar.release() );
-    vLayout->addLayout( hLayout.release() );
-    vLayout->addWidget( statusBar.get() );
+    vLayout->addWidget( splitter.release() );
 
     textEdit_ = textEdit.release();
-    statusBar_ = statusBar.release();
 
     this->setLayout( vLayout.release() );
 
     connect( textEdit_, &QPlainTextEdit::textChanged, this, &ScratchPad::updateTransformation );
     connect( textEdit_, &QPlainTextEdit::selectionChanged, this,
              &ScratchPad::updateTransformation );
+}
+
+void ScratchPad::addTransformation( const QString& text, void ( ScratchPad::*transformation )() )
+{
+    auto* action = toolBar_->addAction( text );
+    connect( action, &QAction::triggered, this, [ this, action, transformation ] {
+        runningTransformation_ = action;
+        ( this->*transformation )();
+        runningTransformation_ = nullptr;
+    } );
+}
+
+void ScratchPad::showMessage( const QString& message )
+{
+    QWidget* anchor = toolBar_;
+    if ( runningTransformation_ != nullptr ) {
+        if ( auto* button = toolBar_->widgetForAction( runningTransformation_ ) ) {
+            anchor = button;
+        }
+    }
+
+    QToolTip::showText( anchor->mapToGlobal( QPoint( 0, anchor->height() ) ), message, anchor, {},
+                        MessageTimeout );
 }
 
 void ScratchPad::addData( QString newData )
@@ -231,10 +260,10 @@ void ScratchPad::transformTextInPlace( const std::function<QString( QString )>& 
 
         sendTextToClipboard( transformedText );
 
-        statusBar_->showMessage( "Copied to clipboard", StatusTimeout );
+        showMessage( tr( "Copied to clipboard" ) );
     }
     else {
-        statusBar_->showMessage( "Empty transformation", StatusTimeout );
+        showMessage( tr( "Empty transformation" ) );
     }
 }
 
