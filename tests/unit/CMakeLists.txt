@@ -26,6 +26,7 @@ add_executable(logsquirl_tests
     decorationsetup_test.cpp
     digestcoverage_test.cpp
     displayedlines_test.cpp
+    encodingdecision_test.cpp
     encodingdetector_test.cpp
     fileassociations_test.cpp
     fileassociationchoice_test.cpp

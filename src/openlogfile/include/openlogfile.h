@@ -44,6 +44,7 @@
 
 class FileWatchPort;
 class TextEncoding;
+struct EncodingDecision;
 class LogData;
 class LogFormatCatalog;
 class LogFormatFieldReader;
@@ -73,8 +74,8 @@ class LogFormatFieldReader;
 // is destroyed, and the log data checks the file whenever a change is heard
 // of. It looks no watcher up by itself (#249).
 //
-// It decides the Encoding its Log File is read in: the one chosen, else the
-// one detected, else the locale's (#393).
+// It settles the Encoding its Log File is read in as decideEncoding() decides:
+// the one chosen, else the one detected, else the locale's (#393, #947).
 //
 // It is the way in to its Log File: it takes every Policy, puts the Marks on
 // the current Search, owns the Search Limits and answers what is known of the
@@ -362,6 +363,9 @@ private:
     // Returns whether Format Recognition was taken.
     bool recognizeFormat();
     void followCurrentSearch();
+    // What decideEncoding() decides for the Encoding chosen and the ones the
+    // log data detected and indexed in, against the one settled before.
+    EncodingDecision encodingDecision( std::optional<int> settled ) const;
     // Has the log data read in the Encoding the rule settles on. Returns
     // whether that is another one than before.
     bool settleEncoding();

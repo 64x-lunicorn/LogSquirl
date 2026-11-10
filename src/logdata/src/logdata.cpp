@@ -44,6 +44,7 @@
 #include <QFileInfo>
 
 #include "containers.h"
+#include "encodingdecision.h"
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
@@ -321,31 +322,30 @@ void LogData::setDisplayEncoding( const TextEncoding& encoding )
 {
     LOG_DEBUG << "LogData::setDisplayEncoding: " << encoding.name().constData();
     codec_.setCodec( &encoding );
-    auto needReload = false;
-    auto useGuessedCodec = false;
 
+    EncodingDecision decision;
     {
         IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        const auto indexGuess = encodingMib( scopedAccessor.getEncodingGuess() );
 
-        const TextEncoding* currentIndexCodec = scopedAccessor.getForcedEncoding();
-        if ( !currentIndexCodec ) {
-            currentIndexCodec = scopedAccessor.getEncodingGuess();
-        }
-
-        if ( currentIndexCodec && codec_.mibEnum() != currentIndexCodec->mibEnum() ) {
-            if ( codec_.encodingParameters() != EncodingParameters( currentIndexCodec ) ) {
-                needReload = true;
-                useGuessedCodec = codec_.mibEnum() == scopedAccessor.getEncodingGuess()->mibEnum();
-            }
-        }
+        // Told to read in it, whatever it read in before: shown as given.
+        decision = decideEncoding( std::nullopt, encoding.mibEnum(), indexGuess,
+                                   encodingMib( scopedAccessor.getForcedEncoding() ), indexGuess );
     }
 
-    if ( needReload ) {
-        reload( useGuessedCodec ? nullptr : codec_.codec() );
-    }
-    else {
+    switch ( decision.change ) {
+    case EncodingChange::Unchanged:
+        break;
+    case EncodingChange::Redecode:
         // Indexed as it was, but the Log Lines decode differently.
         Q_EMIT logLinesChanged( 0_lnum );
+        break;
+    case EncodingChange::ReindexForced:
+        reload( codec_.codec() );
+        break;
+    case EncodingChange::ReindexDetecting:
+        reload( nullptr );
+        break;
     }
 }
 
@@ -489,6 +489,11 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
 const TextEncoding* LogData::getDetectedEncoding() const
 {
     return IndexingData::ConstAccessor{ indexing_data_.get() }.getEncodingGuess();
+}
+
+const TextEncoding* LogData::getForcedEncoding() const
+{
+    return IndexingData::ConstAccessor{ indexing_data_.get() }.getForcedEncoding();
 }
 
 void LogData::doAttachReader() const

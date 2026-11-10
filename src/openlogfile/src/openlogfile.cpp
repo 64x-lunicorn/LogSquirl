@@ -19,6 +19,7 @@
 
 #include "openlogfile.h"
 
+#include "encodingdecision.h"
 #include "filewatchport.h"
 #include "formatrecognition.h"
 #include "log.h"
@@ -43,6 +44,14 @@ std::optional<int> knownEncoding( std::optional<int> mib )
     const auto known = !mib || TextEncoding::forMib( *mib ) != nullptr;
     Q_ASSERT( known );
     return known ? mib : std::nullopt;
+}
+
+// The Encoding decideEncoding() shows, by its MIB: one chosen is one this
+// build knows, one detected or the locale's one it decodes.
+const TextEncoding* shownEncoding( int mib )
+{
+    const auto* encoding = TextEncoding::forMib( mib );
+    return encoding != nullptr ? encoding : TextEncoding::forLocale();
 }
 
 } // namespace
@@ -434,32 +443,36 @@ std::optional<int> OpenLogFile::chosenEncoding() const
 
 const TextEncoding* OpenLogFile::encoding() const
 {
-    // Only an Encoding this build knows is chosen (knownEncoding()), so this
-    // is never null.
-    if ( chosenEncoding_ ) {
-        return TextEncoding::forMib( *chosenEncoding_ );
-    }
-    const auto* detected = logData_->getDetectedEncoding();
-    return detected ? detected : TextEncoding::forLocale();
+    // The one decideEncoding() shows now, whatever was settled before; never
+    // null, as only an Encoding this build knows is chosen (knownEncoding()).
+    return shownEncoding( encodingDecision( std::nullopt ).shown );
+}
+
+EncodingDecision OpenLogFile::encodingDecision( std::optional<int> settled ) const
+{
+    const auto detected = encodingMib( logData_->getDetectedEncoding() );
+    return decideEncoding( settled, chosenEncoding_, detected,
+                           encodingMib( logData_->getForcedEncoding() ), detected );
 }
 
 bool OpenLogFile::settleEncoding()
 {
-    const auto* codec = encoding();
-
     // Settled after every load: a Log File that only grew keeps what was
     // read in it.
-    if ( settledEncoding_ == codec->mibEnum() ) {
+    const auto decision = encodingDecision( settledEncoding_ );
+    if ( decision.change == EncodingChange::Unchanged ) {
         return false;
     }
-    settledEncoding_ = codec->mibEnum();
+    settledEncoding_ = decision.shown;
 
+    const auto* codec = shownEncoding( decision.shown );
     LOG_INFO << "Reading the Log File as " << codec->name().constData();
 
-    // The log data loads the Log File again when the new Encoding splits it
-    // into Log Lines differently; a load in progress in the old one is of
-    // no use. Otherwise the Log Lines only decode differently, which it tells
-    // every Search.
+    // A load in progress in the old Encoding is of no use. The log data,
+    // told the new one once that load is stopped, carries out the rest of the
+    // decision: it loads the Log File again when the new Encoding splits it
+    // into Log Lines differently, otherwise it tells every Search that the
+    // Log Lines decode differently.
     logData_->interruptLoading();
     logData_->setDisplayEncoding( *codec );
     return true;

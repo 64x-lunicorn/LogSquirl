@@ -156,11 +156,15 @@ public:
 
     // Get the auto-detected encoding for the indexed text.
     const TextEncoding* getDetectedEncoding() const;
+    // The Encoding the Log File was indexed forced to; null when it was
+    // indexed in the one detected.
+    const TextEncoding* getForcedEncoding() const;
 
-    // Reads the Log File in the Encoding given from now on. When it splits
-    // the Log File into Log Lines differently than the Encoding it was
-    // indexed in, the Log File is loaded again; otherwise its Log Lines only
-    // decode differently, which every LogFilteredData built from it is told.
+    // Reads the Log File in the Encoding given from now on. As
+    // decideEncoding() decides: when it splits the Log File into Log Lines
+    // differently than the Encoding it was indexed in, the Log File is loaded
+    // again; otherwise its Log Lines only decode differently, which every
+    // LogFilteredData built from it is told.
     void setDisplayEncoding( const TextEncoding& encoding );
 
     // Replaces the Decoding Policy: every Log Line read from now on, for a

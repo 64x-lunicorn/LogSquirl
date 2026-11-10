@@ -33,6 +33,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/headerandtaildigests.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexedhash.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/digestcoverage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdecision.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ansicolorsequences.cpp
@@ -57,6 +58,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/headerandtaildigests.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/digestcoverage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdecision.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexoperation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.cpp
