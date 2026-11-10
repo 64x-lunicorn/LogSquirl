@@ -42,6 +42,7 @@
 #include "addpredefinedfilterdialog.h"
 #include "applicationplugins.h"
 #include "context_menu_entries.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
 #include "grouplist.h"
@@ -74,18 +75,9 @@ struct AbstractLogView::access_by<WindowCollectionsTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<WindowCollectionsTest> {
-    static AbstractLogView& textView( const CrawlerWidget& crawler )
-    {
-        return *crawler.logMainView_;
-    }
-};
-
 namespace {
 
 using ViewAccess = AbstractLogView::access_by<WindowCollectionsTest>;
-using CrawlerAccess = CrawlerWidget::access_by<WindowCollectionsTest>;
 
 const auto TheLogLine = QStringLiteral( "modem link ERROR done" );
 const auto SelectedText = QStringLiteral( "link" );
@@ -228,7 +220,7 @@ SCENARIO( "A Predefined Filter or Highlighter Set changed in one window shows in
     {
         REQUIRE_FALSE( second.listsFilter( SelectedText ) );
 
-        auto& textView = CrawlerAccess::textView( *first.crawler );
+        AbstractLogView& textView = textViewOf( *first.crawler );
         const auto start = TheLogLine.indexOf( SelectedText );
         ViewAccess::selectPortion( textView, 0_lnum, LineColumn{ start },
                                    LineColumn{ start + SelectedText.size() - 1 } );
