@@ -1,5 +1,25 @@
 # Unreleased
 
+## Changes
+
+- **The Help menu opens LogSquirl on GitHub and the release notes**: after
+  *Documentation...*, *LogSquirl on GitHub* opens the project's page, and
+  *What's New in*, followed by the month of the running version (for
+  example *What's New in 26.12...*), opens that month's release page on the
+  LogSquirl website; a build of your own opens the list of all releases on
+  GitHub. Both can be
+  given keys in the Shortcuts list. (#932)
+- **The Dashboard has a footer with links to the project**: a quiet line at
+  the bottom edge of the Dashboard, in the Theme's secondary text color,
+  links to LogSquirl on GitHub, to reporting an issue and to the
+  documentation. It stays at the bottom when the window is resized. (#933)
+- **The Dashboard asks once for a star on GitHub**: after at least two weeks
+  and 20 starts of LogSquirl, a line above the Dashboard's footer asks for a
+  star on GitHub, with a link to the repository and a close button. Following
+  the link or closing the line hides it for good, also after an update. The
+  first start and the number of starts are kept in your settings only and are
+  never sent anywhere. (#934)
+
 ## Bug fixes
 
 - **The group list of the Predefined Filters, Highlighters and Value Names
@@ -32,6 +52,22 @@
   translated. (#925)
 - **The Scratchpad's Time and TimeZone labels are translated**: they showed
   English in every language although their translations existed. (#930)
+- **The Welcome Dashboard follows a language change**: after switching the
+  language in Preferences, its buttons, card titles, empty lists, drop hint,
+  footer links and star request are shown in the new language at once,
+  without a restart. (#935)
+- **The Welcome Dashboard's shortcut line names your keys, in your
+  language**: it was a fixed English line. It now names *Open*, *Close*,
+  *Find* and *Reload* as their menu entries do, with the key each has in the
+  Shortcuts list, in the platform's notation (⌘O on macOS); a command without
+  a key is left out. It follows a change of keys in Preferences and a change
+  of language at once. (#936)
+- **The Command Palette names its entries without mnemonic leftovers**: in
+  Chinese it showed a stray *(O)* after a name, and an ampersand written
+  `&&` in a menu entry disappeared. It now names its entries as the
+  Shortcuts list does, without the mnemonic in any form, with the ampersand
+  kept and without the dots of an entry that opens a dialog (*Open* instead
+  of *Open...*). (#937)
 
 ## Internal
 

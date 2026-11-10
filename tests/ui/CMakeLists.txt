@@ -50,6 +50,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_color_labels_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_geometry_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/welcomedashboard_layout_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/starrequest_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modal_paths_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_tabs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_load_test.cpp
@@ -70,6 +71,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plaintext_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/menuentryname_test.cpp
 )
 
 if(NOT APPLE)

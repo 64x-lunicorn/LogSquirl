@@ -26,28 +26,39 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "csvexportdialog.h"
+#include "favoritefiles.h"
 #include "filteredview.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
+#include "logsquirl_version.h"
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "menu_wording.h"
+#include "recentfiles.h"
+#include "releasepages.h"
 #include "session.h"
 #include "shortcuts.h"
 #include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "welcomedashboard.h"
 
 #include <QAction>
 #include <QApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPointer>
+#include <QRegularExpression>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -1030,6 +1041,442 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
     }
 }
 
+namespace {
+
+// Takes the web pages the window asks to open, instead of a browser.
+class WebPageRecorder : public QObject {
+    Q_OBJECT
+public:
+    WebPageRecorder()
+    {
+        QDesktopServices::setUrlHandler( "https", this, "open" );
+    }
+    ~WebPageRecorder() override
+    {
+        QDesktopServices::unsetUrlHandler( "https" );
+    }
+
+    WebPageRecorder( const WebPageRecorder& ) = delete;
+    WebPageRecorder& operator=( const WebPageRecorder& ) = delete;
+
+    QList<QUrl> opened;
+
+public Q_SLOTS:
+    void open( const QUrl& url )
+    {
+        opened.append( url );
+    }
+};
+
+/// The entries of the Help menu, in menu order.
+QStringList helpEntries( MainWindow& window )
+{
+    QStringList texts;
+    for ( const auto& entry : menuBarEntries( window ) ) {
+        if ( entry.path == QStringLiteral( "Help" ) ) {
+            texts.append( entry.text );
+        }
+    }
+    return texts;
+}
+
+} // namespace
+
+// The Help menu links to the project and to the release notes of the running
+// version (#932).
+SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's release notes",
+          "[ui][menubar][help]" )
+{
+    GIVEN( "a shown window, no keys configured" )
+    {
+        const ConfiguredShortcuts configured( ShortcutAction::ConfiguredShortcuts{} );
+        const ShownWindow shown;
+        const auto version = QString( logsquirlVersion() );
+        // Named with the month of the version, 26.12 for 26.12.0.1638.
+        const auto whatsNew = QStringLiteral( "What's New in %1..." )
+                                  .arg( logsquirl::versioncheck::versionMonth( version ) );
+        REQUIRE( QRegularExpression( R"(^What's New in [0-9]{2}\.[0-9]{2}\.\.\.$)" )
+                     .match( whatsNew )
+                     .hasMatch() );
+
+        THEN( "Help lists LogSquirl on GitHub and What's New right after Documentation..." )
+        {
+            const auto entries = helpEntries( *shown.window );
+            const auto documentation = entries.indexOf( QStringLiteral( "Documentation..." ) );
+            REQUIRE( documentation >= 0 );
+            REQUIRE( documentation + 2 < entries.size() );
+            CHECK( entries.at( documentation + 1 ) == QStringLiteral( "LogSquirl on GitHub" ) );
+            CHECK( entries.at( documentation + 2 ) == whatsNew );
+        }
+
+        THEN( "each says in its status tip what it shows, What's New without naming a site" )
+        {
+            CHECK(
+                menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->statusTip()
+                == QStringLiteral( "Open the LogSquirl project on GitHub" ) );
+            // A shipped build opens the website, a build of one's own GitHub.
+            CHECK( menuBarAction( *shown.window, whatsNew )->statusTip()
+                   == QStringLiteral( "Show what is new in this version" ) );
+        }
+
+        THEN( "each is listed in the Shortcuts list under its menu name, without a key" )
+        {
+            const auto& shortcutList = ShortcutAction::defaultShortcutList();
+            const std::vector<std::pair<const char*, QString>> listed = {
+                { ShortcutAction::MainWindowProjectPage, QStringLiteral( "LogSquirl on GitHub" ) },
+                { ShortcutAction::MainWindowWhatsNew, whatsNew },
+            };
+            for ( const auto& [ id, text ] : listed ) {
+                INFO( text.toStdString() );
+                REQUIRE( shortcutList.contains( id ) );
+                CHECK( shortcutList.at( id ).name == menuwording::actionName( text ) );
+                CHECK( shortcutList.at( id ).keySequence.isEmpty() );
+                CHECK( menuBarAction( *shown.window, text )->shortcuts().isEmpty() );
+            }
+        }
+
+        WHEN( "LogSquirl on GitHub is chosen" )
+        {
+            WebPageRecorder recorder;
+            menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->trigger();
+
+            THEN( "the project's repository opens" )
+            {
+                CHECK( recorder.opened
+                       == QList<QUrl>{ QUrl( "https://github.com/64x-lunicorn/LogSquirl" ) } );
+            }
+        }
+
+        WHEN( "What's New is chosen" )
+        {
+            WebPageRecorder recorder;
+            menuBarAction( *shown.window, whatsNew )->trigger();
+
+            THEN( "the release page of the running version's month opens" )
+            {
+                CHECK(
+                    recorder.opened
+                    == QList<QUrl>{ QUrl( logsquirl::versioncheck::releaseNotesUrl( version ) ) } );
+            }
+        }
+    }
+
+    GIVEN( "keys configured for both entries" )
+    {
+        const ConfiguredShortcuts configured(
+            { { ShortcutAction::MainWindowProjectPage, { "Ctrl+Alt+G" } },
+              { ShortcutAction::MainWindowWhatsNew, { "Ctrl+Alt+W" } } } );
+
+        WHEN( "a window is shown" )
+        {
+            const ShownWindow shown;
+
+            THEN( "each entry answers to its keys" )
+            {
+                CHECK( menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )
+                           ->shortcuts()
+                       == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+G" ) } );
+                CHECK( menuBarAction(
+                           *shown.window,
+                           QStringLiteral( "What's New in %1..." )
+                               .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ) )
+                           ->shortcuts()
+                       == QList<QKeySequence>{ QKeySequence( "Ctrl+Alt+W" ) } );
+            }
+        }
+    }
+}
+
+namespace {
+
+/// The links line of the footer of the window's Dashboard.
+QLabel* dashboardFooter( MainWindow& window )
+{
+    return window.findChild<QLabel*>( QStringLiteral( "dashboardFooterLinks" ) );
+}
+
+/// The target of the footer's link with the text.
+QString footerLink( const QLabel& footer, const QString& text )
+{
+    const QRegularExpression anchor( QStringLiteral( "<a\\s+href=\"([^\"]*)\"[^>]*>%1</a>" )
+                                         .arg( QRegularExpression::escape( text ) ) );
+    const auto match = anchor.match( footer.text() );
+    REQUIRE( match.hasMatch() );
+    return match.captured( 1 );
+}
+
+/// The Dashboard shows these recent files and favorites for its lifetime.
+class DashboardLists {
+public:
+    DashboardLists( const QStringList& recent, const QStringList& favorites )
+        : storedRecent_( RecentFiles::getSynced().recentFiles() )
+    {
+        for ( const auto& favorite : FavoriteFiles::getSynced().favorites() ) {
+            storedFavorites_.append( favorite.fullPath() );
+        }
+        set( recent, favorites );
+    }
+    ~DashboardLists()
+    {
+        set( storedRecent_, storedFavorites_ );
+    }
+    DashboardLists( const DashboardLists& ) = delete;
+    DashboardLists& operator=( const DashboardLists& ) = delete;
+
+private:
+    static void set( const QStringList& recent, const QStringList& favorites )
+    {
+        auto& recentFiles = RecentFiles::getSynced();
+        recentFiles.removeAll();
+        // Each is added in front of the ones before.
+        for ( auto file = recent.crbegin(); file != recent.crend(); ++file ) {
+            recentFiles.addRecent( *file );
+        }
+        recentFiles.save();
+
+        auto& favoriteFiles = FavoriteFiles::getSynced();
+        for ( const auto& favorite : favoriteFiles.favorites() ) {
+            favoriteFiles.remove( favorite.fullPath() );
+        }
+        for ( const auto& favorite : favorites ) {
+            favoriteFiles.add( favorite );
+        }
+        favoriteFiles.save();
+    }
+
+    QStringList storedRecent_;
+    QStringList storedFavorites_;
+};
+
+} // namespace
+
+// The Dashboard's footer links to the project; its Report an Issue and
+// Documentation do what the Help menu's entries do (#933).
+SCENARIO( "The Dashboard's footer reports an issue and shows the documentation as the Help menu "
+          "does",
+          "[ui][menubar][help][dashboard]" )
+{
+    GIVEN( "a shown window with its Dashboard in front" )
+    {
+        const ShownWindow shown;
+        auto* footer = dashboardFooter( *shown.window );
+        REQUIRE( footer != nullptr );
+        REQUIRE( footer->isVisible() );
+
+        WHEN( "Report an Issue is clicked in the footer, then Help > Report Issue... is chosen" )
+        {
+            WebPageRecorder recorder;
+            Q_EMIT footer->linkActivated(
+                footerLink( *footer, QStringLiteral( "Report an Issue" ) ) );
+            menuBarAction( *shown.window, QStringLiteral( "Report Issue..." ) )->trigger();
+
+            THEN( "both open the same page for a new issue of the project" )
+            {
+                REQUIRE( recorder.opened.size() == 2 );
+                CHECK( recorder.opened.at( 0 ) == recorder.opened.at( 1 ) );
+                CHECK( recorder.opened.at( 0 ).toString().startsWith(
+                    QString( logsquirl::versioncheck::ProjectPageUrl ) + u'/' ) );
+            }
+        }
+
+        WHEN( "GitHub is clicked in the footer" )
+        {
+            WebPageRecorder recorder;
+            Q_EMIT footer->linkActivated( footerLink( *footer, QStringLiteral( "GitHub" ) ) );
+
+            THEN( "it opens the page Help > LogSquirl on GitHub opens" )
+            {
+                menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->trigger();
+                REQUIRE( recorder.opened.size() == 2 );
+                CHECK( recorder.opened.at( 0 ) == recorder.opened.at( 1 ) );
+            }
+        }
+
+        WHEN( "Documentation is clicked in the footer" )
+        {
+            // The test binary carries no documentation to show: the entry
+            // of the Help menu is what the footer reuses.
+            const QSignalSpy documentation(
+                menuBarAction( *shown.window, QStringLiteral( "Documentation..." ) ),
+                &QAction::triggered );
+            const QSignalSpy reportIssue(
+                menuBarAction( *shown.window, QStringLiteral( "Report Issue..." ) ),
+                &QAction::triggered );
+            Q_EMIT footer->linkActivated(
+                footerLink( *footer, QStringLiteral( "Documentation" ) ) );
+
+            THEN( "Help > Documentation... is triggered, and nothing else" )
+            {
+                CHECK( documentation.size() == 1 );
+                CHECK( reportIssue.isEmpty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard fits a 1366 x 768 window with its footer, without scrolling",
+          "[ui][dashboard]" )
+{
+    GIVEN( "a few recent files and favorites" )
+    {
+        const DashboardLists lists( { QStringLiteral( "/var/log/app/server.log" ),
+                                      QStringLiteral( "/var/log/app/worker.log" ),
+                                      QStringLiteral( "/var/log/system.log" ) },
+                                    { QStringLiteral( "/var/log/app/server.log" ) } );
+
+        WHEN( "a window of 1366 x 768 shows the Dashboard" )
+        {
+            const ShownWindow shown;
+            shown.window->resize( 1366, 768 );
+            QTest::qWait( 50 );
+            REQUIRE( shown.window->size() == QSize( 1366, 768 ) );
+            auto* dashboard = shown.window->findChild<WelcomeDashboard*>();
+            REQUIRE( dashboard != nullptr );
+            REQUIRE( dashboard->isVisible() );
+            auto* scrollArea = dashboard->findChild<QScrollArea*>();
+            REQUIRE( scrollArea != nullptr );
+            auto* footer = dashboardFooter( *shown.window );
+            REQUIRE( footer != nullptr );
+
+            THEN( "the Dashboard does not scroll, and its footer shows whole at its bottom edge" )
+            {
+                INFO( "window " << shown.window->height() << ", Dashboard " << dashboard->height()
+                                << ", content "
+                                << scrollArea->widget()->minimumSizeHint().height() );
+                CHECK( scrollArea->verticalScrollBar()->maximum() == 0 );
+                CHECK_FALSE( scrollArea->verticalScrollBar()->isVisible() );
+                CHECK( footer->isVisible() );
+                const auto bottom = footer->mapTo( dashboard, QPoint( 0, footer->height() ) ).y();
+                CHECK( bottom <= dashboard->height() );
+                CHECK( bottom >= dashboard->height() - 24 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's footer is not shown while a Log File is open", "[ui][dashboard]" )
+{
+    GIVEN( "a window showing its Dashboard" )
+    {
+        FormatWindow window;
+        auto* footer = dashboardFooter( *window.window );
+        REQUIRE( footer != nullptr );
+        REQUIRE( footer->isVisible() );
+
+        WHEN( "a Log File is opened" )
+        {
+            window.open( window.logFile( "plain.log", "just a line\nanother line\n" ) );
+
+            THEN( "the footer is gone with the Dashboard" )
+            {
+                CHECK_FALSE( footer->isVisible() );
+            }
+        }
+    }
+}
+
+namespace {
+
+/// The line of shortcut hints of the window's Dashboard.
+QLabel* dashboardShortcutHints( MainWindow& window )
+{
+    return window.findChild<QLabel*>( QStringLiteral( "dashboardShortcutHints" ) );
+}
+
+/// The line of shortcut hints for these commands, each a key and a name, in
+/// the platform's notation of the language now.
+QString shortcutHintsLine( const std::vector<std::pair<QString, QString>>& commands )
+{
+    QStringList hints;
+    for ( const auto& [ key, name ] : commands ) {
+        hints.append( QKeySequence( key ).toString( QKeySequence::NativeText ) + u' ' + name );
+    }
+    return hints.join( QStringLiteral( "  |  " ) );
+}
+
+} // namespace
+
+// The Dashboard's line of shortcut hints names Open..., Close, Find... and
+// Reload as their menu entries, with the keys the Shortcuts list gives them
+// now; it was a fixed English line before (#936).
+SCENARIO( "The Dashboard's shortcut hints name the menu entries with the keys of the Shortcuts "
+          "list",
+          "[ui][menubar][dashboard][shortcuts]" )
+{
+    GIVEN( "keys of their own for the four commands, and a shown window" )
+    {
+        const ConfiguredShortcuts configured(
+            { { ShortcutAction::MainWindowOpenFile, { "Ctrl+Shift+O", "Ctrl+Alt+O" } },
+              { ShortcutAction::MainWindowCloseFile, { "Ctrl+Shift+W" } },
+              { ShortcutAction::MainWindowOpenQf, { "Alt+F3" } },
+              { ShortcutAction::MainWindowReload, { "F6" } } } );
+        const ShownWindow shown;
+        auto* line = dashboardShortcutHints( *shown.window );
+        REQUIRE( line != nullptr );
+
+        THEN( "the line shows each command's first key and its menu name" )
+        {
+            CHECK( line->isVisible() );
+            CHECK( line->text()
+                   == shortcutHintsLine( { { QStringLiteral( "Ctrl+Shift+O" ), "Open" },
+                                           { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                           { QStringLiteral( "Alt+F3" ), "Find" },
+                                           { QStringLiteral( "F6" ), "Reload" } } ) );
+        }
+
+        WHEN( "Preferences give Open... another key and take Find...'s away" )
+        {
+            const ConfiguredShortcuts changed(
+                { { ShortcutAction::MainWindowOpenFile, { "Ctrl+Alt+P" } },
+                  { ShortcutAction::MainWindowCloseFile, { "Ctrl+Shift+W" } },
+                  { ShortcutAction::MainWindowOpenQf, {} },
+                  { ShortcutAction::MainWindowReload, { "F6" } } } );
+            shown.session->applyChange( Changed::Settings );
+
+            THEN( "the line shows Open...'s new key and leaves Find... out" )
+            {
+                CHECK( line->text()
+                       == shortcutHintsLine( { { QStringLiteral( "Ctrl+Alt+P" ), "Open" },
+                                               { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                               { QStringLiteral( "F6" ), "Reload" } } ) );
+            }
+        }
+
+        WHEN( "the language changes" )
+        {
+            MarkingTranslator translator;
+            REQUIRE( QCoreApplication::installTranslator( &translator ) );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "the names are the menu entries' translations, the keys in its notation" )
+            {
+                CHECK(
+                    line->text()
+                    == shortcutHintsLine(
+                        { { QStringLiteral( "Ctrl+Shift+O" ), MarkingTranslator::marked( "Open" ) },
+                          { QStringLiteral( "Ctrl+Shift+W" ),
+                            MarkingTranslator::marked( "Close" ) },
+                          { QStringLiteral( "Alt+F3" ), MarkingTranslator::marked( "Find" ) },
+                          { QStringLiteral( "F6" ), MarkingTranslator::marked( "Reload" ) } } ) );
+            }
+
+            QCoreApplication::removeTranslator( &translator );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "going back names them in English again" )
+            {
+                CHECK( line->text()
+                       == shortcutHintsLine( { { QStringLiteral( "Ctrl+Shift+O" ), "Open" },
+                                               { QStringLiteral( "Ctrl+Shift+W" ), "Close" },
+                                               { QStringLiteral( "Alt+F3" ), "Find" },
+                                               { QStringLiteral( "F6" ), "Reload" } } ) );
+            }
+        }
+    }
+}
+
 // The Encoding menu is owned, so it goes with the window (#916).
 SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encoding]" )
 {
@@ -1055,3 +1502,5 @@ SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encod
         }
     }
 }
+
+#include "menubar_test.moc"

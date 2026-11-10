@@ -62,6 +62,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -122,6 +123,7 @@
 #include "lostfileassociationshint.h"
 #include "mainwindowtext.h"
 #include "menu.h"
+#include "menuentryname.h"
 #include "mergecontroller.h"
 #include "namevaluedialog.h"
 #include "openfilehelper.h"
@@ -135,6 +137,7 @@
 #include "recentfiles.h"
 #include "regexlabsource.h"
 #include "regexlabwindow.h"
+#include "releasepages.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
@@ -373,6 +376,10 @@ MainWindow::MainWindow( WindowSession session,
     if ( config.showDashboard() ) {
         welcomeDashboard_ = new WelcomeDashboard();
         welcomeDashboard_->setPlugins( &plugins_->catalog(), &plugins_->host() );
+        // Its line of shortcut hints names these entries with the keys the
+        // Shortcuts list gives them, and follows when either changes (#936).
+        welcomeDashboard_->setShortcutHints(
+            { openAction, closeAction, findAction, reloadAction } );
 
         // Insert dashboard as the permanent first tab (index 0)
         mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Dashboard" ) );
@@ -401,6 +408,11 @@ MainWindow::MainWindow( WindowSession session,
                  &MainWindow::open );
         connect( welcomeDashboard_, &WelcomeDashboard::loadSessionRequested, this,
                  &MainWindow::reloadSession );
+        // The footer's links do what the Help menu's entries do (#933).
+        connect( welcomeDashboard_, &WelcomeDashboard::reportIssueRequested, reportIssueAction,
+                 &QAction::trigger );
+        connect( welcomeDashboard_, &WelcomeDashboard::documentationRequested,
+                 showDocumentationAction, &QAction::trigger );
 
         welcomeDashboard_->refresh();
     }
@@ -903,6 +915,13 @@ void MainWindow::reTranslateUI()
     showDocumentationAction->setText( transAction( action::showDocumentationText ) );
     showDocumentationAction->setStatusTip( transAction( action::showDocumentationStatusTip ) );
 
+    projectPageAction->setText( transAction( action::projectPageText ) );
+    projectPageAction->setStatusTip( transAction( action::projectPageStatusTip ) );
+
+    whatsNewAction->setText(
+        transAction( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ) );
+    whatsNewAction->setStatusTip( transAction( action::whatsNewStatusTip ) );
+
     aboutAction->setText( transAction( action::aboutText ) );
     aboutAction->setStatusTip( transAction( action::aboutStatusTip ) );
 
@@ -1218,6 +1237,19 @@ void MainWindow::createActions()
     connect( showDocumentationAction, &QAction::triggered, this,
              [ this ]( auto ) { this->documentation(); } );
 
+    projectPageAction = new QAction( tr( action::projectPageText ), this );
+    projectPageAction->setStatusTip( tr( action::projectPageStatusTip ) );
+    connect( projectPageAction, &QAction::triggered, this, []( auto ) {
+        QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::ProjectPageUrl ) );
+    } );
+
+    whatsNewAction = new QAction(
+        tr( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ), this );
+    whatsNewAction->setStatusTip( tr( action::whatsNewStatusTip ) );
+    connect( whatsNewAction, &QAction::triggered, this, []( auto ) {
+        QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::runningReleaseNotesUrl() ) );
+    } );
+
     aboutAction = new QAction( tr( action::aboutText ), this );
     aboutAction->setStatusTip( tr( action::aboutStatusTip ) );
     connect( aboutAction, &QAction::triggered, this, [ this ]( auto ) { this->about(); } );
@@ -1412,6 +1444,8 @@ void MainWindow::updateShortcuts()
     setShortcuts( searchLimitsTimeRangeAction, ShortcutAction::LogViewSearchLimitsTimeRange );
     setShortcuts( searchLimitsAroundLineAction, ShortcutAction::LogViewSearchLimitsAroundLine );
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
+    setShortcuts( projectPageAction, ShortcutAction::MainWindowProjectPage );
+    setShortcuts( whatsNewAction, ShortcutAction::MainWindowWhatsNew );
 }
 
 // Whether the tab at `index` is the welcome dashboard itself, for what only
@@ -1571,6 +1605,8 @@ void MainWindow::createMenus()
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );
+    helpMenu->addAction( projectPageAction );
+    helpMenu->addAction( whatsNewAction );
     helpMenu->addSeparator();
     helpMenu->addAction( reportIssueAction );
     helpMenu->addSeparator();
@@ -2676,11 +2712,14 @@ void MainWindow::showCommandPalette()
                 continue;
             }
             if ( action->menu() ) {
-                self( action->menu(), category + " › " + action->text().remove( '&' ), self );
+                self( action->menu(),
+                      category + " › " + logsquirl::menuentry::withoutMnemonic( action->text() ),
+                      self );
                 continue;
             }
             CommandEntry entry;
-            entry.name = action->text().remove( '&' );
+            // Named as the Shortcuts list names its commands (#937).
+            entry.name = logsquirl::menuentry::commandName( action->text() );
             entry.category = category;
             entry.shortcut = action->shortcut().toString( QKeySequence::NativeText );
             // Capture a QPointer so the action firing path is safe if the
@@ -2697,7 +2736,7 @@ void MainWindow::showCommandPalette()
 
     for ( QAction* topAction : menuBar()->actions() ) {
         if ( topAction->menu() ) {
-            const auto category = topAction->text().remove( '&' );
+            const auto category = logsquirl::menuentry::withoutMnemonic( topAction->text() );
             collectFromMenu( topAction->menu(), category, collectFromMenu );
         }
     }

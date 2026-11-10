@@ -17,21 +17,37 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "favoritefiles.h"
+#include "recentfiles.h"
+#include "releasepages.h"
+#include "starrequest.h"
 #include "theme.h"
 #include "welcomedashboard.h"
 
+#include <QAction>
 #include <QApplication>
+#include <QDesktopServices>
 #include <QFrame>
 #include <QImage>
+#include <QKeySequence>
 #include <QLabel>
+#include <QMap>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollArea>
+#include <QSignalSpy>
 #include <QTest>
+#include <QTextDocument>
+#include <QToolButton>
+#include <QTranslator>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
+#include <memory>
 #include <vector>
 
 // The Dashboard uses readable type and shows its lists as cards (#266).
@@ -169,3 +185,945 @@ SCENARIO( "The Dashboard's cards take the surface color of every Theme", "[ui][t
         }
     }
 }
+
+// The Dashboard has a quiet footer with links to the project (#933).
+
+namespace {
+
+QLabel* footerLinks( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QLabel*>( QStringLiteral( "dashboardFooterLinks" ) );
+}
+
+/// The links of a rich-text label: the target of each, by its text.
+QMap<QString, QString> linksOf( const QLabel& label )
+{
+    static const QRegularExpression anchor(
+        QStringLiteral( "<a\\s+href=\"([^\"]*)\"[^>]*>([^<]*)</a>" ) );
+    QMap<QString, QString> result;
+    auto matches = anchor.globalMatch( label.text() );
+    while ( matches.hasNext() ) {
+        const auto match = matches.next();
+        result.insert( match.captured( 2 ), match.captured( 1 ) );
+    }
+    return result;
+}
+
+/// The colors the links of a rich-text label are written in.
+QStringList linkColorsOf( const QLabel& label )
+{
+    static const QRegularExpression anchor(
+        QStringLiteral( "<a\\s[^>]*style=\"[^\"]*color:\\s*(#[0-9a-fA-F]{6})" ) );
+    QStringList result;
+    auto matches = anchor.globalMatch( label.text() );
+    while ( matches.hasNext() ) {
+        result.append( matches.next().captured( 1 ).toLower() );
+    }
+    return result;
+}
+
+QString plainTextOf( const QLabel& label )
+{
+    QTextDocument document;
+    document.setHtml( label.text() );
+    return document.toPlainText();
+}
+
+double distance( const QColor& lhs, const QColor& rhs )
+{
+    return std::hypot( lhs.red() - rhs.red(), lhs.green() - rhs.green(), lhs.blue() - rhs.blue() );
+}
+
+/// The color farthest from the background in the label's rendering: the
+/// color its text is drawn in.
+QColor inkOf( QLabel& label )
+{
+    const auto image = label.grab().toImage();
+    const auto background = image.pixelColor( 0, 0 );
+    QColor ink = background;
+    for ( int y = 0; y < image.height(); ++y ) {
+        for ( int x = 0; x < image.width(); ++x ) {
+            const auto pixel = image.pixelColor( x, y );
+            if ( distance( pixel, background ) > distance( ink, background ) ) {
+                ink = pixel;
+            }
+        }
+    }
+    return ink;
+}
+
+// Takes the web pages the Dashboard asks to open, instead of a browser.
+class DashboardWebPages : public QObject {
+    Q_OBJECT
+public:
+    DashboardWebPages()
+    {
+        QDesktopServices::setUrlHandler( "https", this, "open" );
+    }
+    ~DashboardWebPages() override
+    {
+        QDesktopServices::unsetUrlHandler( "https" );
+    }
+
+    DashboardWebPages( const DashboardWebPages& ) = delete;
+    DashboardWebPages& operator=( const DashboardWebPages& ) = delete;
+
+    QList<QUrl> opened;
+
+public Q_SLOTS:
+    void open( const QUrl& url )
+    {
+        opened.append( url );
+    }
+};
+
+// Marks every text of the Dashboard it translates.
+class MarkingDashboardTranslator : public QTranslator {
+public:
+    QString translate( const char* context, const char* sourceText, const char* /*disambiguation*/,
+                       int /*n*/ ) const override
+    {
+        if ( QString::fromLatin1( context ) != QStringLiteral( "WelcomeDashboard" ) ) {
+            return {};
+        }
+        return u'[' + QString::fromUtf8( sourceText ) + u']';
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+} // namespace
+
+SCENARIO( "The Dashboard has a footer with links to the project at its bottom edge",
+          "[ui][dashboard]" )
+{
+    GIVEN( "a Dashboard shown in a window" )
+    {
+        Theme::apply( Theme::LightKey );
+        WelcomeDashboard dashboard;
+        dashboard.resize( 1200, 900 );
+        dashboard.refresh();
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+        QTest::qWait( 20 );
+
+        auto* footer = footerLinks( dashboard );
+        REQUIRE( footer != nullptr );
+
+        const auto atBottomEdge = [ & ] {
+            const auto* scrollArea = dashboard.findChild<QScrollArea*>();
+            REQUIRE( scrollArea != nullptr );
+            const auto top = footer->mapTo( &dashboard, QPoint{} ).y();
+            const auto bottom = top + footer->height();
+            INFO( "footer " << top << ".." << bottom << " in " << dashboard.height()
+                            << ", content ends at " << scrollArea->geometry().bottom() );
+            // Below the content, never over it, and close to the edge.
+            CHECK( top > scrollArea->geometry().bottom() );
+            CHECK( bottom <= dashboard.height() );
+            CHECK( bottom >= dashboard.height() - 24 );
+        };
+
+        THEN( "it is one line of text and links, at the bottom edge" )
+        {
+            CHECK( footer->isVisible() );
+            CHECK( plainTextOf( *footer )
+                   == QStringLiteral(
+                       "LogSquirl is open source \u00B7 GitHub \u00B7 Report an Issue \u00B7 "
+                       "Documentation" ) );
+            CHECK( linksOf( *footer ).keys()
+                   == QStringList{ QStringLiteral( "Documentation" ), QStringLiteral( "GitHub" ),
+                                   QStringLiteral( "Report an Issue" ) } );
+            CHECK_FALSE( footer->wordWrap() );
+            CHECK_FALSE( footer->openExternalLinks() );
+            atBottomEdge();
+        }
+
+        THEN( "it lies on the Dashboard's own background, without a band or frame" )
+        {
+            const auto image = dashboard.grab().toImage();
+            const auto top = footer->mapTo( &dashboard, QPoint{} ).y();
+            const auto besideFooter = image.pixelColor( 4, top + footer->height() / 2 );
+            const auto aboveFooter = image.pixelColor( 4, top - 20 );
+            CHECK( besideFooter.name() == aboveFooter.name() );
+        }
+
+        WHEN( "the window is made smaller and larger" )
+        {
+            for ( const auto& size : { QSize( 900, 600 ), QSize( 1600, 1100 ) } ) {
+                dashboard.resize( size );
+                QTest::qWait( 20 );
+                INFO( size.width() << "x" << size.height() );
+                THEN( "the footer stays at the bottom edge" )
+                {
+                    atBottomEdge();
+                }
+            }
+        }
+
+        WHEN( "GitHub is clicked" )
+        {
+            DashboardWebPages pages;
+            const QSignalSpy reports( &dashboard, &WelcomeDashboard::reportIssueRequested );
+            const QSignalSpy documentation( &dashboard, &WelcomeDashboard::documentationRequested );
+            Q_EMIT footer->linkActivated( linksOf( *footer ).value( QStringLiteral( "GitHub" ) ) );
+
+            THEN( "the project's repository opens, and nothing else" )
+            {
+                CHECK( pages.opened
+                       == QList<QUrl>{ QUrl( logsquirl::versioncheck::ProjectPageUrl ) } );
+                CHECK( reports.isEmpty() );
+                CHECK( documentation.isEmpty() );
+            }
+        }
+
+        WHEN( "Report an Issue is clicked" )
+        {
+            DashboardWebPages pages;
+            const QSignalSpy reports( &dashboard, &WelcomeDashboard::reportIssueRequested );
+            const QSignalSpy documentation( &dashboard, &WelcomeDashboard::documentationRequested );
+            Q_EMIT footer->linkActivated(
+                linksOf( *footer ).value( QStringLiteral( "Report an Issue" ) ) );
+
+            THEN( "the Dashboard asks to report an issue, as Help > Report Issue... does" )
+            {
+                CHECK( reports.size() == 1 );
+                CHECK( documentation.isEmpty() );
+                CHECK( pages.opened.isEmpty() );
+            }
+        }
+
+        WHEN( "Documentation is clicked" )
+        {
+            DashboardWebPages pages;
+            const QSignalSpy reports( &dashboard, &WelcomeDashboard::reportIssueRequested );
+            const QSignalSpy documentation( &dashboard, &WelcomeDashboard::documentationRequested );
+            Q_EMIT footer->linkActivated(
+                linksOf( *footer ).value( QStringLiteral( "Documentation" ) ) );
+
+            THEN( "the Dashboard asks for the documentation, as Help > Documentation... does" )
+            {
+                CHECK( documentation.size() == 1 );
+                CHECK( reports.isEmpty() );
+                CHECK( pages.opened.isEmpty() );
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "The Dashboard's footer is drawn in the secondary text color of the Theme",
+          "[ui][dashboard][theme]" )
+{
+    for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ) } ) {
+        GIVEN( "a Dashboard shown under " + name.toStdString() )
+        {
+            Theme::apply( Theme::LightKey );
+            WelcomeDashboard dashboard;
+            dashboard.resize( 1000, 800 );
+            dashboard.refresh();
+            dashboard.show();
+            REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+            Theme::apply( name );
+            QCoreApplication::processEvents();
+            QTest::qWait( 20 );
+
+            auto* footer = footerLinks( dashboard );
+            REQUIRE( footer != nullptr );
+            const auto secondary = Theme::active().color( ColorToken::SecondaryText );
+            const auto link = footer->palette().color( QPalette::Link );
+
+            THEN( "its text and its links take the secondary text color, as the hints do" )
+            {
+                CHECK( footer->property( "secondaryText" ).toBool() );
+                CHECK( footer->palette().color( QPalette::WindowText ) == secondary );
+                const auto colors = linkColorsOf( *footer );
+                CHECK( colors.size() == 3 );
+                for ( const auto& color : colors ) {
+                    CHECK( color == secondary.name() );
+                }
+                const auto ink = inkOf( *footer );
+                INFO( "ink " << ink.name().toStdString() << ", secondary "
+                             << secondary.name().toStdString() << ", link "
+                             << link.name().toStdString() );
+                CHECK( distance( ink, secondary ) < distance( ink, link ) );
+            }
+
+            THEN( "it has no styling of its own and the application font" )
+            {
+                CHECK( footer->styleSheet().isEmpty() );
+                CHECK( footer->font().pointSizeF() == QApplication::font().pointSizeF() );
+            }
+
+            Theme::apply( Theme::defaultTheme() );
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's footer is translated", "[ui][dashboard]" )
+{
+    GIVEN( "a translation of the Dashboard" )
+    {
+        MarkingDashboardTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        WHEN( "a Dashboard is made" )
+        {
+            WelcomeDashboard dashboard;
+            auto* footer = footerLinks( dashboard );
+            REQUIRE( footer != nullptr );
+
+            THEN( "its footer is shown translated, the names GitHub and LogSquirl aside" )
+            {
+                CHECK( plainTextOf( *footer )
+                       == QStringLiteral( "[LogSquirl is open source] \u00B7 GitHub \u00B7 "
+                                          "[Report an Issue] \u00B7 [Documentation]" ) );
+            }
+        }
+
+        QCoreApplication::removeTranslator( &translator );
+    }
+}
+
+// The Dashboard asks once, after some weeks of use, for a star on GitHub (#934).
+
+namespace {
+
+const QDate StarToday{ 2026, 11, 9 };
+
+/// Keeps use as what the settings store says of the star request, and leaves
+/// it as a fresh installation has it when done.
+class StoredStarRequestUse {
+public:
+    explicit StoredStarRequestUse( const StarRequestUse& use )
+    {
+        store( use );
+    }
+    ~StoredStarRequestUse()
+    {
+        store( StarRequestUse{} );
+    }
+    StoredStarRequestUse( const StoredStarRequestUse& ) = delete;
+    StoredStarRequestUse& operator=( const StoredStarRequestUse& ) = delete;
+    StoredStarRequestUse( StoredStarRequestUse&& ) = delete;
+    StoredStarRequestUse& operator=( StoredStarRequestUse&& ) = delete;
+
+    static StarRequestUse stored()
+    {
+        return StarRequest::getSynced().use();
+    }
+
+private:
+    static void store( const StarRequestUse& use )
+    {
+        auto& request = StarRequest::getSynced();
+        request.setUse( use );
+        request.save();
+    }
+};
+
+StarRequestUse starUse( qint64 days, int starts )
+{
+    return StarRequestUse{ .firstStart = StarToday.addDays( -days ),
+                           .starts = starts,
+                           .dismissed = false };
+}
+
+QWidget* starRequest( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QWidget*>( QStringLiteral( "dashboardStarRequest" ) );
+}
+
+QLabel* starRequestText( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QLabel*>( QStringLiteral( "dashboardStarRequestText" ) );
+}
+
+QToolButton* starRequestClose( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QToolButton*>( QStringLiteral( "dashboardStarRequestClose" ) );
+}
+
+bool asksForStar( const WelcomeDashboard& dashboard )
+{
+    const auto* line = starRequest( dashboard );
+    return line != nullptr && line->isVisibleTo( &dashboard );
+}
+
+/// A Dashboard of the day today, refreshed as when it becomes visible.
+void prepare( WelcomeDashboard& dashboard, const QDate& today )
+{
+    dashboard.setToday( [ today ] { return today; } );
+    dashboard.refresh();
+}
+
+} // namespace
+
+SCENARIO( "The Dashboard asks for a star only after two weeks and twenty starts",
+          "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "a fresh installation" )
+    {
+        const StoredStarRequestUse stored( StarRequestUse{} );
+        WelcomeDashboard dashboard;
+        prepare( dashboard, StarToday );
+
+        THEN( "the Dashboard does not ask" )
+        {
+            CHECK_FALSE( asksForStar( dashboard ) );
+        }
+    }
+
+    GIVEN( "twenty starts, the first thirteen days ago" )
+    {
+        const StoredStarRequestUse stored( starUse( 13, 20 ) );
+        WelcomeDashboard dashboard;
+        auto today = StarToday;
+        dashboard.setToday( [ &today ] { return today; } );
+        dashboard.refresh();
+
+        THEN( "the Dashboard does not ask yet" )
+        {
+            CHECK_FALSE( asksForStar( dashboard ) );
+        }
+
+        WHEN( "a day later the Dashboard becomes visible again" )
+        {
+            today = StarToday.addDays( 1 );
+            dashboard.refresh();
+
+            THEN( "it asks" )
+            {
+                CHECK( asksForStar( dashboard ) );
+            }
+        }
+    }
+
+    GIVEN( "nineteen starts, the first a month ago" )
+    {
+        const StoredStarRequestUse stored( starUse( 30, 19 ) );
+        WelcomeDashboard dashboard;
+        prepare( dashboard, StarToday );
+
+        THEN( "the Dashboard does not ask yet" )
+        {
+            CHECK_FALSE( asksForStar( dashboard ) );
+        }
+
+        WHEN( "the application starts once more" )
+        {
+            StarRequest::countApplicationStart( StarToday );
+            dashboard.refresh();
+
+            THEN( "it asks" )
+            {
+                CHECK( asksForStar( dashboard ) );
+            }
+        }
+    }
+
+    GIVEN( "both thresholds reached" )
+    {
+        const StoredStarRequestUse stored( starUse( 14, 20 ) );
+
+        WHEN( "Dashboards are made, refreshed and shown" )
+        {
+            WelcomeDashboard first;
+            prepare( first, StarToday );
+            WelcomeDashboard second;
+            prepare( second, StarToday );
+            first.refresh();
+
+            THEN( "they ask, and count no start: only the application's start counts one" )
+            {
+                CHECK( asksForStar( first ) );
+                CHECK( asksForStar( second ) );
+                CHECK( StoredStarRequestUse::stored().starts == 20 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's star request is one quiet line above the footer, with a link and a "
+          "close button",
+          "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "a Dashboard that asks for a star" )
+    {
+        Theme::apply( Theme::LightKey );
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        WelcomeDashboard dashboard;
+        dashboard.resize( 1200, 900 );
+        prepare( dashboard, StarToday );
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+        QTest::qWait( 20 );
+
+        REQUIRE( asksForStar( dashboard ) );
+        auto* text = starRequestText( dashboard );
+        auto* close = starRequestClose( dashboard );
+        REQUIRE( text != nullptr );
+        REQUIRE( close != nullptr );
+        auto* footer = footerLinks( dashboard );
+        REQUIRE( footer != nullptr );
+
+        THEN( "it says so in one line that links to the repository" )
+        {
+            CHECK( plainTextOf( *text )
+                   == QStringLiteral( "Find LogSquirl useful? Leave a star on GitHub." ) );
+            CHECK( linksOf( *text ).values()
+                   == QStringList{ QString( logsquirl::versioncheck::ProjectPageUrl ) } );
+            CHECK_FALSE( text->wordWrap() );
+            CHECK_FALSE( text->openExternalLinks() );
+        }
+
+        THEN( "it sits directly above the footer's links" )
+        {
+            const auto* line = starRequest( dashboard );
+            const auto lineBottom = line->mapTo( &dashboard, QPoint{} ).y() + line->height();
+            const auto footerTop = footer->mapTo( &dashboard, QPoint{} ).y();
+            CHECK( lineBottom <= footerTop );
+            CHECK( footerTop - lineBottom <= 12 );
+        }
+
+        THEN( "it is drawn in the secondary text color and the application font" )
+        {
+            CHECK( text->property( "secondaryText" ).toBool() );
+            const auto secondary = Theme::active().color( ColorToken::SecondaryText );
+            const auto colors = linkColorsOf( *text );
+            REQUIRE( colors.size() == 1 );
+            CHECK( colors.front() == secondary.name() );
+            CHECK( text->font().pointSizeF() >= QApplication::font().pointSizeF() );
+        }
+
+        THEN( "its close button is flat, shows the Theme's close icon and says what it does" )
+        {
+            CHECK( close->autoRaise() );
+            CHECK_FALSE( close->icon().isNull() );
+            CHECK( close->toolTip() == QStringLiteral( "Dismiss" ) );
+            CHECK( close->accessibleName() == QStringLiteral( "Dismiss" ) );
+            CHECK( close->isVisible() );
+        }
+
+        WHEN( "the link is clicked" )
+        {
+            DashboardWebPages pages;
+            Q_EMIT text->linkActivated( linksOf( *text ).values().value( 0 ) );
+            QCoreApplication::processEvents();
+
+            THEN( "the repository opens and the line is gone for good" )
+            {
+                CHECK( pages.opened
+                       == QList<QUrl>{ QUrl( logsquirl::versioncheck::ProjectPageUrl ) } );
+                CHECK_FALSE( asksForStar( dashboard ) );
+                CHECK( StoredStarRequestUse::stored().dismissed );
+
+                dashboard.refresh();
+                CHECK_FALSE( asksForStar( dashboard ) );
+                StarRequest::countApplicationStart( StarToday.addDays( 1 ) );
+                WelcomeDashboard later;
+                prepare( later, StarToday.addDays( 100 ) );
+                CHECK_FALSE( asksForStar( later ) );
+                CHECK( StoredStarRequestUse::stored().dismissed );
+            }
+        }
+
+        WHEN( "the close button is clicked" )
+        {
+            DashboardWebPages pages;
+            close->click();
+            QCoreApplication::processEvents();
+
+            THEN( "the line is gone for good, and nothing opens" )
+            {
+                CHECK( pages.opened.isEmpty() );
+                CHECK_FALSE( asksForStar( dashboard ) );
+                CHECK( StoredStarRequestUse::stored().dismissed );
+
+                StarRequest::countApplicationStart( StarToday.addDays( 1 ) );
+                WelcomeDashboard later;
+                prepare( later, StarToday.addDays( 100 ) );
+                CHECK_FALSE( asksForStar( later ) );
+            }
+        }
+
+        WHEN( "the Theme changes" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "the link takes the new secondary text color" )
+            {
+                const auto colors = linkColorsOf( *text );
+                REQUIRE( colors.size() == 1 );
+                CHECK( colors.front()
+                       == Theme::active().color( ColorToken::SecondaryText ).name() );
+                CHECK_FALSE( close->icon().isNull() );
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "A star request dismissed in one window is gone from every window's Dashboard",
+          "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "two windows' Dashboards that ask for a star" )
+    {
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        WelcomeDashboard first;
+        prepare( first, StarToday );
+        WelcomeDashboard second;
+        prepare( second, StarToday );
+        REQUIRE( asksForStar( first ) );
+        REQUIRE( asksForStar( second ) );
+
+        WHEN( "the line is closed in the first" )
+        {
+            REQUIRE( starRequestClose( first ) != nullptr );
+            starRequestClose( first )->click();
+
+            THEN( "the second shows it no more either, without being refreshed" )
+            {
+                CHECK_FALSE( asksForStar( first ) );
+                CHECK_FALSE( asksForStar( second ) );
+            }
+        }
+
+        WHEN( "the link is followed in the second" )
+        {
+            DashboardWebPages pages;
+            auto* text = starRequestText( second );
+            REQUIRE( text != nullptr );
+            Q_EMIT text->linkActivated( linksOf( *text ).values().value( 0 ) );
+
+            THEN( "the first shows it no more either" )
+            {
+                CHECK_FALSE( asksForStar( second ) );
+                CHECK_FALSE( asksForStar( first ) );
+            }
+        }
+
+        WHEN( "one of them is destroyed and the other dismisses" )
+        {
+            auto third = std::make_unique<WelcomeDashboard>();
+            prepare( *third, StarToday );
+            third.reset();
+            starRequestClose( first )->click();
+
+            THEN( "the other hides its line, and nothing touches the destroyed one" )
+            {
+                CHECK_FALSE( asksForStar( first ) );
+                CHECK_FALSE( asksForStar( second ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's star request is translated", "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "a translation of the Dashboard and a Dashboard that asks for a star" )
+    {
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        MarkingDashboardTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        WHEN( "a Dashboard is made" )
+        {
+            WelcomeDashboard dashboard;
+            prepare( dashboard, StarToday );
+            auto* text = starRequestText( dashboard );
+            auto* close = starRequestClose( dashboard );
+            REQUIRE( text != nullptr );
+            REQUIRE( close != nullptr );
+
+            THEN( "its line and its close button are shown translated" )
+            {
+                CHECK( plainTextOf( *text )
+                       == QStringLiteral( "[Find LogSquirl useful? Leave a star on GitHub.]" ) );
+                CHECK( close->toolTip() == QStringLiteral( "[Dismiss]" ) );
+                CHECK( close->accessibleName() == QStringLiteral( "[Dismiss]" ) );
+            }
+        }
+
+        QCoreApplication::removeTranslator( &translator );
+    }
+}
+
+// The Dashboard follows a language change, without a restart (#935).
+
+namespace {
+
+/// The Dashboard shows no recent files and no favorites for its lifetime.
+class EmptyDashboardLists {
+public:
+    EmptyDashboardLists()
+        : storedRecent_( RecentFiles::getSynced().recentFiles() )
+    {
+        for ( const auto& favorite : FavoriteFiles::getSynced().favorites() ) {
+            storedFavorites_.append( favorite.fullPath() );
+        }
+        set( {}, {} );
+    }
+    ~EmptyDashboardLists()
+    {
+        set( storedRecent_, storedFavorites_ );
+    }
+    EmptyDashboardLists( const EmptyDashboardLists& ) = delete;
+    EmptyDashboardLists& operator=( const EmptyDashboardLists& ) = delete;
+    EmptyDashboardLists( EmptyDashboardLists&& ) = delete;
+    EmptyDashboardLists& operator=( EmptyDashboardLists&& ) = delete;
+
+private:
+    static void set( const QStringList& recent, const QStringList& favorites )
+    {
+        auto& recentFiles = RecentFiles::getSynced();
+        recentFiles.removeAll();
+        for ( auto file = recent.crbegin(); file != recent.crend(); ++file ) {
+            recentFiles.addRecent( *file );
+        }
+        recentFiles.save();
+
+        auto& favoriteFiles = FavoriteFiles::getSynced();
+        for ( const auto& favorite : favoriteFiles.favorites() ) {
+            favoriteFiles.remove( favorite.fullPath() );
+        }
+        for ( const auto& favorite : favorites ) {
+            favoriteFiles.add( favorite );
+        }
+        favoriteFiles.save();
+    }
+
+    QStringList storedRecent_;
+    QStringList storedFavorites_;
+};
+
+/// The language changes as the application changes it: the translators
+/// change and every widget gets a LanguageChange event.
+void changeLanguage()
+{
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+    // Replaced entries are deleted later.
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+}
+
+/// The texts of a card's entries below its title.
+QStringList entryTextsOf( const QFrame& card )
+{
+    QStringList result;
+    for ( const auto* label : card.findChildren<QLabel*>() ) {
+        if ( label->objectName() != QStringLiteral( "dashboardCardTitle" ) ) {
+            result.append( label->text() );
+        }
+    }
+    return result;
+}
+
+/// Every text shown on a Dashboard with empty lists that asks for a star,
+/// written with mark, which leaves a text as it is or marks it translated.
+void checkDashboardTexts( WelcomeDashboard& dashboard,
+                          const std::function<QString( const QString& )>& mark )
+{
+    const auto found = cards( dashboard );
+    REQUIRE( found.size() == 3 );
+    CHECK( cardTitle( found[ 0 ] )->text() == mark( QStringLiteral( "Recent Files" ) ) );
+    CHECK( cardTitle( found[ 1 ] )->text() == mark( QStringLiteral( "Favorites" ) ) );
+    CHECK( cardTitle( found[ 2 ] )->text() == mark( QStringLiteral( "Plugins" ) ) );
+    CHECK( entryTextsOf( *found[ 0 ] )
+           == QStringList{ mark( QStringLiteral( "No recent files" ) ) } );
+    CHECK( entryTextsOf( *found[ 1 ] ) == QStringList{ mark( QStringLiteral( "No favorites" ) ) } );
+    CHECK( entryTextsOf( *found[ 2 ] )
+           == QStringList{ mark( QStringLiteral( "No plugins available" ) ) } );
+
+    QStringList buttons;
+    for ( const auto* button : dashboard.findChildren<QPushButton*>() ) {
+        buttons.append( button->text() );
+    }
+    buttons.sort();
+    QStringList expectedButtons{ mark( QStringLiteral( "Load Session" ) ),
+                                 mark( QStringLiteral( "Open File" ) ) };
+    expectedButtons.sort();
+    CHECK( buttons == expectedButtons );
+
+    QStringList labels;
+    for ( const auto* label : dashboard.findChildren<QLabel*>() ) {
+        labels.append( label->text() );
+    }
+    CHECK( labels.contains( mark( QStringLiteral( "Drop log files here to open them" ) ) ) );
+
+    auto* footer = footerLinks( dashboard );
+    REQUIRE( footer != nullptr );
+    CHECK( plainTextOf( *footer )
+           == mark( QStringLiteral( "LogSquirl is open source" ) )
+                  + QStringLiteral( " · GitHub · " ) + mark( QStringLiteral( "Report an Issue" ) )
+                  + QStringLiteral( " · " ) + mark( QStringLiteral( "Documentation" ) ) );
+    // The links keep their targets and their color.
+    const auto links = linksOf( *footer );
+    CHECK( links.value( mark( QStringLiteral( "Report an Issue" ) ) )
+           == QStringLiteral( "logsquirl:report-issue" ) );
+    CHECK( links.value( mark( QStringLiteral( "Documentation" ) ) )
+           == QStringLiteral( "logsquirl:documentation" ) );
+    const auto secondary = Theme::active().color( ColorToken::SecondaryText ).name();
+    CHECK( linkColorsOf( *footer ) == QStringList{ secondary, secondary, secondary } );
+
+    REQUIRE( asksForStar( dashboard ) );
+    auto* text = starRequestText( dashboard );
+    auto* close = starRequestClose( dashboard );
+    REQUIRE( text != nullptr );
+    REQUIRE( close != nullptr );
+    CHECK( plainTextOf( *text )
+           == mark( QStringLiteral( "Find LogSquirl useful? Leave a star on GitHub." ) ) );
+    CHECK( linksOf( *text ).values()
+           == QStringList{ QString( logsquirl::versioncheck::ProjectPageUrl ) } );
+    CHECK( linkColorsOf( *text ) == QStringList{ secondary } );
+    CHECK( close->toolTip() == mark( QStringLiteral( "Dismiss" ) ) );
+    CHECK( close->accessibleName() == mark( QStringLiteral( "Dismiss" ) ) );
+}
+
+} // namespace
+
+SCENARIO( "The Dashboard follows a language change", "[ui][dashboard][starrequest]" )
+{
+    GIVEN( "a Dashboard shown in English that asks for a star" )
+    {
+        Theme::apply( Theme::DarkKey );
+        const EmptyDashboardLists lists;
+        const StoredStarRequestUse stored( starUse( 20, 25 ) );
+        WelcomeDashboard dashboard;
+        dashboard.resize( 1200, 900 );
+        prepare( dashboard, StarToday );
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+
+        const auto english = []( const QString& text ) { return text; };
+        const auto translated = []( const QString& text ) { return u'[' + text + u']'; };
+        checkDashboardTexts( dashboard, english );
+
+        WHEN( "the language changes" )
+        {
+            MarkingDashboardTranslator translator;
+            REQUIRE( QCoreApplication::installTranslator( &translator ) );
+            changeLanguage();
+
+            THEN( "every text of the Dashboard is in the new language, the footer and the star "
+                  "request included" )
+            {
+                checkDashboardTexts( dashboard, translated );
+            }
+
+            AND_WHEN( "the language changes back" )
+            {
+                QCoreApplication::removeTranslator( &translator );
+                changeLanguage();
+
+                THEN( "every text of the Dashboard is in English again" )
+                {
+                    checkDashboardTexts( dashboard, english );
+                }
+            }
+
+            QCoreApplication::removeTranslator( &translator );
+            changeLanguage();
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+namespace {
+
+/// The Dashboard's line of shortcut hints.
+QLabel* shortcutHints( const WelcomeDashboard& dashboard )
+{
+    return dashboard.findChild<QLabel*>( QStringLiteral( "dashboardShortcutHints" ) );
+}
+
+/// What the line of hints shows for a key and the name of its command.
+QString hint( const QString& key, const QString& name )
+{
+    return QKeySequence( key ).toString( QKeySequence::NativeText ) + u' ' + name;
+}
+
+} // namespace
+
+// The line of shortcut hints names the commands as their menu entries and
+// shows the keys they have now, in the platform's notation (#936).
+SCENARIO( "The Dashboard's shortcut hints show the actions' names and keys", "[ui][dashboard]" )
+{
+    GIVEN( "a Dashboard given four actions, one of them without a key" )
+    {
+        Theme::apply( Theme::LightKey );
+        QAction open( QStringLiteral( "&Open..." ) );
+        open.setShortcuts( { QKeySequence( QStringLiteral( "Ctrl+O" ) ),
+                             QKeySequence( QStringLiteral( "Ctrl+Alt+O" ) ) } );
+        // A mnemonic written after the name, as the Chinese entries do.
+        QAction close( QStringLiteral( "关闭(&C)" ) );
+        close.setShortcut( QKeySequence( QStringLiteral( "Ctrl+W" ) ) );
+        QAction find( QStringLiteral( "&Find…" ) );
+        QAction reload( QStringLiteral( "Save && &Reload" ) );
+        reload.setShortcut( QKeySequence( QStringLiteral( "F5" ) ) );
+
+        WelcomeDashboard dashboard;
+        dashboard.setShortcutHints( { &open, &close, &find, &reload } );
+        dashboard.resize( 1200, 900 );
+        dashboard.refresh();
+        dashboard.show();
+        REQUIRE( QTest::qWaitForWindowExposed( &dashboard ) );
+        auto* line = shortcutHints( dashboard );
+        REQUIRE( line != nullptr );
+
+        const auto separator = QStringLiteral( "  |  " );
+
+        THEN( "each command with a key shows its first key and its menu name, without mnemonic "
+              "and dots" )
+        {
+            CHECK( line->isVisible() );
+            CHECK(
+                line->text()
+                == QStringList{ hint( QStringLiteral( "Ctrl+O" ), QStringLiteral( "Open" ) ),
+                                hint( QStringLiteral( "Ctrl+W" ), QStringLiteral( "关闭" ) ),
+                                hint( QStringLiteral( "F5" ), QStringLiteral( "Save & Reload" ) ) }
+                       .join( separator ) );
+        }
+
+        WHEN( "a command gets a key, another loses it and a third is renamed" )
+        {
+            find.setShortcut( QKeySequence( QStringLiteral( "Ctrl+Shift+F" ) ) );
+            close.setShortcuts( QList<QKeySequence>{} );
+            open.setText( QStringLiteral( "&Open File..." ) );
+
+            THEN( "the line follows" )
+            {
+                CHECK( line->text()
+                       == QStringList{ hint( QStringLiteral( "Ctrl+O" ),
+                                             QStringLiteral( "Open File" ) ),
+                                       hint( QStringLiteral( "Ctrl+Shift+F" ),
+                                             QStringLiteral( "Find" ) ),
+                                       hint( QStringLiteral( "F5" ),
+                                             QStringLiteral( "Save & Reload" ) ) }
+                              .join( separator ) );
+            }
+        }
+
+        WHEN( "no command has a key" )
+        {
+            for ( auto* action : { &open, &close, &find, &reload } ) {
+                action->setShortcuts( QList<QKeySequence>{} );
+            }
+
+            THEN( "the line is hidden" )
+            {
+                CHECK( line->text().isEmpty() );
+                CHECK_FALSE( line->isVisible() );
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+#include "welcomedashboard_layout_test.moc"

@@ -22,12 +22,17 @@
 #include "displayfilepath.h"
 #include "favoritefiles.h"
 #include "logsquirl_version.h"
+#include "menuentryname.h"
 #include "plaintext.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "recentfiles.h"
+#include "releasepages.h"
+#include "starrequest.h"
 #include "theme.h"
 
+#include <QAction>
+#include <QDesktopServices>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
@@ -35,11 +40,18 @@
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMimeData>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QStringList>
+#include <QToolButton>
+#include <QUrl>
 #include <QVBoxLayout>
+
+#include <utility>
 
 #include <QPixmap>
 
@@ -61,6 +73,36 @@ const QString kLinkButtonStyle
                       " text-align: left; padding: 3px 0px; }"
                       "QPushButton:hover { text-decoration: underline; }" );
 
+/// The targets of the footer's links that the main window acts on: they are
+/// handled in code, never opened as URLs.
+const QString kReportIssueLink = QStringLiteral( "logsquirl:report-issue" );
+const QString kDocumentationLink = QStringLiteral( "logsquirl:documentation" );
+
+/// Opens the repository on GitHub if target is the link to it.
+void openIfProjectPage( const QString& target )
+{
+    if ( target == QLatin1String( logsquirl::versioncheck::ProjectPageUrl ) ) {
+        QDesktopServices::openUrl( QUrl( target ) );
+    }
+}
+
+/// The image a Theme's CloseIcon Token names: the path in its "url(...)".
+QString closeIconPath( const Theme& theme )
+{
+    auto value = theme.value( StyleToken::CloseIcon ).trimmed();
+    if ( value.startsWith( QStringLiteral( "url(" ) ) && value.endsWith( u')' ) ) {
+        value = value.mid( 4, value.size() - 5 ).trimmed();
+    }
+    return value;
+}
+
+/// A rich-text link drawn in color, not in the palette's link color.
+QString coloredLink( const QString& target, const QString& color, const QString& text )
+{
+    return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
+        .arg( target, color, text.toHtmlEscaped() );
+}
+
 /// Gives label the Theme's secondary text color.
 void markAsSecondaryText( QLabel* label )
 {
@@ -69,9 +111,9 @@ void markAsSecondaryText( QLabel* label )
 
 /// A card: a titled frame in the Theme's surface color, styled by the
 /// Theme's stylesheet (QFrame#dashboardCard). Its entries go into the
-/// returned layout, below the title; the title label is added to titles.
-QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column,
-                      QList<QLabel*>& titles )
+/// returned layout, below the title; the title label, still without text,
+/// is added to titles.
+QVBoxLayout* addCard( QWidget* parent, QVBoxLayout* column, QList<QLabel*>& titles )
 {
     auto* card = new QFrame( parent );
     card->setObjectName( QStringLiteral( "dashboardCard" ) );
@@ -80,7 +122,7 @@ QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column
     cardLayout->setContentsMargins( 16, 12, 16, 12 );
     cardLayout->setSpacing( 6 );
 
-    auto* heading = new QLabel( title, card );
+    auto* heading = new QLabel( card );
     heading->setObjectName( QStringLiteral( "dashboardCardTitle" ) );
     cardLayout->addWidget( heading );
     titles.push_back( heading );
@@ -130,8 +172,13 @@ WelcomeDashboard::WelcomeDashboard( QWidget* parent )
 {
     setAcceptDrops( true );
     buildUi();
-    // The plugin status colors come from Tokens.
-    Theme::whenApplied( this, [ this ] { refresh(); } );
+    // The plugin status colors, the footer's link color and the star
+    // request's link color and close icon come from Tokens.
+    Theme::whenApplied( this, [ this ] {
+        refresh();
+        updateFooterLinks();
+        updateStarRequest();
+    } );
 }
 
 void WelcomeDashboard::buildUi()
@@ -191,50 +238,223 @@ void WelcomeDashboard::buildUi()
     actionsLayout->setAlignment( Qt::AlignCenter );
     actionsLayout->setSpacing( 12 );
 
-    auto* openBtn = new QPushButton( tr( "Open File" ), columnWidget );
-    openBtn->setMinimumWidth( 110 );
+    openFileButton_ = new QPushButton( columnWidget );
+    openFileButton_->setMinimumWidth( 110 );
     // Drawn in the accent color by the Theme's stylesheet.
-    openBtn->setProperty( "primaryAction", true );
-    connect( openBtn, &QPushButton::clicked, this, &WelcomeDashboard::openFileDialogRequested );
-    actionsLayout->addWidget( openBtn );
+    openFileButton_->setProperty( "primaryAction", true );
+    connect( openFileButton_, &QPushButton::clicked, this,
+             &WelcomeDashboard::openFileDialogRequested );
+    actionsLayout->addWidget( openFileButton_ );
 
-    auto* sessionBtn = new QPushButton( tr( "Load Session" ), columnWidget );
-    sessionBtn->setMinimumWidth( 110 );
-    connect( sessionBtn, &QPushButton::clicked, this, &WelcomeDashboard::loadSessionRequested );
-    actionsLayout->addWidget( sessionBtn );
+    loadSessionButton_ = new QPushButton( columnWidget );
+    loadSessionButton_->setMinimumWidth( 110 );
+    connect( loadSessionButton_, &QPushButton::clicked, this,
+             &WelcomeDashboard::loadSessionRequested );
+    actionsLayout->addWidget( loadSessionButton_ );
 
     column->addLayout( actionsLayout );
     column->addSpacing( 6 );
 
     // ---- Cards: Recent Files, Favorites, Plugins ----
-    recentFilesLayout_ = addCard( tr( "Recent Files" ), columnWidget, column, titleLabels_ );
-    favoritesLayout_ = addCard( tr( "Favorites" ), columnWidget, column, titleLabels_ );
-    pluginStatusLayout_ = addCard( tr( "Plugins" ), columnWidget, column, titleLabels_ );
+    // Their titles are written by retranslate().
+    recentFilesLayout_ = addCard( columnWidget, column, titleLabels_ );
+    recentFilesTitle_ = titleLabels_.back();
+    favoritesLayout_ = addCard( columnWidget, column, titleLabels_ );
+    favoritesTitle_ = titleLabels_.back();
+    pluginStatusLayout_ = addCard( columnWidget, column, titleLabels_ );
+    pluginsTitle_ = titleLabels_.back();
     pluginStatusLayout_->setSpacing( 2 );
 
     column->addSpacing( 6 );
 
-    // ---- Keyboard shortcut hints ----
-    auto* shortcutsLabel = new QLabel(
-        QStringLiteral( "Ctrl+O Open File  |  Ctrl+W Close Tab  |  Ctrl+F Find  |  F5 Reload" ),
-        columnWidget );
-    markAsSecondaryText( shortcutsLabel );
-    shortcutsLabel->setAlignment( Qt::AlignCenter );
-    shortcutsLabel->setWordWrap( true );
-    column->addWidget( shortcutsLabel );
+    // ---- Keyboard shortcut hints: written from the window's actions ----
+    shortcutHints_ = new QLabel( columnWidget );
+    shortcutHints_->setObjectName( QStringLiteral( "dashboardShortcutHints" ) );
+    markAsSecondaryText( shortcutHints_ );
+    shortcutHints_->setTextFormat( Qt::PlainText );
+    shortcutHints_->setAlignment( Qt::AlignCenter );
+    shortcutHints_->setWordWrap( true );
+    shortcutHints_->hide();
+    column->addWidget( shortcutHints_ );
 
     // ---- Drop hint ----
-    auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), columnWidget );
-    markAsSecondaryText( dropHint );
-    auto hintFont = dropHint->font();
+    dropHint_ = new QLabel( columnWidget );
+    markAsSecondaryText( dropHint_ );
+    auto hintFont = dropHint_->font();
     hintFont.setItalic( true );
-    dropHint->setFont( hintFont );
-    dropHint->setAlignment( Qt::AlignCenter );
-    column->addWidget( dropHint );
+    dropHint_->setFont( hintFont );
+    dropHint_->setAlignment( Qt::AlignCenter );
+    column->addWidget( dropHint_ );
 
     column->addStretch();
 
+    // ---- Footer: at the bottom edge, below the scrolled content ----
+    auto* footer = new QWidget( this );
+    footer->setObjectName( QStringLiteral( "dashboardFooter" ) );
+    footerLayout_ = new QVBoxLayout( footer );
+    footerLayout_->setContentsMargins( 24, 6, 24, 10 );
+    footerLayout_->setSpacing( 4 );
+
+    footerLinks_ = new QLabel( footer );
+    footerLinks_->setObjectName( QStringLiteral( "dashboardFooterLinks" ) );
+    markAsSecondaryText( footerLinks_ );
+    footerLinks_->setAlignment( Qt::AlignCenter );
+    footerLinks_->setTextFormat( Qt::RichText );
+    footerLinks_->setTextInteractionFlags( Qt::LinksAccessibleByMouse
+                                           | Qt::LinksAccessibleByKeyboard );
+    // Handled here, so Report an Issue and Documentation reach the main window.
+    connect( footerLinks_, &QLabel::linkActivated, this, &WelcomeDashboard::activateFooterLink );
+    footerLayout_->addWidget( footerLinks_ );
+    outerLayout->addWidget( footer );
+    buildStarRequest();
+
+    retranslate();
     updateTitleFonts();
+}
+
+void WelcomeDashboard::retranslate()
+{
+    openFileButton_->setText( tr( "Open File" ) );
+    loadSessionButton_->setText( tr( "Load Session" ) );
+    recentFilesTitle_->setText( tr( "Recent Files" ) );
+    favoritesTitle_->setText( tr( "Favorites" ) );
+    pluginsTitle_->setText( tr( "Plugins" ) );
+    dropHint_->setText( tr( "Drop log files here to open them" ) );
+    // The window retranslates the actions, which rewrites the line; the
+    // names of keys are written in the new language here too.
+    updateShortcutHints();
+    // The rich-text lines are written anew, in the Theme's colors.
+    updateFooterLinks();
+    updateStarRequest();
+}
+
+void WelcomeDashboard::updateFooterLinks()
+{
+    // A link is drawn in the link color of the palette unless it names its
+    // own, so each names the secondary text color of the rest of the line.
+    const auto color = Theme::active().color( ColorToken::SecondaryText ).name( QColor::HexRgb );
+    const auto link = [ &color ]( const QString& target, const QString& text ) {
+        return coloredLink( target, color, text );
+    };
+    const QStringList parts = {
+        tr( "LogSquirl is open source" ).toHtmlEscaped(),
+        link( QString( logsquirl::versioncheck::ProjectPageUrl ), QStringLiteral( "GitHub" ) ),
+        link( kReportIssueLink, tr( "Report an Issue" ) ),
+        link( kDocumentationLink, tr( "Documentation" ) ),
+    };
+    footerLinks_->setText( parts.join( QStringLiteral( " \u00B7 " ) ) );
+}
+
+void WelcomeDashboard::activateFooterLink( const QString& target )
+{
+    if ( target == kReportIssueLink ) {
+        Q_EMIT reportIssueRequested();
+    }
+    else if ( target == kDocumentationLink ) {
+        Q_EMIT documentationRequested();
+    }
+    else {
+        openIfProjectPage( target );
+    }
+}
+
+void WelcomeDashboard::buildStarRequest()
+{
+    auto* footer = footerLayout_->parentWidget();
+    starRequest_ = new QWidget( footer );
+    starRequest_->setObjectName( QStringLiteral( "dashboardStarRequest" ) );
+    auto* line = new QHBoxLayout( starRequest_ );
+    line->setContentsMargins( 0, 0, 0, 0 );
+    line->setSpacing( 6 );
+    line->addStretch();
+
+    starRequestText_ = new QLabel( starRequest_ );
+    starRequestText_->setObjectName( QStringLiteral( "dashboardStarRequestText" ) );
+    markAsSecondaryText( starRequestText_ );
+    starRequestText_->setAlignment( Qt::AlignCenter );
+    starRequestText_->setTextFormat( Qt::RichText );
+    starRequestText_->setTextInteractionFlags( Qt::LinksAccessibleByMouse
+                                               | Qt::LinksAccessibleByKeyboard );
+    connect( starRequestText_, &QLabel::linkActivated, this, [ this ]( const QString& target ) {
+        openIfProjectPage( target );
+        dismissStarRequest();
+    } );
+    line->addWidget( starRequestText_ );
+
+    starRequestClose_ = new QToolButton( starRequest_ );
+    starRequestClose_->setObjectName( QStringLiteral( "dashboardStarRequestClose" ) );
+    starRequestClose_->setAutoRaise( true );
+    starRequestClose_->setCursor( Qt::PointingHandCursor );
+    starRequestClose_->setIconSize( QSize( 10, 10 ) );
+    connect( starRequestClose_, &QToolButton::clicked, this,
+             &WelcomeDashboard::dismissStarRequest );
+    line->addWidget( starRequestClose_ );
+    line->addStretch();
+
+    starRequest_->hide();
+    footerLayout_->insertWidget( 0, starRequest_ );
+    // Dismissed in any window, the line goes from every Dashboard at once.
+    StarRequest::whenDismissed( starRequest_, [ this ] { starRequest_->hide(); } );
+}
+
+void WelcomeDashboard::updateStarRequest()
+{
+    const auto& theme = Theme::active();
+    const auto color = theme.color( ColorToken::SecondaryText ).name( QColor::HexRgb );
+    starRequestText_->setText(
+        coloredLink( QString( logsquirl::versioncheck::ProjectPageUrl ), color,
+                     tr( "Find LogSquirl useful? Leave a star on GitHub." ) ) );
+    starRequestClose_->setIcon( QIcon( closeIconPath( theme ) ) );
+    const auto dismiss = tr( "Dismiss" );
+    starRequestClose_->setToolTip( dismiss );
+    starRequestClose_->setAccessibleName( dismiss );
+}
+
+void WelcomeDashboard::refreshStarRequest()
+{
+    starRequest_->setVisible( StarRequest::dueOn( today_() ) );
+}
+
+void WelcomeDashboard::dismissStarRequest()
+{
+    // Hides the line here and in every other Dashboard.
+    StarRequest::dismissForGood();
+}
+
+void WelcomeDashboard::setToday( std::function<QDate()> today )
+{
+    today_ = std::move( today );
+}
+
+void WelcomeDashboard::setShortcutHints( const QList<QAction*>& actions )
+{
+    for ( const auto& action : std::as_const( shortcutHintActions_ ) ) {
+        if ( action ) {
+            disconnect( action, nullptr, this, nullptr );
+        }
+    }
+    shortcutHintActions_.clear();
+    for ( auto* action : actions ) {
+        shortcutHintActions_.append( action );
+        // Emitted when its keys or its text change, by Preferences or by a
+        // change of language.
+        connect( action, &QAction::changed, this, &WelcomeDashboard::updateShortcutHints );
+    }
+    updateShortcutHints();
+}
+
+void WelcomeDashboard::updateShortcutHints()
+{
+    QStringList hints;
+    for ( const auto& action : std::as_const( shortcutHintActions_ ) ) {
+        if ( !action || action->shortcut().isEmpty() ) {
+            continue;
+        }
+        hints.append( action->shortcut().toString( QKeySequence::NativeText ) + u' '
+                      + logsquirl::menuentry::commandName( action->text() ) );
+    }
+    shortcutHints_->setText( hints.join( QStringLiteral( "  |  " ) ) );
+    shortcutHints_->setVisible( !hints.isEmpty() );
 }
 
 void WelcomeDashboard::updateTitleFonts()
@@ -259,6 +479,14 @@ void WelcomeDashboard::changeEvent( QEvent* event )
     if ( event->type() == QEvent::FontChange ) {
         updateTitleFonts();
     }
+    // Every text follows a changed language (#935); the lists' empty texts
+    // are in the entries written anew.
+    else if ( event->type() == QEvent::LanguageChange ) {
+        retranslate();
+        refreshRecentFiles();
+        refreshFavorites();
+        refreshPluginStatus();
+    }
 }
 
 void WelcomeDashboard::setPlugins( const logsquirl::plugins::PluginCatalog* catalog,
@@ -273,6 +501,7 @@ void WelcomeDashboard::refresh()
     refreshRecentFiles();
     refreshFavorites();
     refreshPluginStatus();
+    refreshStarRequest();
 }
 
 void WelcomeDashboard::refreshRecentFiles()

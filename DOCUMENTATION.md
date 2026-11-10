@@ -115,8 +115,19 @@ catalog replaces the copy it came with.
 When *Show dashboard on startup* is enabled (`Settings->General`, it is by
 default), the first tab is the Dashboard, which cannot be closed. It shows the
 buttons *Open File* and *Load Session*, cards for your recent files, your
-favorites and the status of your plugins, and the hint that log files can be
-dropped on it to open them. Selecting a file in a card opens it.
+favorites and the status of your plugins, a line with the keys of
+`File->Open...`, `File->Close`, `Edit->Find...` and `View->Reload` as the
+Shortcuts list sets them (one without a key is left out), and the hint that
+log files can be dropped on it to open them. Selecting a file in a card opens
+it.
+
+A quiet line at its bottom edge links to the project: *GitHub* opens
+LogSquirl's repository, *Report an Issue* does what `Help->Report Issue...`
+does, and *Documentation* shows this documentation, as
+`Help->Documentation...` does. Once LogSquirl has been used for at least two
+weeks and 20 starts, a line above it asks once for a star on GitHub; following
+its link or closing it with its close button hides it for good, and the dates
+and starts it counts stay in your settings.
 
 ## Exploring log files
 
@@ -1533,8 +1544,12 @@ what the window shows in **View**, settings and dialogs in **Tools**.
 - **Favorites**: `Add to Favorites` and `Remove from Favorites...`, followed by
   the favorite files, which open when chosen.
 - **Sources**: see [Plugins](#plugins).
-- **Help**: `Documentation...` (this guide), `Report Issue...` (opens a bug
-  report on GitHub), `Generate Crash Dump` (after a confirmation, shuts
+- **Help**: `Documentation...` (this guide), `LogSquirl on GitHub` (opens the
+  project's page on GitHub), `What's New in <YY.MM>...`, named with the month
+  of the running version, for example `What's New in 26.12...` (opens that
+  month's release page on the LogSquirl website; a build of your own opens
+  the list of all releases on GitHub), `Report Issue...` (opens a bug report
+  on GitHub), `Generate Crash Dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
   [Crash reporting](#crash-reporting)), `About Qt` and `About`.
 

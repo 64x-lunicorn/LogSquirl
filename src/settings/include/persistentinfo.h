@@ -54,14 +54,17 @@ public:
     static QSettings& getSettings( app_settings );
     static QSettings& getSettings( session_settings );
 
+    /// Migrates the settings of an older version, as each start does once:
+    /// removes the keys an update leaves behind, moves renamed ones and
+    /// stores the current versions of both stores.
+    static void updateSettings( QSettings& appSettings, QSettings& sessionSettings );
+
 private:
     explicit PersistentInfo();
     static PersistentInfo& getInstance();
 
     void PreparePortableSettings( const QString& portableConfigPath );
     void PrepareOsSettings();
-
-    void UpdateSettings();
 
     std::unique_ptr<QSettings> appSettings_;
     std::unique_ptr<QSettings> sessionSettings_;

@@ -31,13 +31,24 @@
 
 namespace menuwording {
 
-/// The text of the entry without its mnemonic marker.
-inline QString withoutMnemonic( QString text )
+/// The text of the entry without its mnemonic marker: a '&' is dropped, but
+/// the second of two. The tests' own reading, written apart from the
+/// application's (menuentryname.h), so the wording tests catch a mistake in
+/// either; the entries checked here are English, with no mnemonic in
+/// parentheses after them.
+inline QString withoutMnemonic( const QString& text )
 {
-    text.replace( QStringLiteral( "&&" ), QStringLiteral( "\x01" ) );
-    text.remove( u'&' );
-    text.replace( u'\x01', u'&' );
-    return text;
+    QString result;
+    bool afterMarker = false;
+    for ( const auto character : text ) {
+        if ( character == u'&' && !afterMarker ) {
+            afterMarker = true;
+            continue;
+        }
+        afterMarker = false;
+        result.append( character );
+    }
+    return result;
 }
 
 /// Whether the title has a mnemonic: a '&' not doubled.
@@ -54,7 +65,8 @@ inline bool hasMnemonic( const QString& title )
     return false;
 }
 
-/// The name the entry gives its action: no mnemonic, no trailing dots.
+/// The name the entry gives its action: no mnemonic, no trailing dots. The
+/// Command Palette and the Dashboard must name it so too (#937).
 inline QString actionName( const QString& text )
 {
     auto name = withoutMnemonic( text );

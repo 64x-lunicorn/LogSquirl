@@ -67,6 +67,7 @@
 #include "highlighterset.h"
 #include "logger.h"
 #include "mainwindow.h"
+#include "starrequest.h"
 #include "tbbworkersjoinedatexit.h"
 #include "theme.h"
 
@@ -331,6 +332,11 @@ int main( int argc, char* argv[] )
         benchmark->start( app );
         return benchmark->end( app.exec() );
     }
+
+    // Once per start of the application, never per window: the Welcome
+    // Dashboard asks for a star after some weeks of use (#934). A Benchmark
+    // Run and a secondary instance handing its files over count nothing.
+    StarRequest::countApplicationStart( QDate::currentDate() );
 
     updateSplash( QObject::tr( "Loading settings..." ) );
 

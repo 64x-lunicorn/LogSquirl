@@ -1,6 +1,8 @@
 add_library(
   logsquirl_version STATIC ${CMAKE_CURRENT_SOURCE_DIR}/include/logsquirl_version.h
                        ${CMAKE_CURRENT_SOURCE_DIR}/src/logsquirl_version.cpp
+                       ${CMAKE_CURRENT_SOURCE_DIR}/include/releasepages.h
+                       ${CMAKE_CURRENT_SOURCE_DIR}/src/releasepages.cpp
 )
 
 target_include_directories(logsquirl_version PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

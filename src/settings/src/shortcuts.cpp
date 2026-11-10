@@ -23,6 +23,7 @@
 #include <QShortcut>
 #include <QWidget>
 
+#include "releasepages.h"
 #include "shortcuts.h"
 
 QStringList getKeyBindings( QKeySequence::StandardKey standardKey )
@@ -346,6 +347,22 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             {
                 QApplication::tr( "Switch to Opened File" ),
                 QStringList{ "Ctrl+Shift+O" },
+            },
+        },
+        {
+            MainWindowProjectPage,
+            {
+                QApplication::tr( "LogSquirl on GitHub" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowWhatsNew,
+            {
+                //: %1 is the version, e.g. 26.12
+                QApplication::tr( "What's New in %1" )
+                    .arg( logsquirl::versioncheck::runningVersionMonth() ),
+                QStringList{},
             },
         },
         {
