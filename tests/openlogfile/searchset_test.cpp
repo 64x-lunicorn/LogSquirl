@@ -155,6 +155,12 @@ SCENARIO( "A Search requested before the first load waits for it", "[openlogfile
             REQUIRE_FALSE( searches.set.hasFirstLoadFinished() );
         }
 
+        THEN( "it is not held, as nothing held the waiting Searches" )
+        {
+            REQUIRE_FALSE( searches.set.isHeld( current ) );
+            REQUIRE_FALSE( searches.set.holdsAny() );
+        }
+
         AND_WHEN( "the first load has finished" )
         {
             searches.set.loadFinished( true, Limits );
@@ -620,6 +626,37 @@ SCENARIO( "A kept Search dropped before the first load is not held on to",
         THEN( "the current Search did not run" )
         {
             REQUIRE( searches.set.current()->requests.empty() );
+        }
+    }
+}
+
+SCENARIO( "A kept Search dropped while it waits for the first load is not waited on",
+          "[openlogfile][searchset]" )
+{
+    Searches searches;
+    std::weak_ptr<FakeSearch> dropped;
+    {
+        const auto kept = searches.set.current();
+        searches.set.startAnother();
+        searches.set.requestKept( kept, pattern( "fizz" ), Limits );
+        dropped = kept;
+    }
+    searches.made.clear();
+
+    THEN( "it is gone" )
+    {
+        REQUIRE( dropped.expired() );
+    }
+
+    WHEN( "the first load has finished" )
+    {
+        searches.set.loadFinished( true, Limits );
+
+        THEN( "nothing holds it, and the current Search did not run" )
+        {
+            REQUIRE( dropped.expired() );
+            REQUIRE( searches.set.current()->requests.empty() );
+            REQUIRE( searches.currentRequests.empty() );
         }
     }
 }
