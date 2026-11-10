@@ -1116,6 +1116,9 @@ void CrawlerWidget::reportChange( Changed change )
     case Changed::ValueNames:
         viewSet_.applyValueNamesChange();
         break;
+    case Changed::PredefinedFilters:
+        // No Log File shows them.
+        break;
     }
 }
 

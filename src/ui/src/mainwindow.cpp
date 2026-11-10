@@ -2048,11 +2048,10 @@ void MainWindow::editHighlighters()
                           &TeamFolder::highlighterGroupRevisions );
     }
 
-    // Reaches every open Log File, in every window, not only the current tab.
-    connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
-        session_.applyChange( Changed::HighlighterSets );
-        updateHighlightersMenu();
-    } );
+    // Reaches every open Log File and every window's Highlighters menu, not
+    // only the current tab.
+    connect( &dialog, &HighlightersDialog::optionsChanged,
+             [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     dialog.exec();
 }
@@ -2061,10 +2060,10 @@ void MainWindow::highlightThis( const QString& selectedText, const QString& logL
 {
     HighlightThisDialog dialog( selectedText, logLine, this );
     // The dialog reads the sets from the settings store, as the Highlighters
-    // dialog does; OK changed them, and every open Log File is recolored.
+    // dialog does; OK changed them, and every open Log File is recolored and
+    // every window's Highlighters menu built again.
     if ( dialog.exec() == QDialog::Accepted ) {
         session_.applyChange( Changed::HighlighterSets );
-        updateHighlightersMenu();
     }
 }
 
@@ -2127,10 +2126,10 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
                           &TeamFolder::filterGroupRevisions );
     }
 
-    // The Predefined Filters are no setting a Log File shows: only the filters
-    // panel lists them.
+    // The Predefined Filters are no setting a Log File shows: only the Filters
+    // panel of every window lists them.
     connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
-             [ this ]() { filtersPanel_.refreshFilters(); } );
+             [ this ]() { session_.applyChange( Changed::PredefinedFilters ); } );
 
     dialog.exec();
 }
@@ -2142,8 +2141,8 @@ void MainWindow::addAsPredefinedFilter( const QString& selectedText )
         return;
     }
     // Saved as the Predefined Filters dialog saves them; only the Filters
-    // panel lists them.
-    filtersPanel_.refreshFilters();
+    // panel of every window lists them.
+    session_.applyChange( Changed::PredefinedFilters );
     if ( dialog.applyNow() ) {
         if ( auto* crawler = currentCrawlerWidget() ) {
             crawler->searchWithPredefinedFilter( dialog.filter() );
@@ -2207,6 +2206,16 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
 void MainWindow::applyValueNamesChange()
 {
     valueNamesPanel_.refresh();
+}
+
+void MainWindow::applyHighlighterSetChange()
+{
+    updateHighlightersMenu();
+}
+
+void MainWindow::applyPredefinedFiltersChange()
+{
+    filtersPanel_.refreshFilters();
 }
 
 // Opens the 'Options' modal dialog box
@@ -2854,20 +2863,18 @@ void MainWindow::importChipmunkFilters()
         highlighterCollection.setHighlighterSets( sets );
         highlighterCollection.save();
         highlighterAdded = true;
-        updateHighlightersMenu();
     }
 
-    // Refresh the filters panel if visible
-    filtersPanel_.refreshFilters();
+    // Every window lists the imported group in its Filters panel and the set
+    // in its Highlighters menu. The set may be active: every open Log File is
+    // painted again with it, not only the one the current tab shows.
+    session_.applyChange( Changed::PredefinedFilters );
+    session_.applyChange( Changed::HighlighterSets );
 
     QMessageBox::information( this, tr( "Import result" ),
                               tr( "Imported %1 filter(s) and %2 highlighter set." )
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
-
-    // The imported Highlighter Set may be active: paint every open Log File
-    // again with it, not only the one the current tab shows.
-    session_.applyChange( Changed::HighlighterSets );
 }
 
 void MainWindow::encodingChanged( QAction* action )

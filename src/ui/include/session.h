@@ -172,6 +172,14 @@ public:
     // show them again (#647).
     virtual void applyValueNamesChange() {}
 
+    // The Highlighter Set Collection changed, in this window or another:
+    // show its sets and which are active again (#942).
+    virtual void applyHighlighterSetChange() {}
+
+    // The Predefined Filters Collection changed, in this window or another:
+    // list them again (#942).
+    virtual void applyPredefinedFiltersChange() {}
+
 protected:
     SessionWindow() = default;
     ~SessionWindow() = default;
@@ -392,11 +400,16 @@ public:
     //
     // Changed::HighlighterSets tells every open Log File that the Highlighter
     // Set Collection changed. Each re-reads the colors of its Color Labels and
-    // repaints; nothing is re-derived and no window is told.
+    // repaints; then every window is told, the writing one included, and
+    // shows the sets again. Nothing is re-derived.
     //
     // Changed::ValueNames tells every open Log File that the Value Names
     // Collection changed. Each view showing Value Names reads its Log Lines
-    // again; nothing is re-derived and no window is told.
+    // again; then every window is told, as for the Highlighter Sets.
+    //
+    // Changed::PredefinedFilters tells every window, the writing one included,
+    // that the Predefined Filters Collection changed, and no Log File: none
+    // shows them.
     void applyChange( Changed change );
 
     // The windows told of a settings change. A window adds itself when it is
@@ -494,6 +507,7 @@ private:
     void applyFontChange();
     void applyHighlighterSetChange();
     void applyValueNamesChange();
+    void applyPredefinedFiltersChange();
 
     // Applies the Policies as applyPolicies() does, and hands every open Log
     // File what changed together with `change`, in one call each -- nothing

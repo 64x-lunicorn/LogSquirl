@@ -406,6 +406,9 @@ void Session::applyChange( Changed change )
     case Changed::ValueNames:
         applyValueNamesChange();
         break;
+    case Changed::PredefinedFilters:
+        applyPredefinedFiltersChange();
+        break;
     }
 }
 
@@ -548,6 +551,12 @@ void Session::applyHighlighterSetChange()
         Q_UNUSED( view );
         openFile.view->applyChange( change );
     }
+
+    // Every window's Highlighters menu shows the sets and which are active,
+    // global for all (#942).
+    for ( auto* window : windows_ ) {
+        window->applyHighlighterSetChange();
+    }
 }
 
 void Session::applyValueNamesChange()
@@ -562,6 +571,14 @@ void Session::applyValueNamesChange()
     // Every window's sidebar shows the groups and checks, global for all.
     for ( auto* window : windows_ ) {
         window->applyValueNamesChange();
+    }
+}
+
+void Session::applyPredefinedFiltersChange()
+{
+    // Only every window's Filters panel lists them (#942).
+    for ( auto* window : windows_ ) {
+        window->applyPredefinedFiltersChange();
     }
 }
 

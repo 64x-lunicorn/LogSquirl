@@ -207,6 +207,14 @@ public:
     // again (#647).
     void applyValueNamesChange() override;
 
+    // A Highlighter Set changed, or which are active: the Highlighters menu
+    // is built again (#942).
+    void applyHighlighterSetChange() override;
+
+    // The Predefined Filters changed: the Filters panel lists them again
+    // (#942).
+    void applyPredefinedFiltersChange() override;
+
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)

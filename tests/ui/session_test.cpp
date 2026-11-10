@@ -266,10 +266,12 @@ SCENARIO( "A change to one Axis reaches every open Log File, and no other Axis i
 
 namespace {
 
-// A window as the Session sees it: it counts the settings changes it is told of,
-// and brings to the front the tabs it has when asked to (#642).
+// A window as the Session sees it: it counts the changes it is told of, and
+// brings to the front the tabs it has when asked to (#642).
 struct CountingWindow final : SessionWindow {
     int settingsChanges = 0;
+    int highlighterSetChanges = 0;
+    int predefinedFiltersChanges = 0;
     // The views of the window's tabs, and those it was asked to bring to the
     // front, in order.
     std::vector<const ViewInterface*> tabs;
@@ -278,6 +280,16 @@ struct CountingWindow final : SessionWindow {
     void applySettingsChange() override
     {
         ++settingsChanges;
+    }
+
+    void applyHighlighterSetChange() override
+    {
+        ++highlighterSetChanges;
+    }
+
+    void applyPredefinedFiltersChange() override
+    {
+        ++predefinedFiltersChanges;
     }
 
     bool showView( const ViewInterface* view ) override
@@ -332,6 +344,76 @@ SCENARIO( "A zoom hands every open Log File the font alone", "[ui][session]" )
     }
 
     session.removeWindow( &window );
+}
+
+SCENARIO( "A changed Highlighter Set or Predefined Filter reaches every window, the writing one "
+          "included",
+          "[ui][session]" )
+{
+    TwoLogFiles files;
+    const auto policies = testSettingsPolicies();
+    const auto catalog = std::make_shared<LogFormatCatalog>();
+    Session session{ policies, catalog };
+    OpenedViews views;
+    // The first window is the one the change was made in; the Session does
+    // not know, nor need to.
+    CountingWindow writing;
+    CountingWindow other;
+    session.addWindow( &writing );
+    session.addWindow( &other );
+
+    session.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+    session.open( files.second.fileName(), RecordingViews::factory( views.built ) );
+    REQUIRE( views.built.size() == 2 );
+
+    WHEN( "the Highlighter Sets changed" )
+    {
+        session.applyChange( Changed::HighlighterSets );
+
+        THEN( "every window is told once, so each builds its Highlighters menu again" )
+        {
+            for ( const auto* window : { &writing, &other } ) {
+                REQUIRE( window->highlighterSetChanges == 1 );
+                REQUIRE( window->predefinedFiltersChanges == 0 );
+                REQUIRE( window->settingsChanges == 0 );
+            }
+        }
+
+        THEN( "every open Log File is recolored" )
+        {
+            ViewChange expected;
+            expected.highlighterSets = true;
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().size() == 1 );
+                REQUIRE( opened->changes().front() == expected );
+            }
+        }
+    }
+
+    WHEN( "the Predefined Filters changed" )
+    {
+        session.applyChange( Changed::PredefinedFilters );
+
+        THEN( "every window is told once, so each lists them again in its Filters panel" )
+        {
+            for ( const auto* window : { &writing, &other } ) {
+                REQUIRE( window->predefinedFiltersChanges == 1 );
+                REQUIRE( window->highlighterSetChanges == 0 );
+                REQUIRE( window->settingsChanges == 0 );
+            }
+        }
+
+        THEN( "no Log File is told: none shows the Predefined Filters, and nothing is re-derived" )
+        {
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().empty() );
+            }
+            REQUIRE( catalog->formatCount() == 0 );
+        }
+    }
+
+    session.removeWindow( &other );
+    session.removeWindow( &writing );
 }
 
 SCENARIO( "Restoring a Session reads the settings store once, at startup, not per Log File",
