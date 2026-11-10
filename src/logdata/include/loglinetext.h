@@ -161,13 +161,13 @@ ReadLogLine readLogLine( std::size_t request, std::string_view bytesRead, qint64
 // request, the Log Line readLines( onLine ) calls onLine( const ReadLogLine& )
 // for, in any order, made a Line by toLine( QString&& decodedLine, bool
 // hideAnsiColorSequences ) -- logLineText(), ansiColoredLogLineText() or one
-// built on them. Each Log Line is decoded on its own, as when it is read
-// alone: a character cut short at the end of one does not reach the next, and
-// a byte order mark starting any of them is dropped. A Log Line not called
-// for reads as LinesNotReadWarning; when memory runs out, every Log Line not
-// made yet reads as NotEnoughMemoryWarning.
+// built on them. Each Log Line is decoded on its own with textDecoder, as when
+// it is read alone: a character cut short at the end of one does not reach the
+// next, and a byte order mark starting any of them is dropped. A Log Line not
+// called for reads as LinesNotReadWarning; when memory runs out, every Log
+// Line not made yet reads as NotEnoughMemoryWarning.
 template <typename Line, typename ToLine, typename ReadLines>
-logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::size_t count,
+logsquirl::vector<Line> decodeReadLogLines( const TextDecoder& textDecoder, std::size_t count,
                                             ReadLines&& readLines, ToLine toLine )
 {
     logsquirl::vector<Line> text( count );
@@ -176,7 +176,6 @@ logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::s
     try {
         // One decoder for the whole read: making one costs a converter, dear
         // for the legacy Encodings. Its state is reset for every Log Line.
-        const auto textDecoder = codec.makeDecoder();
         readLines( [ & ]( const ReadLogLine& line ) {
             if ( !line.warning.empty() ) {
                 text[ line.request ] = Line{ warningText( line.warning ) };
@@ -213,6 +212,15 @@ logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::s
     return text;
 }
 
+// The same, with a decoder made from codec for the read.
+template <typename Line, typename ToLine, typename ReadLines>
+logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::size_t count,
+                                            ReadLines&& readLines, ToLine toLine )
+{
+    return decodeReadLogLines<Line>( codec.makeDecoder(), count,
+                                     std::forward<ReadLines>( readLines ), std::move( toLine ) );
+}
+
 // Where the UTF-8 text of one Log Line asked for lies in what was decoded.
 struct Utf8LogLinePlace {
     std::size_t begin = 0;
@@ -238,7 +246,7 @@ std::string utf8NotEnoughMemory( std::size_t count );
 // As decodeReadLogLines(), in UTF-8: the text of each Log Line asked for,
 // followed by a line feed, in the order asked.
 template <typename ReadLines>
-std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t count,
+std::string decodeReadLogLinesToUtf8( const TextDecoder& textDecoder, std::size_t count,
                                       ReadLines&& readLines )
 {
     // The text of each Log Line lands in decoded in the order the Log Lines
@@ -247,8 +255,7 @@ std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t 
     logsquirl::vector<Utf8LogLinePlace> placed( count );
 
     try {
-        const bool isUtf8 = codec.mibEnum() == TextEncoding::Utf8Mib;
-        const auto textDecoder = codec.makeDecoder();
+        const bool isUtf8 = textDecoder.encodingParams.isUtf8;
         readLines( [ & ]( const ReadLogLine& line ) {
             const auto begin = decoded.size();
             appendUtf8LogLineText( decoded, line, textDecoder, isUtf8 );
@@ -265,4 +272,13 @@ std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t 
     }
 
     return utf8LogLineTextsInRequestOrder( std::move( decoded ), placed );
+}
+
+// The same, with a decoder made from codec for the read.
+template <typename ReadLines>
+std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t count,
+                                      ReadLines&& readLines )
+{
+    return decodeReadLogLinesToUtf8( codec.makeDecoder(), count,
+                                     std::forward<ReadLines>( readLines ) );
 }

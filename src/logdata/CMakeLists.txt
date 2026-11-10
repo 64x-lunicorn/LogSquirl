@@ -17,6 +17,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinereader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinetext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/matchesdelta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
@@ -46,6 +47,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tbbworkersjoinedatexit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinereader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinetext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchsession.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sparselineread.cpp

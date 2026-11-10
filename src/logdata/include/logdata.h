@@ -63,6 +63,7 @@
 #include "fileholder.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
+#include "loglinereader.h"
 #include "searchblocksource.h"
 #include "settingspolicies.h"
 
@@ -109,7 +110,7 @@ class CantReattachErr : public std::exception {};
 class LogData : public AbstractLogData {
     Q_OBJECT
 
-    // Reads raw Log Lines for a Search, through getLinesRaw().
+    // Reads raw Log Lines for a Search, through the handles of its own.
     friend class LogDataBlockSource;
 
 public:
@@ -280,45 +281,12 @@ private:
     void doAttachReader() const override;
     void doDetachReader() const override;
 
-    void reOpenFile() const;
-
-    // The raw Log Lines [first, first + number), as a Search reads them
-    // through searchBlockSource() and as the block reads here decode them.
-    // Only the offsets are taken under the Index's lock. The block ends
-    // before the Log Line that would take its bytes past maxBytes, its
-    // first Log Line always in it: a Search's block is bounded so, the
-    // view's is not. A Log Line too long to read costs its line feed alone
-    // (RawLines::tooLongLines, #825).
-    RawLines getLinesRaw( LineNumber first, LinesCount number,
-                          qint64 maxBytes = std::numeric_limits<qint64>::max() ) const;
-
-    // What a block read holds of this object, so that the read goes on
-    // without it: the Index and the Log File through shared handles, and the
-    // rest by value (#832).
-    struct ReadHandles {
-        std::shared_ptr<IndexingData> index;
-        std::shared_ptr<FileHolder> file;
-        EncodingParameters encodingParams;
-        TextDecoder decoder;
-        DecodingPolicy decodingPolicy;
-    };
+    // What a read of Log Lines holds of this object (#832). Every read of
+    // Log Lines goes through a Log Line Reader built from them: the views'
+    // and the plugins' on their own threads through reader(), the Search's on
+    // its threads through searchBlockSource().
     ReadHandles readHandles() const;
-    static RawLines readRawLines( ReadHandles handles, LineNumber first, LinesCount number,
-                                  qint64 maxBytes );
-    // The read itself: the views read through this object's own Index and Log
-    // File, the Search through the handles above.
-    static RawLines readRawLines( const IndexingData& index, FileHolder& file,
-                                  const EncodingParameters& encodingParams, TextDecoder decoder,
-                                  DecodingPolicy decodingPolicy, LineNumber first,
-                                  LinesCount number, qint64 maxBytes );
-    logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
-                                                 QString ( *processLine )( QString&& ) ) const;
-    // Reads the Log Lines asked for that are indexed, nearby ones merged into
-    // runs, and calls onLine( const ReadLogLine& ) for each, in the order
-    // read. Log Lines past the last one are not called for. The Index is
-    // looked at under its lock, the Log File is read without it.
-    template <typename OnLine>
-    void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
+    LogLineReader reader() const;
 
 private:
     // Shared with the block reads of a Search, which may outlive this object.

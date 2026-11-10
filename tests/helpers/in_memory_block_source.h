@@ -19,21 +19,29 @@
 
 #pragma once
 
+#include "fileholder.h"
+#include "indexoperation.h"
+#include "linepositionarray.h"
+#include "loglinereader.h"
 #include "searchblocksource.h"
+#include "settingspolicies.h"
 
 #include "textencoding.h"
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -226,4 +234,178 @@ private:
     mutable std::vector<Block> readBlocks_;
 
     mutable std::atomic<int> attachedReaders_{ 0 };
+};
+
+// A Log File held in memory, its bytes and the Index of its Log Lines, for a
+// Log Line Reader to read (loglinereader.h): no file on disk and no indexing.
+// A Log Line ends after each line feed in the Log File's Encoding.
+//
+// A Log Line too long to read (#825) is held without its bytes: the Index
+// says where it lies, and reading any of its bytes is recorded
+// (readTooLongBytes), as is every read of the bytes (reads). Held through a
+// shared handle, as the Log File of log data is.
+class InMemoryLogFile final : public LogFileBytes,
+                              public std::enable_shared_from_this<InMemoryLogFile> {
+public:
+    struct Read {
+        qint64 offset;
+        qint64 size;
+    };
+
+    explicit InMemoryLogFile( const char* encoding = "UTF-8" )
+        : encoding_( TextEncoding::forName( encoding ) )
+        , encodingParams_( encoding_ )
+    {
+        if ( encoding_ == nullptr ) {
+            throw std::invalid_argument( "unknown Encoding" );
+        }
+        IndexingData::MutateAccessor{ index_.get() }.clear( IndexingPolicy{} );
+    }
+
+    // Bytes as they are in the Log File, whole code units of its Encoding.
+    void appendBytes( std::string_view bytes )
+    {
+        const auto start = size_;
+        pieces_.push_back( Piece{ .offset = start, .bytes = std::string( bytes ), .holeSize = 0 } );
+        size_ += static_cast<qint64>( bytes.size() );
+
+        const auto lineFeed = encoding_->fromUnicode( QStringLiteral( "\n" ) );
+        const auto width = static_cast<std::size_t>( lineFeed.size() );
+        FastLinePositionArray lineEnds;
+        for ( std::size_t at = 0; at + width <= bytes.size(); at += width ) {
+            if ( bytes.substr( at, width ) == std::string_view( lineFeed.constData(), width ) ) {
+                lineEnds.append( OffsetInFile( start + static_cast<qint64>( at + width ) ) );
+            }
+        }
+        index( lineEnds );
+    }
+
+    // A Log Line's text in the Log File's Encoding, and its line feed.
+    void appendLine( const QString& text )
+    {
+        const auto bytes = encoding_->fromUnicode( text + QChar::LineFeed );
+        appendBytes(
+            std::string_view( bytes.constData(), static_cast<std::size_t>( bytes.size() ) ) );
+    }
+
+    // A Log Line of length bytes without its line feed, whose bytes are not
+    // held, and its line feed.
+    void appendTooLongLine( qint64 length )
+    {
+        pieces_.push_back( Piece{ .offset = size_, .bytes = {}, .holeSize = length } );
+        size_ += length;
+        const auto lineFeed = encoding_->fromUnicode( QStringLiteral( "\n" ) );
+        pieces_.push_back(
+            Piece{ .offset = size_, .bytes = lineFeed.toStdString(), .holeSize = 0 } );
+        size_ += lineFeed.size();
+        FastLinePositionArray lineEnds;
+        lineEnds.append( OffsetInFile( size_ ) );
+        index( lineEnds );
+    }
+
+    void setDecodingPolicy( const DecodingPolicy& decodingPolicy )
+    {
+        decodingPolicy_ = decodingPolicy;
+    }
+
+    // What a read of its Log Lines holds of it, as log data hands it out.
+    ReadHandles readHandles()
+    {
+        return ReadHandles{ .index = index_,
+                            .file = shared_from_this(),
+                            .decoder = TextDecoder{ encoding_->makeDecoder(), encodingParams_ },
+                            .decodingPolicy = decodingPolicy_ };
+    }
+
+    LogLineReader reader()
+    {
+        return LogLineReader( readHandles() );
+    }
+
+    std::vector<Read> reads() const
+    {
+        std::lock_guard lock( mutex_ );
+        return reads_;
+    }
+
+    bool readTooLongBytes() const
+    {
+        std::lock_guard lock( mutex_ );
+        return readTooLongBytes_;
+    }
+
+    int openReads() const
+    {
+        std::lock_guard lock( mutex_ );
+        return openReads_;
+    }
+
+    void beginRead() override
+    {
+        std::lock_guard lock( mutex_ );
+        ++openReads_;
+    }
+
+    void endRead() override
+    {
+        std::lock_guard lock( mutex_ );
+        --openReads_;
+    }
+
+    qint64 readAt( qint64 offset, char* out, qint64 size ) override
+    {
+        std::lock_guard lock( mutex_ );
+        if ( openReads_ <= 0 ) {
+            throw std::logic_error( "bytes read outside of a read" );
+        }
+        reads_.push_back( Read{ offset, size } );
+        if ( offset < 0 || offset > size_ ) {
+            return -1;
+        }
+        const auto end = std::min( offset + size, size_ );
+        for ( const auto& piece : pieces_ ) {
+            const auto pieceSize
+                = piece.holeSize > 0 ? piece.holeSize : static_cast<qint64>( piece.bytes.size() );
+            const auto from = std::max( offset, piece.offset );
+            const auto to = std::min( end, piece.offset + pieceSize );
+            if ( from >= to ) {
+                continue;
+            }
+            if ( piece.holeSize > 0 ) {
+                readTooLongBytes_ = true;
+                std::fill( out + ( from - offset ), out + ( to - offset ), 'x' );
+            }
+            else {
+                std::copy_n( piece.bytes.data() + ( from - piece.offset ), to - from,
+                             out + ( from - offset ) );
+            }
+        }
+        return end - offset;
+    }
+
+private:
+    struct Piece {
+        qint64 offset = 0;
+        std::string bytes;
+        qint64 holeSize = 0;
+    };
+
+    void index( const FastLinePositionArray& lineEnds )
+    {
+        IndexingData::MutateAccessor{ index_.get() }.addAll( 0, 0_length, lineEnds, encoding_,
+                                                             std::nullopt );
+    }
+
+    const TextEncoding* encoding_;
+    EncodingParameters encodingParams_;
+    DecodingPolicy decodingPolicy_;
+    const std::shared_ptr<IndexingData> index_ = std::make_shared<IndexingData>();
+
+    std::vector<Piece> pieces_;
+    qint64 size_ = 0;
+
+    mutable std::mutex mutex_;
+    std::vector<Read> reads_;
+    bool readTooLongBytes_ = false;
+    int openReads_ = 0;
 };
