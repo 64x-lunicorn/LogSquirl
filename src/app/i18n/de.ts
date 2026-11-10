@@ -5231,6 +5231,84 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     </message>
 </context>
 <context>
+    <name>ScratchPad</name>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="120"/>
+        <source>From base64</source>
+        <translation>Aus base64</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="121"/>
+        <source>To base64</source>
+        <translation>Nach base64</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="122"/>
+        <source>From hex</source>
+        <translation>Aus hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="123"/>
+        <source>To hex</source>
+        <translation>Nach hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="124"/>
+        <source>Decode url</source>
+        <translation>URL dekodieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="126"/>
+        <source>Decode JWT</source>
+        <translation>JWT dekodieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="128"/>
+        <source>Format json</source>
+        <translation>JSON formatieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="129"/>
+        <source>Format xml</source>
+        <translation>XML formatieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="145"/>
+        <source>CRC32 hex</source>
+        <translation>CRC32 hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="146"/>
+        <source>CRC32 dec</source>
+        <translation>CRC32 dez</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="147"/>
+        <source>File time</source>
+        <translation>Dateizeit</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="148"/>
+        <source>Dec-&gt;Hex</source>
+        <translation>Dez-&gt;Hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="149"/>
+        <source>Hex-&gt;Dec</source>
+        <translation>Hex-&gt;Dez</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="263"/>
+        <source>Copied to clipboard</source>
+        <translation>In die Zwischenablage kopiert</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="266"/>
+        <source>Empty transformation</source>
+        <translation>Leere Umwandlung</translation>
+    </message>
+</context>
+<context>
     <name>SessionFile</name>
     <message>
         <location filename="../../ui/src/sessionfile.cpp" line="86"/>
@@ -5485,6 +5563,19 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="527"/>
         <source>Merge...</source>
         <translation>Zusammenführen...</translation>
+    </message>
+</context>
+<context>
+    <name>TabbedScratchPad</name>
+    <message>
+        <location filename="../../ui/src/tabbedscratchpad.cpp" line="57"/>
+        <source>You can add tabs by pressing &lt;b&gt;&quot;+&quot;&lt;/b&gt; or Ctrl+N</source>
+        <translation>Mit &lt;b&gt;&quot;+&quot;&lt;/b&gt; oder Ctrl+N fügen Sie Tabs hinzu</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/tabbedscratchpad.cpp" line="124"/>
+        <source>Scratchpad %1</source>
+        <translation>Notizblock %1</translation>
     </message>
 </context>
 <context>
@@ -6403,12 +6494,12 @@ Ohne Datum wird %1 verwendet.</translation>
 <context>
     <name>logsquirl::DateTimeBox</name>
     <message>
-        <location filename="../../ui/src/scratchpad.cpp" line="388"/>
+        <location filename="../../ui/src/scratchpad.cpp" line="417"/>
         <source>Time</source>
         <translation>Zeit</translation>
     </message>
     <message>
-        <location filename="../../ui/src/scratchpad.cpp" line="391"/>
+        <location filename="../../ui/src/scratchpad.cpp" line="420"/>
         <source>TimeZone</source>
         <translation>Zeitzone</translation>
     </message>

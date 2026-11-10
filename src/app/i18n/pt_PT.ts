@@ -5231,6 +5231,84 @@ Reinicie o LogSquirl para tentar novamente.</translation>
     </message>
 </context>
 <context>
+    <name>ScratchPad</name>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="120"/>
+        <source>From base64</source>
+        <translation>De base64</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="121"/>
+        <source>To base64</source>
+        <translation>Para base64</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="122"/>
+        <source>From hex</source>
+        <translation>De hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="123"/>
+        <source>To hex</source>
+        <translation>Para hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="124"/>
+        <source>Decode url</source>
+        <translation>Descodificar URL</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="126"/>
+        <source>Decode JWT</source>
+        <translation>Descodificar JWT</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="128"/>
+        <source>Format json</source>
+        <translation>Formatar JSON</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="129"/>
+        <source>Format xml</source>
+        <translation>Formatar XML</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="145"/>
+        <source>CRC32 hex</source>
+        <translation>CRC32 hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="146"/>
+        <source>CRC32 dec</source>
+        <translation>CRC32 dec</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="147"/>
+        <source>File time</source>
+        <translation>Hora do ficheiro</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="148"/>
+        <source>Dec-&gt;Hex</source>
+        <translation>Dec-&gt;Hex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="149"/>
+        <source>Hex-&gt;Dec</source>
+        <translation>Hex-&gt;Dec</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="263"/>
+        <source>Copied to clipboard</source>
+        <translation>Copiado para a área de transferência</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/scratchpad.cpp" line="266"/>
+        <source>Empty transformation</source>
+        <translation>Transformação vazia</translation>
+    </message>
+</context>
+<context>
     <name>SessionFile</name>
     <message>
         <location filename="../../ui/src/sessionfile.cpp" line="86"/>
@@ -5485,6 +5563,19 @@ Reinicie o LogSquirl para tentar novamente.</translation>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="527"/>
         <source>Merge...</source>
         <translation>Juntar...</translation>
+    </message>
+</context>
+<context>
+    <name>TabbedScratchPad</name>
+    <message>
+        <location filename="../../ui/src/tabbedscratchpad.cpp" line="57"/>
+        <source>You can add tabs by pressing &lt;b&gt;&quot;+&quot;&lt;/b&gt; or Ctrl+N</source>
+        <translation>Pode adicionar separadores premindo &lt;b&gt;&quot;+&quot;&lt;/b&gt; ou Ctrl+N</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/tabbedscratchpad.cpp" line="124"/>
+        <source>Scratchpad %1</source>
+        <translation>Rascunho %1</translation>
     </message>
 </context>
 <context>
@@ -6403,12 +6494,12 @@ Sem data, é usado %1.</translation>
 <context>
     <name>logsquirl::DateTimeBox</name>
     <message>
-        <location filename="../../ui/src/scratchpad.cpp" line="388"/>
+        <location filename="../../ui/src/scratchpad.cpp" line="417"/>
         <source>Time</source>
         <translation>Hora</translation>
     </message>
     <message>
-        <location filename="../../ui/src/scratchpad.cpp" line="391"/>
+        <location filename="../../ui/src/scratchpad.cpp" line="420"/>
         <source>TimeZone</source>
         <translation>Fuso horário</translation>
     </message>

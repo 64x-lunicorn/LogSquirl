@@ -54,7 +54,7 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
 
     connect( addTabButton.get(), &QToolButton::clicked, [ this ]( auto ) { addTab(); } );
 
-    tabWidget_->addTab( new QLabel( "You can add tabs by pressing <b>\"+\"</b> or Ctrl+N" ),
+    tabWidget_->addTab( new QLabel( tr( "You can add tabs by pressing <b>\"+\"</b> or Ctrl+N" ) ),
                         QString() );
     tabWidget_->setTabEnabled( 0, false );
 
@@ -121,7 +121,7 @@ void TabbedScratchPad::applyTheme()
 void TabbedScratchPad::addTab()
 {
     const auto newIndex
-        = tabWidget_->addTab( new ScratchPad(), QString( "Scratchpad %1" ).arg( ++tabCounter_ ) );
+        = tabWidget_->addTab( new ScratchPad(), tr( "Scratchpad %1" ).arg( ++tabCounter_ ) );
     tabWidget_->setCurrentIndex( newIndex );
 }
 
