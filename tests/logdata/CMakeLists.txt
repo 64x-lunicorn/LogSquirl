@@ -5,6 +5,7 @@ add_executable(logsquirl_logdata_tests
     logdata_test.cpp
     logfiltereddata_test.cpp
     indexing_test.cpp
+    indexoutcome_test.cpp
     indexingblocks_test.cpp
     indexjobqueue_test.cpp
     worker_destruction_test.cpp

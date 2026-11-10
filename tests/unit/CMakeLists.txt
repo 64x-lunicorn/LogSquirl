@@ -24,6 +24,7 @@ add_executable(logsquirl_tests
     csvexportdialog_test.cpp
     datalocation_test.cpp
     decorationsetup_test.cpp
+    digestcoverage_test.cpp
     displayedlines_test.cpp
     encodingdetector_test.cpp
     fileassociations_test.cpp

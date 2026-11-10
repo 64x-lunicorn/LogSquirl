@@ -258,7 +258,7 @@ Q_SIGNALS:
 
 private Q_SLOTS:
     // Called when the worker thread signals the current operation ended
-    void indexingFinished( LoadingStatus status, const QString& failure );
+    void indexingFinished( LoadingStatus status, const QString& failure, LineNumber firstChanged );
     // Called when the worker thread signals the current operation ended
     void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
@@ -344,9 +344,6 @@ private:
 
     // Codec to decode text
     TextCodecHolder codec_;
-    // How many Log Lines were indexed before the data added on disk is,
-    // taken when a Check finds only growth.
-    LinesCount nbLinesBeforeDataAdded_;
 
     // Read by every read of Log Lines, on the Search's threads too: atomic,
     // so a read takes no lock for it.

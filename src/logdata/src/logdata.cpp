@@ -262,7 +262,8 @@ void LogData::fileChangedOnDisk( const QString& filename )
     operationQueue_.enqueueJob( CheckForChangesJob{} );
 }
 
-void LogData::indexingFinished( LoadingStatus status, const QString& failure )
+void LogData::indexingFinished( LoadingStatus status, const QString& failure,
+                                LineNumber firstChanged )
 {
     LOG_INFO << "indexingFinished for: " << indexingFileName_
              << ( status == LoadingStatus::Successful ) << ", found "
@@ -276,16 +277,10 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
             lastModifiedDate_ = fileInfo.lastModified();
     }
 
-    // After a Partial only the last Log Line indexed before data was added
-    // can have changed; after an Attach or a Full any of them can have.
-    if ( operationQueue_.isPartialReindexRunning() ) {
-        Q_EMIT logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
-                                    ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
-                                    : 0_lnum );
-    }
-    else {
-        Q_EMIT logLinesChanged( 0_lnum );
-    }
+    // As the index job tells it: after a Partial only the last Log Line
+    // indexed before data was added can have changed; after an Attach or a
+    // Full any of them can have.
+    Q_EMIT logLinesChanged( firstChanged );
 
     LOG_DEBUG << "Sending indexingFinished.";
     Q_EMIT loadingFinished( status, failure );
@@ -308,7 +303,6 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
         operationQueue_.enqueueJob( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:
-        nbLinesBeforeDataAdded_ = doGetNbLine();
         operationQueue_.enqueueJob( PartialReindexJob{} );
         break;
     case MonitoredFileStatus::Unchanged:

@@ -153,7 +153,6 @@ TEST_CASE( "An index job enqueued while another runs waits for it under the job 
     fixture.queue.enqueueJob( PartialReindexJob{} );
 
     REQUIRE( fixture.journal == Journal{ "run Attach attached.log", "run Check", "run Partial" } );
-    REQUIRE( fixture.queue.isPartialReindexRunning() );
 }
 
 TEST_CASE( "A reload enqueued while the finished index job is reported starts once the report "
@@ -191,19 +190,6 @@ TEST_CASE( "Shutting the queue down drops the index job waiting", "[indexjobqueu
     fixture.queue.enqueueJob( FullReindexJob{} );
 
     REQUIRE( fixture.journal == Journal{ "run Attach attached.log", "interrupt", "destroyed" } );
-    REQUIRE_FALSE( fixture.queue.isPartialReindexRunning() );
-}
-
-TEST_CASE( "Shutting the queue down while a Partial runs leaves none running", "[indexjobqueue]" )
-{
-    QueueWithFakeRunner fixture;
-    fixture.queue.enqueueJob( PartialReindexJob{} );
-    REQUIRE( fixture.queue.isPartialReindexRunning() );
-
-    fixture.queue.shutdown();
-
-    REQUIRE_FALSE( fixture.queue.isPartialReindexRunning() );
-    REQUIRE( fixture.journal == Journal{ "run Partial", "interrupt", "destroyed" } );
 }
 
 TEST_CASE( "The queue hands interrupts and a changed Indexing Policy to its runner",
