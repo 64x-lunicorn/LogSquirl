@@ -276,12 +276,12 @@ SCENARIO( "search for regex", "[logdata]" )
         {
             const auto threadPoolSize = GENERATE( 0, 1, 2 );
 
-            // Handed to the Log File, which passes it on to the
-            // LogFilteredData above -- created before this line (#95).
+            // Handed to the LogFilteredData above, created before this line
+            // (#95): the Log File only starts a new one with it (#941).
             auto searchPolicy = testSettingsPolicies().search;
             searchPolicy.threadPoolSize = threadPoolSize;
             searchPolicy.useParallelSearch = threadPoolSize > 0;
-            logDataLoader.log_data.setSearchPolicy( searchPolicy );
+            filtered_data->setSearchPolicy( searchPolicy );
 
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
@@ -320,7 +320,7 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
             auto searchPolicy = testSettingsPolicies().search;
             searchPolicy.threadPoolSize = 2;
             searchPolicy.useParallelSearch = true;
-            logDataLoader.log_data.setSearchPolicy( searchPolicy );
+            filtered_data->setSearchPolicy( searchPolicy );
 
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
@@ -615,7 +615,7 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
 
             AND_WHEN( "Asked to clear search" )
             {
-                filtered_data->request();
+                filtered_data->dropResults();
                 THEN( "Clear search results" )
                 {
                     REQUIRE( filtered_data->getNbLine() == 0_lcount );
@@ -874,7 +874,7 @@ SCENARIO( "Context Lines are correct after a cache hit, and cleared when a Searc
 
         WHEN( "the Search is cleared" )
         {
-            filtered_data->request();
+            filtered_data->dropResults();
 
             THEN( "Context Lines are cleared along with it" )
             {
@@ -1090,7 +1090,7 @@ SCENARIO( "the Filtered View shows the right lines with Context Lines after each
 
     auto searchPolicy = policies.search;
     searchPolicy.contextLinesCount = 1;
-    logDataLoader.log_data.setSearchPolicy( searchPolicy );
+    filtered_data->setSearchPolicy( searchPolicy );
     checkDisplayedLines( "the Context Lines count changed" );
 
     filtered_data->addMark( 5_lnum );
@@ -1112,7 +1112,7 @@ SCENARIO( "the Filtered View shows the right lines with Context Lines after each
     REQUIRE( filtered_data->searchState().fromCache );
     checkDisplayedLines( "a Search hit the cache" );
 
-    filtered_data->request();
+    filtered_data->dropResults();
     checkDisplayedLines( "the Search was cleared" );
 
     REQUIRE( wrongNotifications == 0 );
@@ -1594,6 +1594,57 @@ SCENARIO( "A Search matches a Log Line as it is displayed", "[logdata][search][e
                              == matchingLines[ index ] );
                 }
             }
+        }
+    }
+}
+
+SCENARIO( "Every Search made from the log data hears of the Log Lines changed before the load "
+          "is told",
+          "[logdata][marks]" )
+{
+    // No Open Log File here: each LogFilteredData hears of the change through
+    // the log data's signal it connects itself to (#941).
+    QTemporaryFile file{ "changed_lines_XXXXXX" };
+    REQUIRE( file.open() );
+    REQUIRE( file.write( "short\nline two\n" ) > 0 );
+    file.flush();
+
+    const auto policies = testSettingsPolicies();
+    LogData logData( policies.indexing, policies.search, policies.fileAccess, policies.decoding );
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+
+    const auto first = logData.getNewFilteredData();
+    const auto second = logData.getNewFilteredData();
+    first->addMark( 0_lnum );
+    second->addMark( 0_lnum );
+    REQUIRE( first->getMaxLength() == 5_length );
+    REQUIRE( second->getMaxLength() == 5_length );
+
+    WHEN( "the Log File is written anew and loaded again" )
+    {
+        REQUIRE( file.resize( 0 ) );
+        REQUIRE( file.seek( 0 ) );
+        REQUIRE( file.write( "a much longer first line\nline two\n" ) > 0 );
+        file.flush();
+
+        // What each Search knows of its Marked Log Line as the load is told.
+        std::vector<LineLength> lengthsWhenLoaded;
+        QObject::connect(
+            &logData, &LogData::loadingFinished, &logData,
+            [ & ] { lengthsWhenLoaded = { first->getMaxLength(), second->getMaxLength() }; },
+            Qt::DirectConnection );
+
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.reload();
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+
+        THEN( "both read the Marked Log Line anew before the load was told" )
+        {
+            REQUIRE( lengthsWhenLoaded == std::vector{ 24_length, 24_length } );
         }
     }
 }

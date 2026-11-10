@@ -23,10 +23,12 @@
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "loadrule.h"
+#include "logfiltereddata.h"
 #include "logformatdefinition.h"
 #include "regularexpressionpattern.h"
 #include "searchautorefresh.h"
 #include "searchsessionstate.h"
+#include "searchset.h"
 #include "settingspolicies.h"
 
 #include <QDateTime>
@@ -39,12 +41,10 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 class FileWatchPort;
 class TextEncoding;
 class LogData;
-class LogFilteredData;
 class LogFormatCatalog;
 class LogFormatFieldReader;
 
@@ -53,15 +53,15 @@ class LogFormatFieldReader;
 // auto-refresh, its Marks and its Log Format.
 //
 // It carries out what its Load Rule decides growing, truncation and reloading
-// mean. A Search continues over the Log Lines that were added, within the
-// Search Limits, and starts again when the Log File was truncated; a reload
-// by hand drops it. Narrowed Search Limits stay as set however the Log File
-// changes, cut back to its end; only Limits that are the whole Log File
-// follow its end. Marks do not survive a truncation or a reload; the Marks
-// saved with the Session are applied once, after the first load. Format
-// Recognition is taken after the first load, and again after a reload or a
-// truncation; on growth only while nothing was recognized from fewer Log
-// Lines than it looks at (#794).
+// mean, and keeps its Searches in a Search Set (#941). A Search continues
+// over the Log Lines that were added, within the Search Limits, and starts
+// again when the Log File was truncated; a reload by hand drops it. Narrowed
+// Search Limits stay as set however the Log File changes, cut back to its
+// end; only Limits that are the whole Log File follow its end. Marks do not
+// survive a truncation or a reload; the Marks saved with the Session are
+// applied once, after the first load. Format Recognition is taken after the
+// first load, and again after a reload or a truncation; on growth only while
+// nothing was recognized from fewer Log Lines than it looks at (#794).
 //
 // It tells its users what happened -- the Log File loaded, grew or was
 // truncated, the Search updated -- and they only show it. It knows no widget:
@@ -367,12 +367,9 @@ private:
     bool settleEncoding();
     // Tells the Search Limits when they are others than last told.
     void tellSearchLimits();
-    // The current Search, about to be no longer current: when it waits for
-    // the first load, it waits on, kept.
-    void keepWaitingSearch();
-    // Holds search no longer, and tells it when it was held: the user asked
-    // for it.
-    void stopHolding( const std::shared_ptr<LogFilteredData>& search );
+    // The current Search was requested as the user requests it: the
+    // auto-refresh follows it.
+    void followCurrentRequest();
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -383,27 +380,15 @@ private:
 
     // Declared before the Searches built from it, so it outlives them.
     std::shared_ptr<LogData> logData_;
-    std::shared_ptr<LogFilteredData> filteredData_;
+    // Every Search of the Log File, the current one and the kept ones: their
+    // patterns, and whether they wait for the first load, are held or run.
+    SearchSet<LogFilteredData> searchSet_;
     QMetaObject::Connection searchConnection_;
 
     SearchAutoRefresh autoRefresh_;
     // What a load, a change on disk and a reload mean: every flag they set,
     // and whether watching the Log File has stopped.
     LoadRule loadRule_;
-    // The pattern last requested, which a restarted Search runs with.
-    RegularExpressionPattern searchPattern_;
-    // Kept Searches requested before the first load, which run once it has:
-    // held no longer than they are kept.
-    struct WaitingSearch {
-        std::weak_ptr<LogFilteredData> search;
-        RegularExpressionPattern pattern;
-    };
-    std::vector<WaitingSearch> waitingKeptSearches_;
-    // Held by holdWaitingSearches(), current or kept: until the first load
-    // has finished, the Searches waiting for it that are held; once it has,
-    // each one with the pattern it runs with when released.
-    std::vector<std::weak_ptr<LogFilteredData>> heldBeforeLoad_;
-    std::vector<WaitingSearch> heldAfterLoad_;
     // As set, and as the Load Rule settles them after every load.
     LoadRule::SearchLimits searchLimits_;
     // The Search Limits last told, once they were.

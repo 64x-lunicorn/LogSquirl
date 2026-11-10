@@ -142,12 +142,6 @@ const SearchPolicy& LogData::searchPolicy() const
 void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     searchPolicy_ = searchPolicy;
-
-    for ( const auto& filteredData : filteredData_ ) {
-        if ( filteredData ) {
-            filteredData->setSearchPolicy( searchPolicy );
-        }
-    }
 }
 
 void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
@@ -159,7 +153,7 @@ void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 
     // Views paint what they read before until they are told to read again;
     // the lock is released first, as they read Log Lines straight away.
-    logLinesChanged();
+    Q_EMIT logLinesChanged( 0_lnum );
     Q_EMIT decodingPolicyChanged();
 }
 
@@ -197,15 +191,9 @@ QDateTime LogData::getLastModifiedDate() const
 // Return an initialised LogFilteredData. The search is not started.
 std::unique_ptr<LogFilteredData> LogData::getNewFilteredData() const
 {
-    auto filteredData = std::make_unique<LogFilteredData>( this, searchPolicy_ );
-
-    // Forget the ones that have since been destroyed while we are here, so
-    // this list cannot grow without bound over a long session.
-    filteredData_.erase( std::remove( filteredData_.begin(), filteredData_.end(), nullptr ),
-                         filteredData_.end() );
-    filteredData_.emplace_back( filteredData.get() );
-
-    return filteredData;
+    // It hears of the Log Lines changed through logLinesChanged(), which it
+    // connects itself to.
+    return std::make_unique<LogFilteredData>( this, searchPolicy_ );
 }
 
 void LogData::reload( const TextEncoding* forcedEncoding )
@@ -214,7 +202,7 @@ void LogData::reload( const TextEncoding* forcedEncoding )
 
     // Told at once, not only once indexed again: until then no Search may be
     // served what it found in the Log Lines as they were read before.
-    logLinesChanged();
+    Q_EMIT logLinesChanged( 0_lnum );
 
     // Re-open the file, useful in case the file has been moved
     attached_file_->reOpenFile();
@@ -291,12 +279,12 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
     // After a Partial only the last Log Line indexed before data was added
     // can have changed; after an Attach or a Full any of them can have.
     if ( operationQueue_.isPartialReindexRunning() ) {
-        logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
-                             ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
-                             : 0_lnum );
+        Q_EMIT logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
+                                    ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
+                                    : 0_lnum );
     }
     else {
-        logLinesChanged();
+        Q_EMIT logLinesChanged( 0_lnum );
     }
 
     LOG_DEBUG << "Sending indexingFinished.";
@@ -316,7 +304,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     case MonitoredFileStatus::Truncated:
         // Told at once, not only once indexed again: until then no Search may
         // be served what it found in the Log Lines that were there before.
-        logLinesChanged();
+        Q_EMIT logLinesChanged( 0_lnum );
         operationQueue_.enqueueJob( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:
@@ -388,16 +376,7 @@ void LogData::setDisplayEncoding( const TextEncoding& encoding )
     }
     else {
         // Indexed as it was, but the Log Lines decode differently.
-        logLinesChanged();
-    }
-}
-
-void LogData::logLinesChanged( LineNumber firstChanged ) const
-{
-    for ( const auto& filteredData : filteredData_ ) {
-        if ( filteredData ) {
-            filteredData->logLinesChanged( firstChanged );
-        }
+        Q_EMIT logLinesChanged( 0_lnum );
     }
 }
 

@@ -57,7 +57,7 @@ both use it.
 _Avoid_: document, loaded file, file session
 
 **Load Rule**:
-What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, whether a Search waiting for the first load runs now, how the Search Limits settle on the Log File's new end and whether a continuing Search has Log Lines to run over, and, once the Log File is to be watched no longer, whether it is checked again or watching has stopped. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that. The Open Log File carries out what it decides.
+What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, how the Search Limits settle on the Log File's new end and whether a continuing Search has Log Lines to run over, and, once the Log File is to be watched no longer, whether it is checked again or watching has stopped. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that; whether a Search waits for the first load, and runs once it has, the Search Set decides. The Open Log File carries out what it decides.
 _Avoid_: follow rule (follow is the view following the end of the Log File), change tracker
 
 **File Watch Port**:
@@ -157,6 +157,16 @@ the cached results and the continuation point they no longer describe, so the sa
 repeated finds the Matches of the new reading; every Search of the Log File is told, kept or
 current.
 _Avoid_: search manager, search controller, search engine
+
+**Search Set**:
+Every Search of an Open Log File, the current one and the kept ones, each waiting for the
+first load, held by the Session, or running. A Search requested before the Log File has
+first loaded waits for that load and then runs over the whole Log File, each with the
+pattern it was requested with; a load that does not succeed drops what waits. A restored
+Session holds the waiting Searches beyond the first load until it releases them; what the
+user asks for after that is never held. It makes every Search of the Log File, and the
+Search Policy reaches each one through it.
+_Avoid_: search list, pending searches
 
 **Kept Searches**:
 The owner of every Search of one Log File, each shown in a Filtered View of its own: the

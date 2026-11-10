@@ -51,7 +51,6 @@
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
-#include <QPointer>
 #include <QString>
 #include <qregularexpression.h>
 #include <span>
@@ -120,7 +119,7 @@ public:
 
     // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
-    // it needs (handed on to every LogFilteredData built from it), how the
+    // it needs (each LogFilteredData built from it starts with it), how the
     // file itself is opened, and how its bytes become the text of its Log
     // Lines. It reads no setting of its own -- the log data library does
     // not link the settings library.
@@ -173,9 +172,9 @@ public:
     // use it, one already in flight keeps the one it started with.
     void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
-    // Replaces the Search Policy, here and in every LogFilteredData built
-    // from this Log File -- including the ones a tab kept from an earlier
-    // Search, which nothing else holds a list of.
+    // Replaces the Search Policy a LogFilteredData built from now on starts
+    // with. One built before keeps its own: whoever holds the Searches -- the
+    // Open Log File's Search Set (#941) -- hands it on to them.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
     const SearchPolicy& searchPolicy() const;
 
@@ -251,6 +250,11 @@ Q_SIGNALS:
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();
+    // The Log Lines from firstChanged on may read differently now: indexed
+    // again, cut short or appended to, or decoded differently. Every
+    // LogFilteredData built from this object hears of it through a direct
+    // connection, before loadingFinished() when a load brought the change.
+    void logLinesChanged( LineNumber firstChanged );
 
 private Q_SLOTS:
     // Called when the worker thread signals the current operation ended
@@ -307,10 +311,6 @@ private:
                                   const EncodingParameters& encodingParams, TextDecoder decoder,
                                   DecodingPolicy decodingPolicy, LineNumber first,
                                   LinesCount number, qint64 maxBytes );
-    // Tells every LogFilteredData handed out that the Log Lines from
-    // firstChanged on may read differently now.
-    void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
-
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
     // Reads the Log Lines asked for that are indexed, nearby ones merged into
@@ -328,12 +328,6 @@ private:
     std::shared_ptr<IndexingData> indexing_data_;
 
     OperationQueue operationQueue_;
-
-    // Every LogFilteredData handed out by getNewFilteredData(), so that a
-    // changed Search Policy reaches all of them. QPointer rather than a
-    // shared handle: the caller owns them, and one that has been destroyed
-    // simply drops out of this list.
-    mutable std::vector<QPointer<LogFilteredData>> filteredData_;
 
     QString indexingFileName_;
     // mutable std::unique_ptr<QFile> attached_file_;
