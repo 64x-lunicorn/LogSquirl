@@ -47,6 +47,7 @@
 #include "applicationplugins.h"
 #include "archivemember.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
 #include "logfileprovenance.h"
@@ -72,26 +73,22 @@
 #include "textencoding.h"
 #include "viewstatecodec.h"
 
-struct MainWindowLoadAccess;
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<MainWindowLoadAccess> {
+// The child widgets of a tab a test reads.
+struct LoadAccess {
     // The Search line, whose drop-down list shows the Search history.
     static QComboBox& searchLine( CrawlerWidget& crawler )
     {
-        return *SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        return *SearchLineAccess::patternEdit( searchLineOf( crawler ) );
     }
 
     // The text view of the Log File.
     static const AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 };
-
-namespace {
-
-using LoadAccess = CrawlerWidget::access_by<MainWindowLoadAccess>;
 
 // Reloads the Log File of crawler, open in session, with an Encoding the
 // indexing fails on -- no converter exists for its name -- and waits until

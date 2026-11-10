@@ -40,6 +40,7 @@
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
 #include "logfiltereddata.h"
@@ -78,44 +79,50 @@ namespace {
 // source word and a body.
 constexpr auto TestFormatName = "plugin_loglines_test";
 
-} // namespace
-
-template <>
-struct CrawlerWidget::access_by<PluginLogLinesTest> {
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static LogMainView& textView( CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     // What clicking a line of the text view does.
     static void selectLine( CrawlerWidget& crawler, LineNumber line )
     {
-        crawler.logMainView_->setFocus();
-        crawler.logMainView_->selectAndDisplayLine( line );
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        view.selectAndDisplayLine( line );
     }
 
     // What double-clicking a word of a line does.
-    static void selectWord( CrawlerWidget& crawler, LineNumber line, LineColumn column );
+    static void selectWord( CrawlerWidget& crawler, LineNumber line, LineColumn column )
+    {
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        AbstractLogView::access_by<PluginLogLinesTest>::selectWord( view, line, column );
+    }
 
     static void selectAll( CrawlerWidget& crawler )
     {
-        crawler.logMainView_->setFocus();
-        crawler.logMainView_->selectAll();
+        auto& view = textViewOf( crawler );
+        view.setFocus();
+        view.selectAll();
     }
 
     // Searches for pattern; the Filtered View shows the Log Lines it finds.
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        SearchLineAccess::patternEdit( *crawler.searchLine_ )->setEditText( pattern );
-        crawler.searchLine_->requestSearch();
+        auto& searchLine = searchLineOf( crawler );
+        SearchLineAccess::patternEdit( searchLine )->setEditText( pattern );
+        searchLine.requestSearch();
     }
 
     // What the user selecting every line of the Filtered View in front does.
     static void selectAllInFilteredView( CrawlerWidget& crawler )
     {
-        auto* front = crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView );
+        auto* front = frontFilteredViewOf( crawler );
         front->setFocus();
-        qobject_cast<FilteredView*>( front )->selectAll();
+        front->selectAll();
     }
 
     // Shows the Table View of the Log File, recognized with TestFormatName,
@@ -124,27 +131,16 @@ struct CrawlerWidget::access_by<PluginLogLinesTest> {
     {
         REQUIRE( waitUiState(
             [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
-        crawler.tableViewToggle_->setChecked( true );
-        return *crawler.logTableView_;
+        tableViewToggleOf( crawler ).setChecked( true );
+        return tableViewOf( crawler );
     }
 
     static bool showsTableView( const CrawlerWidget& crawler )
     {
-        return crawler.shownPresentation() == crawler.logTableView_;
+        return shownPresentationOf( crawler ) == &tableViewOf( crawler );
     }
 };
 
-void CrawlerWidget::access_by<PluginLogLinesTest>::selectWord( CrawlerWidget& crawler,
-                                                               LineNumber line, LineColumn column )
-{
-    crawler.logMainView_->setFocus();
-    AbstractLogView::access_by<PluginLogLinesTest>::selectWord( *crawler.logMainView_, line,
-                                                                column );
-}
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogLinesTest>;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginLogLineJump;

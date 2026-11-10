@@ -51,6 +51,7 @@
 #include "abstractlogview.h"
 #include "chartpanel.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "filteredview.h"
@@ -153,6 +154,18 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
     {
         return { view.searchStart_, view.searchEnd_ };
     }
+    // The words of every Color Label the view was handed.
+    static const std::vector<QStringList>& colorLabels( const AbstractLogView& view )
+    {
+        return view.colorLabelWords_;
+    }
+    // Whether the view shows its overview: the Overview is visible, and the
+    // widget drawing it not hidden.
+    static bool overviewShown( const AbstractLogView& view )
+    {
+        return view.overview_ != nullptr && view.overview_->isVisible()
+               && view.overviewWidget_ != nullptr && !view.overviewWidget_->isHidden();
+    }
 };
 
 template <>
@@ -181,8 +194,12 @@ struct LogTableView::access_by<CrawlerWidgetPrivate> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
+namespace {
+
+// A tab, driven as a user does through its child widgets, found by their
+// object names, and observed through its State, its child widgets and its
+// Open Log File (#945).
+struct CrawlerWidgetVisitor {
     std::unique_ptr<CrawlerWidget> crawler;
 
     bool isLoadingFinished()
@@ -190,15 +207,23 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->state().loadStatus.has_value();
     }
 
+    // The Search line of the tab.
+    SearchLineWidget& searchLine() const
+    {
+        return searchLineOf( *crawler );
+    }
+
     // Whether a time lookup of the Time Navigation is under way.
     bool isLookingUpTime() const
     {
-        return crawler->timeNavigation_.isLookingUp();
+        return crawler->state().lookingUpTime;
     }
 
-    void resetLogFormat()
+    // What the Open Log File tells as it finds the Log File truncated: it
+    // has forgotten the Log Format, and the tab forgets it too.
+    void truncateForgettingLogFormat()
     {
-        crawler->resetLogFormat();
+        Q_EMIT openLogFile().truncated( QString{} );
     }
 
     // How the last load of the Log File ended, if one has.
@@ -225,7 +250,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void selectAllInMainView()
     {
-        crawler->logMainView_->selectAll();
+        textView()->selectAll();
     }
 
     void selectAllInFilteredView()
@@ -235,7 +260,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString mainViewSelectedText()
     {
-        return crawler->logMainView_->getSelectedText();
+        return textView()->getSelectedText();
     }
 
     QString filteredViewSelectedText()
@@ -245,41 +270,37 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void setSearchPattern( const QString& pattern )
     {
-        QTest::keyClicks( SearchLineAccess::patternEdit( *crawler->searchLine_ ), pattern );
+        QTest::keyClicks( SearchLineAccess::patternEdit( searchLine() ), pattern );
     }
 
     void enableCaseSensitiveSearch()
     {
-        if ( !SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::matchCaseButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( !SearchLineAccess::matchCaseButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::matchCaseButton( searchLine() ), Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void disableCaseSensitiveSearch()
     {
-        if ( SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::matchCaseButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( SearchLineAccess::matchCaseButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::matchCaseButton( searchLine() ), Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void enableInverseMatch()
     {
-        if ( !SearchLineAccess::inverseButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::inverseButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( !SearchLineAccess::inverseButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::inverseButton( searchLine() ), Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void enableBooleanCombinationMode()
     {
-        if ( !SearchLineAccess::booleanButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::booleanButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( !SearchLineAccess::booleanButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::booleanButton( searchLine() ), Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
@@ -287,19 +308,16 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // The click alone: the Search starts, and nothing is waited for.
     void clickSearch()
     {
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler->searchLine_ ),
-                           Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine() ), Qt::LeftButton );
     }
 
     void runSearch()
     {
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler->searchLine_ ),
-                           Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine() ), Qt::LeftButton );
 
         QTest::qWait( 100 );
 
-        waitUiState(
-            [ & ]() { return SearchLineAccess::stopButton( *crawler->searchLine_ )->isHidden(); } );
+        waitUiState( [ & ]() { return SearchLineAccess::stopButton( searchLine() )->isHidden(); } );
     }
 
     void render()
@@ -316,13 +334,13 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     ScrollPosition mainViewScrollPosition()
     {
-        return crawler->logMainView_->scrollPosition();
+        return textView()->scrollPosition();
     }
 
     // Rows of the main view, a partly visible one included.
     int mainViewRows()
     {
-        return crawler->logMainView_->verticalScrollBar()->pageStep();
+        return textView()->verticalScrollBar()->pageStep();
     }
 
     void selectInFilteredView( LineNumber line )
@@ -337,23 +355,24 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         REQUIRE( waitUiState(
             [ this ] { return crawler->state().logFormatName == PresentationsFormatName; } ) );
-        crawler->tableViewToggle_->setChecked( tableView );
+        tableViewToggleOf( *crawler ).setChecked( tableView );
         QTest::qWait( 50 );
     }
 
-    LogMainView* textView()
+    LogMainView* textView() const
     {
-        return crawler->logMainView_;
+        return &textViewOf( *crawler );
     }
 
-    LogTableView* tableView()
+    LogTableView* tableView() const
     {
-        return crawler->logTableView_;
+        return &tableViewOf( *crawler );
     }
 
-    LogPresentation* presentation()
+    // The Presentation shown.
+    LogPresentation* presentation() const
     {
-        return crawler->presentation_;
+        return shownPresentationOf( *crawler );
     }
 
     bool isMarked( LineNumber line )
@@ -364,7 +383,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString searchText()
     {
-        return SearchLineAccess::patternEdit( *crawler->searchLine_ )->currentText();
+        return SearchLineAccess::patternEdit( searchLine() )->currentText();
     }
 
     QString logLineString( LineNumber line )
@@ -374,20 +393,20 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void clearSearchPattern()
     {
-        SearchLineAccess::patternEdit( *crawler->searchLine_ )->clearEditText();
+        SearchLineAccess::patternEdit( searchLine() )->clearEditText();
     }
 
     // What the Keep Results button does: the next Search opens a tab of its
     // own, and the current one keeps its results.
     void keepSearchResults()
     {
-        SearchLineAccess::keepResultsButton( *crawler->searchLine_ )->setChecked( true );
+        SearchLineAccess::keepResultsButton( searchLine() )->setChecked( true );
     }
 
     // The Filtered View in tab index, current or not.
     FilteredView* filteredViewInTab( int index ) const
     {
-        return qobject_cast<FilteredView*>( crawler->tabbedFilteredView_->widget( index ) );
+        return filteredViewOf( *crawler, index );
     }
 
     int currentFilteredViewTab()
@@ -399,60 +418,65 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // main view, here the whole of the given Log Line, gets the label.
     void addColorLabelToLogLine( LineNumber line, size_t label )
     {
-        crawler->logMainView_->selectAndDisplayLine( line );
-        crawler->addColorLabelToSelection( label );
+        textView()->selectAndDisplayLine( line );
+        Q_EMIT textView()->addColorLabel( label );
         QCoreApplication::processEvents();
     }
 
     // What "clear all Color Labels" does in any view of the Log File.
     void clearColorLabels()
     {
-        crawler->clearColorLabels();
+        Q_EMIT textView()->clearColorLabels();
         QCoreApplication::processEvents();
     }
 
     // What the Search Limits context menu entries do in any view.
     void setSearchLimits( LineNumber startLine, LineNumber endLine )
     {
-        crawler->setSearchLimits( startLine, endLine );
+        Q_EMIT textView()->changeSearchLimits( startLine, endLine );
         QCoreApplication::processEvents();
     }
 
     void clearSearchLimits()
     {
-        crawler->clearSearchLimits();
+        Q_EMIT textView()->clearSearchLimits();
         QCoreApplication::processEvents();
     }
 
-    // The Search Limits every view of the Log File was handed last.
-    std::optional<std::pair<LineNumber, LineNumber>> searchLimits() const
+    // The Search Limits every view of the Log File was handed last, as the
+    // main view, one of them, holds them.
+    std::pair<LineNumber, LineNumber> searchLimits() const
     {
-        return crawler->viewSet_.searchLimits();
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::searchLimits( *textView() );
     }
 
-    // The words of every Color Label every view of the Log File was handed.
-    const ViewSet::ColorLabels& colorLabels() const
+    // The words of every Color Label every view of the Log File was handed,
+    // as the main view, one of them, holds them.
+    const std::vector<QStringList>& colorLabels() const
     {
-        return crawler->viewSet_.colorLabels();
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::colorLabels( *textView() );
     }
 
-    // What a Log File growing in the background does: its tab shows new data.
+    // What a Log File growing in the background does: its Open Log File
+    // tells of a load that appended Log Lines, and its tab shows new data.
     void showNewData()
     {
-        crawler->changeDataStatus( DataStatus::NEW_DATA );
+        OpenLogFile::LoadFinished load;
+        load.onlyAppended = true;
+        Q_EMIT openLogFile().loadingFinished( load );
     }
 
     // What marking a Log Line in the main view does.
     void markLogLine( LineNumber line )
     {
-        crawler->markLinesFromMain( { line } );
+        Q_EMIT textView()->markLines( { line } );
         QCoreApplication::processEvents();
     }
 
     // What clicking a Filtered View's tab does.
     void makeFilteredViewTabCurrent( int index )
     {
-        crawler->tabbedFilteredView_->setCurrentIndex( index );
+        filteredViewTabsOf( *crawler ).setCurrentIndex( index );
         QCoreApplication::processEvents();
     }
 
@@ -463,7 +487,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QWidget* filteredViewTab( int index ) const
     {
-        return crawler->tabbedFilteredView_->widget( index );
+        return filteredViewTabsOf( *crawler ).widget( index );
     }
 
     // The current Search, held no longer than the Log File holds it.
@@ -475,13 +499,13 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // The Search the Table View shows the Marks and Matches of.
     const LogFilteredData* tableViewSearch() const
     {
-        return LogTableView::access_by<CrawlerWidgetPrivate>::search( *crawler->logTableView_ );
+        return LogTableView::access_by<CrawlerWidgetPrivate>::search( *tableView() );
     }
 
     // What the close button of a Filtered View's tab does.
     void closeFilteredViewTab( int index )
     {
-        crawler->closeFilteredView( index );
+        Q_EMIT filteredViewTabsOf( *crawler ).tabCloseRequested( index );
     }
 
     // The Filtered View of the current Search: the tab in front, as the
@@ -496,31 +520,31 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // for a Log File whose tab is not the current one as well.
     bool overviewShown() const
     {
-        return crawler->overview_.isVisible() && !crawler->overviewWidget_->isHidden();
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::overviewShown( *textView() );
     }
 
     // Whether the Search line reads its pattern as a regexp.
     bool useRegexpChecked() const
     {
-        return SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked();
+        return SearchLineAccess::useRegexpButton( searchLine() )->isChecked();
     }
 
     // Whether the Search matches case.
     bool matchCaseChecked() const
     {
-        return SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked();
+        return SearchLineAccess::matchCaseButton( searchLine() )->isChecked();
     }
 
     // Whether the Search refreshes as the Log File grows.
     bool autoRefreshChecked() const
     {
-        return SearchLineAccess::autoRefreshButton( *crawler->searchLine_ )->isChecked();
+        return SearchLineAccess::autoRefreshButton( searchLine() )->isChecked();
     }
 
     // Whether the Search pattern is read as a logical combination.
     bool booleanCombiningChecked() const
     {
-        return SearchLineAccess::booleanButton( *crawler->searchLine_ )->isChecked();
+        return SearchLineAccess::booleanButton( searchLine() )->isChecked();
     }
 
     // What the user does by hand: clicks the match case, auto-refresh and
@@ -528,15 +552,15 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // What the font-size shortcuts and Ctrl+wheel do in any view of the Log File.
     void zoom( bool increase )
     {
-        crawler->changeFontSize( increase );
+        Q_EMIT textView()->changeFontSize( increase );
         QCoreApplication::processEvents();
     }
 
     // What the user does by hand: asks for the Search to follow the Log File.
     void enableAutoRefresh()
     {
-        if ( !SearchLineAccess::autoRefreshButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::autoRefreshButton( *crawler->searchLine_ ),
+        if ( !SearchLineAccess::autoRefreshButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::autoRefreshButton( searchLine() ),
                                Qt::LeftButton );
             QCoreApplication::processEvents();
         }
@@ -544,26 +568,25 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString searchInfoText() const
     {
-        return SearchLineAccess::infoLine( *crawler->searchLine_ )->text();
+        return SearchLineAccess::infoLine( searchLine() )->text();
     }
 
     bool isSearchRunning() const
     {
-        return !SearchLineAccess::stopButton( *crawler->searchLine_ )->isHidden();
+        return !SearchLineAccess::stopButton( searchLine() )->isHidden();
     }
 
     bool mainViewKeepsBottomLines() const
     {
-        return AbstractLogView::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
-            *crawler->logMainView_ );
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::bottomLinesKept( *textView() );
     }
 
     // What the user does by hand: shows the chart and adds a series counting
     // the Log Lines that match pattern.
     void showChartCounting( const QString& pattern )
     {
-        showUntilExposed( *crawler->chartPanel_ );
-        crawler->chartPanel_->addFilterFrequencySeries( { pattern }, true );
+        showUntilExposed( chartPanelOf( *crawler ) );
+        chartPanelOf( *crawler ).addFilterFrequencySeries( { pattern }, true );
     }
 
     // What the user does by hand: asks for the frequency of the Search's
@@ -578,7 +601,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     QList<qsizetype> chartPointsPerSeries() const
     {
         QList<qsizetype> points;
-        for ( const auto& series : crawler->chartPanel_->seriesDefinitions() ) {
+        for ( const auto& series : chartPanelOf( *crawler ).seriesDefinitions() ) {
             points.append( series.points.size() );
         }
         return points;
@@ -587,7 +610,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // The points the chart shows for its first series.
     qsizetype chartPoints() const
     {
-        const auto series = crawler->chartPanel_->seriesDefinitions();
+        const auto series = chartPanelOf( *crawler ).seriesDefinitions();
         return series.isEmpty() ? 0 : series.front().points.size();
     }
 
@@ -595,9 +618,8 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // regexp.
     void enableRegexpSearch()
     {
-        if ( !SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::useRegexpButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( !SearchLineAccess::useRegexpButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::useRegexpButton( searchLine() ), Qt::LeftButton );
             QCoreApplication::processEvents();
         }
     }
@@ -606,18 +628,10 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // fixed string.
     void disableRegexpSearch()
     {
-        if ( SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked() ) {
-            QTest::mouseClick( SearchLineAccess::useRegexpButton( *crawler->searchLine_ ),
-                               Qt::LeftButton );
+        if ( SearchLineAccess::useRegexpButton( searchLine() )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::useRegexpButton( searchLine() ), Qt::LeftButton );
             QCoreApplication::processEvents();
         }
-    }
-
-    // The QuickFind pattern the views of the Log File search and paint: the
-    // one the window's QuickFind bar drives.
-    std::shared_ptr<QuickFindPattern> quickFindPattern() const
-    {
-        return crawler->quickFindPattern_;
     }
 
     // What the window does as its QuickFind bar opens: the bar takes the
@@ -625,7 +639,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     void enterQuickFind()
     {
         crawler->enteringQuickFind();
-        SearchLineAccess::patternEdit( *crawler->searchLine_ )->setFocus();
+        SearchLineAccess::patternEdit( searchLine() )->setFocus();
         QCoreApplication::processEvents();
     }
 
@@ -637,7 +651,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     }
 };
 
-using CrawlerWidgetVisitor = CrawlerWidget::access_by<CrawlerWidgetPrivate>;
+} // namespace
 
 SCENARIO( "Crawler widget search", "[ui]" )
 {
@@ -1870,7 +1884,9 @@ SCENARIO( "Show colors paints the ANSI colors in the main and the Filtered View"
     REQUIRE_FALSE( showsColor( crawlerVisitor.textView(), AnsiTruecolorBack ) );
     REQUIRE_FALSE( showsColor( crawlerVisitor.filteredView(), AnsiTruecolorBack ) );
 
-    auto& quickFindPattern = *crawlerVisitor.quickFindPattern();
+    // The QuickFind pattern the views of the Log File search and paint: the
+    // Session's, which the window's QuickFind bar drives.
+    auto& quickFindPattern = *session.quickFindPattern();
     const auto hiddenMatch = quickFound( *crawlerVisitor.textView(), quickFindPattern, "disk" );
     const auto hiddenMatchAfterTab
         = quickFound( *crawlerVisitor.textView(), quickFindPattern, "full" );
@@ -4505,7 +4521,7 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
 
     // The window's QuickFind bar drives the mux, the mux the view the Crawler
     // Widget names.
-    QuickFindMux mux{ crawlerVisitor.quickFindPattern() };
+    QuickFindMux mux{ session.quickFindPattern() };
     auto policy = testSettingsPolicies().quickFind;
     policy.incremental = true;
     mux.setQuickFindPolicy( policy );
@@ -4611,7 +4627,7 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
             THEN( "the QuickFind bar searches the same pattern in the same direction" )
             {
                 REQUIRE( found );
-                REQUIRE( crawlerVisitor.quickFindPattern()->getPattern() == "glogg" );
+                REQUIRE( session.quickFindPattern()->getPattern() == "glogg" );
 
                 mux.searchNext();
                 REQUIRE( tableSelects( 23_lnum ) );
@@ -5108,9 +5124,10 @@ SCENARIO( "A reload or a forgotten Log Format cancels a time lookup under way",
             }
         }
 
-        WHEN( "the Log Format is forgotten" )
+        // A Log File truncated is where its tab forgets the Log Format.
+        WHEN( "the Log Format is forgotten as the Log File is truncated" )
         {
-            crawlerVisitor.resetLogFormat();
+            crawlerVisitor.truncateForgettingLogFormat();
             THEN( "the lookup is cancelled" )
             {
                 REQUIRE_FALSE( crawlerVisitor.isLookingUpTime() );

@@ -47,6 +47,7 @@
 #include "chartpanel.h"
 #include "chartseriesdialog.h"
 #include "context_menu_entries.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -74,44 +75,43 @@ struct AbstractLogView::access_by<ChartThisValueTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<ChartThisValueTest> {
+namespace {
+
+using ViewAccess = AbstractLogView::access_by<ChartThisValueTest>;
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *qobject_cast<AbstractLogView*>(
-            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
+        return *frontFilteredViewOf( crawler );
     }
 
     static ChartPanel& chartPanel( const CrawlerWidget& crawler )
     {
-        return *crawler.chartPanel_;
+        return chartPanelOf( crawler );
     }
 
     static bool searchStopped( const CrawlerWidget& crawler )
     {
-        return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden();
+        return SearchLineAccess::stopButton( searchLineOf( crawler ) )->isHidden();
     }
 
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
         edit->clearEditText();
         QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
         QTest::qWait( 100 );
         REQUIRE( waitUiState( [ & ] { return searchStopped( crawler ); } ) );
     }
 };
-
-namespace {
-
-using ViewAccess = AbstractLogView::access_by<ChartThisValueTest>;
-using CrawlerAccess = CrawlerWidget::access_by<ChartThisValueTest>;
 
 const auto ChartThisValue = QStringLiteral( "Chart this value..." );
 const auto TheLogLine = QStringLiteral( "12:00:01 GET /api took 125 ms" );

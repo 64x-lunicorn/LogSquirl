@@ -50,6 +50,7 @@
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
@@ -66,20 +67,17 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-struct RegexLabTest {};
-
-template <>
-struct CrawlerWidget::access_by<RegexLabTest> {
-    static void selectInMainView( CrawlerWidget& crawler, LineNumber line )
-    {
-        crawler.logMainView_->setFocus();
-        crawler.logMainView_->selectAndDisplayLine( line );
-    }
-};
-
 namespace {
 
-using CrawlerAccess = CrawlerWidget::access_by<RegexLabTest>;
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
+    static void selectInMainView( CrawlerWidget& crawler, LineNumber line )
+    {
+        auto& textView = textViewOf( crawler );
+        textView.setFocus();
+        textView.selectAndDisplayLine( line );
+    }
+};
 
 constexpr int LogLineCount = 3000;
 

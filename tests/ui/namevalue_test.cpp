@@ -44,6 +44,7 @@
 #include "abstractlogview.h"
 #include "applicationplugins.h"
 #include "context_menu_entries.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -94,35 +95,34 @@ struct AbstractLogView::access_by<NameValueTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<NameValueTest> {
+namespace {
+
+using ViewAccess = AbstractLogView::access_by<NameValueTest>;
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *qobject_cast<AbstractLogView*>(
-            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
+        return *frontFilteredViewOf( crawler );
     }
 
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
         edit->clearEditText();
         QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
         QTest::qWait( 100 );
         REQUIRE( waitUiState(
-            [ & ] { return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden(); } ) );
+            [ & ] { return SearchLineAccess::stopButton( searchLine )->isHidden(); } ) );
     }
 };
-
-namespace {
-
-using ViewAccess = AbstractLogView::access_by<NameValueTest>;
-using CrawlerAccess = CrawlerWidget::access_by<NameValueTest>;
 
 const auto NameThisValue = QStringLiteral( "Name this value..." );
 const auto EsimLine = QStringLiteral( "modem EsimState=9 done" );

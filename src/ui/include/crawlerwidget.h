@@ -243,6 +243,9 @@ public:
         // available, empty when they are: the Time Navigation.
         QString goToTimestampUnavailable;
         QString searchLimitsByTimeUnavailable;
+        // Whether a time lookup of the Time Navigation is under way: it has
+        // not answered, and is cancelled by what makes its answer stale.
+        bool lookingUpTime = false;
         // How many Filtered View tabs the tab has -- one, and one more for
         // each kept Search -- and the index of the one in front.
         int filteredViewCount = 0;
@@ -321,8 +324,20 @@ public Q_SLOTS:
     void applyDecodingPolicyChange();
 
 public:
-    template <class T>
-    struct access_by;
+    // The object names of the child widgets a user works with, by which a
+    // test or the benchmark mode finds them to drive them as a user does
+    // (#669, #945).
+    struct ChildName {
+        static constexpr auto SearchLine = "searchLine";
+        static constexpr auto TextView = "textView";
+        static constexpr auto TableView = "tableView";
+        static constexpr auto TableViewToggle = "tableViewToggle";
+        // The stack showing one Presentation, the Text View or the Table View.
+        static constexpr auto Presentations = "presentations";
+        // The tabs of the Filtered Views, one for each Search.
+        static constexpr auto FilteredViewTabs = "filteredViewTabs";
+        static constexpr auto ChartPanel = "chartPanel";
+    };
 
 protected:
     // Implementation of the ViewInterface functions

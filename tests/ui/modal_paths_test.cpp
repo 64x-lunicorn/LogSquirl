@@ -62,6 +62,7 @@
 #include "archivemember.h"
 #include "chartpanel.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "highlighteredit.h"
@@ -92,13 +93,12 @@
 
 using namespace logsquirl::teamfolder;
 
+namespace {
+
 // What the tests below read of a tab, open in session, beyond its State: the
 // state the paths leave behind -- the Search Limits of its Open Log File and
 // the Search line's pattern.
-struct ModalPathsAccess {};
-
-template <>
-struct CrawlerWidget::access_by<ModalPathsAccess> {
+struct CrawlerState {
     CrawlerWidget& crawler;
     const Session& session;
 
@@ -119,13 +119,9 @@ struct CrawlerWidget::access_by<ModalPathsAccess> {
 
     QString searchText() const
     {
-        return crawler.searchLine_->pattern();
+        return searchLineOf( crawler ).pattern();
     }
 };
-
-using CrawlerState = CrawlerWidget::access_by<ModalPathsAccess>;
-
-namespace {
 
 constexpr int LineCount = 300;
 

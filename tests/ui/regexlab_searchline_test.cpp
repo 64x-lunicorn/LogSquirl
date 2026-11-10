@@ -42,6 +42,7 @@
 #include <memory>
 #include <set>
 
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -57,26 +58,22 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-struct RegexLabSearchLineTest {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<RegexLabSearchLineTest> {
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static SearchLineWidget& searchLine( CrawlerWidget& crawler )
     {
-        return *crawler.searchLine_;
+        return searchLineOf( crawler );
     }
 
     // The main view, which shows every Log Line, is the one last in focus.
     static void focusMainView( CrawlerWidget& crawler )
     {
-        crawler.logMainView_->setFocus();
+        textViewOf( crawler ).setFocus();
         QCoreApplication::processEvents();
     }
 };
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<RegexLabSearchLineTest>;
 
 constexpr int LogLineCount = 40;
 

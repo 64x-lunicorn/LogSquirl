@@ -27,6 +27,7 @@
 #include "abstractlogview.h"
 #include "applicationplugins.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "logformatcatalog.h"
@@ -57,10 +58,14 @@
 #include <thread>
 #include <vector>
 
-struct PluginMarksTest {};
+using logsquirl::plugins::ApplicationPlugins;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
 
-template <>
-struct CrawlerWidget::access_by<PluginMarksTest> {
+namespace {
+
+// The Marks of a tab, and its Text View, driven as a user does.
+struct CrawlerAccess {
     // Whether the Log File has the Log Line, numbered from 0, marked: what the
     // bullet margin shows.
     static bool isMarked( const CrawlerWidget& crawler, LineNumber::UnderlyingType line )
@@ -68,25 +73,18 @@ struct CrawlerWidget::access_by<PluginMarksTest> {
         return crawler.marks().contains( LineNumber( line ) );
     }
 
-    // Marks Log Lines, numbered from 0, as the user does from the Text View.
-    static void markByHand( CrawlerWidget& crawler, LineNumber::UnderlyingType line )
-    {
-        crawler.markLinesFromMain( { LineNumber( line ) } );
-    }
-
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
+    }
+
+    // Marks Log Lines, numbered from 0, as the user does from the Text View:
+    // the view asks for them to be marked.
+    static void markByHand( CrawlerWidget& crawler, LineNumber::UnderlyingType line )
+    {
+        Q_EMIT textView( crawler ).markLines( { LineNumber( line ) } );
     }
 };
-
-using logsquirl::plugins::ApplicationPlugins;
-using logsquirl::plugins::PluginCatalog;
-using logsquirl::plugins::PluginHost;
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginMarksTest>;
 
 const auto PluginId = QStringLiteral( "io.github.logsquirl.test.marks-plugin" );
 

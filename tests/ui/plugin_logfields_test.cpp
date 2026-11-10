@@ -26,6 +26,7 @@
 // through a File Watch Port the test drives.
 
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "logformatcatalog.h"
@@ -56,13 +57,17 @@
 #include <thread>
 #include <vector>
 
-struct PluginLogFieldsTest {};
+using logsquirl::plugins::ApplicationPlugins;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
 
-template <>
-struct CrawlerWidget::access_by<PluginLogFieldsTest> {
+namespace {
+
+// What the Table View of a tab shows.
+struct CrawlerAccess {
     static const LogFormatTableModel* tableModel( const CrawlerWidget& crawler )
     {
-        return qobject_cast<const LogFormatTableModel*>( crawler.logTableView_->model() );
+        return qobject_cast<const LogFormatTableModel*>( tableViewOf( crawler ).model() );
     }
 
     // The headers of the Table View's columns, but the elapsed time's.
@@ -100,14 +105,6 @@ struct CrawlerWidget::access_by<PluginLogFieldsTest> {
         return shown;
     }
 };
-
-using logsquirl::plugins::ApplicationPlugins;
-using logsquirl::plugins::PluginCatalog;
-using logsquirl::plugins::PluginHost;
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogFieldsTest>;
 
 const auto PluginId = QStringLiteral( "io.github.logsquirl.test.log-file-plugin" );
 

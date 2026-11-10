@@ -18,6 +18,7 @@
  */
 
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "filteredview.h"
@@ -62,44 +63,44 @@ namespace {
 // The Log Format the Session recognizes the Log Files with.
 constexpr auto TestFormatName = "tableview_follow_test";
 
-} // namespace
-
-template <>
-struct CrawlerWidget::access_by<TableViewFollowTest> {
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     // Shows the Table View of the Log File, once recognized with
     // TestFormatName.
     static LogTableView* showTableView( CrawlerWidget& crawler )
     {
         REQUIRE( waitUiState(
             [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
-        crawler.tableViewToggle_->setChecked( true );
-        return crawler.logTableView_;
+        tableViewToggleOf( crawler ).setChecked( true );
+        return &tableViewOf( crawler );
     }
 
     static LogMainView* textView( CrawlerWidget& crawler )
     {
-        return crawler.logMainView_;
+        return &textViewOf( crawler );
     }
 
     // Searches for pattern, the current Search's results kept in their tab
     // first when keep says so.
     static void search( CrawlerWidget& crawler, const QString& pattern, bool keep )
     {
-        SearchLineAccess::keepResultsButton( *crawler.searchLine_ )->setChecked( keep );
-        SearchLineAccess::patternEdit( *crawler.searchLine_ )->setEditText( pattern );
-        crawler.searchLine_->requestSearch();
+        auto& searchLine = searchLineOf( crawler );
+        SearchLineAccess::keepResultsButton( searchLine )->setChecked( keep );
+        SearchLineAccess::patternEdit( searchLine )->setEditText( pattern );
+        searchLine.requestSearch();
     }
 
     static std::vector<FilteredView*> filteredViews( CrawlerWidget& crawler )
     {
         std::vector<FilteredView*> views;
-        for ( int tab = 0; tab < crawler.tabbedFilteredView_->count(); ++tab ) {
-            views.push_back(
-                qobject_cast<FilteredView*>( crawler.tabbedFilteredView_->widget( tab ) ) );
+        for ( int tab = 0; tab < filteredViewTabsOf( crawler ).count(); ++tab ) {
+            views.push_back( filteredViewOf( crawler, tab ) );
         }
         return views;
     }
 };
+
+} // namespace
 
 template <>
 struct LogTableView::access_by<TableViewFollowTest> {
@@ -200,7 +201,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
 
     GIVEN( "the Log File shown in the Table View, followed, at its bottom" )
     {
-        auto* table = CrawlerWidget::access_by<TableViewFollowTest>::showTableView( *crawler );
+        auto* table = CrawlerAccess::showTableView( *crawler );
         REQUIRE( waitUiState(
             [ & ] { return table->model() != nullptr && table->model()->rowCount() == 200; } ) );
         followAction->setChecked( true );
@@ -316,7 +317,7 @@ SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
     auto* followAction = followActionOf( *mainWindow );
     REQUIRE( followAction != nullptr );
 
-    using Access = CrawlerWidget::access_by<TableViewFollowTest>;
+    using Access = CrawlerAccess;
     LogFileViews views;
     views.text = Access::textView( *crawler );
     views.table = Access::showTableView( *crawler );

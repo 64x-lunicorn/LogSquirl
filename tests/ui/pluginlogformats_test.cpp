@@ -25,6 +25,7 @@
 
 #include "applicationplugins.h"
 #include "configuration.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logdata.h"
 #include "logformatcatalog.h"
@@ -51,13 +52,13 @@ using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 
-struct PluginLogFormatsAccess {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
+// A tab, observed through its State and its child widgets.
+struct CrawlerAccess {
     std::unique_ptr<CrawlerWidget> crawler;
 
-    explicit access_by( ViewInterface* view )
+    explicit CrawlerAccess( ViewInterface* view )
         : crawler( static_cast<CrawlerWidget*>( view ) )
     {
     }
@@ -75,7 +76,7 @@ struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
 
     bool isTableViewToggled() const
     {
-        return crawler->tableViewToggle_->isChecked();
+        return tableViewToggleOf( *crawler ).isChecked();
     }
 
     bool waitLoaded( LinesCount lines )
@@ -86,10 +87,6 @@ struct CrawlerWidget::access_by<PluginLogFormatsAccess> {
         } );
     }
 };
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginLogFormatsAccess>;
-
-namespace {
 
 constexpr int LineCount = 60;
 

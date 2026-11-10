@@ -382,6 +382,7 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.encodingMib = openLogFile_->chosenEncoding();
     state.goToTimestampUnavailable = timeNavigation_.goToTimestampUnavailableReason();
     state.searchLimitsByTimeUnavailable = timeNavigation_.searchLimitsByTimeUnavailableReason();
+    state.lookingUpTime = timeNavigation_.isLookingUp();
     state.filteredViewCount = tabbedFilteredView_->count();
     state.frontFilteredView = tabbedFilteredView_->currentIndex();
     state.quickFindSearchable = doGetActiveSearchable();
@@ -1424,6 +1425,7 @@ void CrawlerWidget::setup()
     logMainView_
         = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
+    logMainView_->setObjectName( ChildName::TextView );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
     logMainView_->setPluginContextMenu( pluginContextMenuOfViews() );
     // A tab starts showing Value Names as the Presentation Policy says, and
@@ -1501,6 +1503,7 @@ void CrawlerWidget::setup()
 
     // The Search Line, which starts with the latest Search of the history.
     searchLine_ = new SearchLineWidget( quickFindPolicy_, savedSearches_->recentSearches(), this );
+    searchLine_->setObjectName( ChildName::SearchLine );
     setFocusProxy( searchLine_ );
 
     // Its context menu: the pattern edit's own entries, then this widget's.
@@ -1529,7 +1532,7 @@ void CrawlerWidget::setup()
     // Table view toggle button (hidden until a Log Format is recognized)
     tableViewToggle_ = new QToolButton();
     // Named, so the benchmark mode shows the Table View as a user does (#669).
-    tableViewToggle_->setObjectName( "tableViewToggle" );
+    tableViewToggle_->setObjectName( ChildName::TableViewToggle );
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
     tableViewToggle_->setCheckable( true );
@@ -1542,6 +1545,7 @@ void CrawlerWidget::setup()
 
     // Construct the bottom window
     tabbedFilteredView_ = new QTabWidget;
+    tabbedFilteredView_->setObjectName( ChildName::FilteredViewTabs );
     tabbedFilteredView_->setTabsClosable( true );
     tabbedFilteredView_->addTab( firstFilteredView, "" );
     tabbedFilteredView_->setDocumentMode( true );
@@ -1555,7 +1559,9 @@ void CrawlerWidget::setup()
 
     // Wrap main view and table view in a stacked widget for toggling
     mainViewStack_ = new QStackedWidget;
+    mainViewStack_->setObjectName( ChildName::Presentations );
     logTableView_ = new LogTableView;
+    logTableView_->setObjectName( ChildName::TableView );
     logTableView_->setQuickFindPattern( quickFindPattern_ );
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
@@ -1571,6 +1577,7 @@ void CrawlerWidget::setup()
 
     // Chart panel — third pane in the vertical splitter, hidden by default.
     chartPanel_ = new ChartPanel;
+    chartPanel_->setObjectName( ChildName::ChartPanel );
     chartPanel_->hide();
     addWidget( chartPanel_ );
 

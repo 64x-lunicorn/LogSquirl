@@ -43,6 +43,7 @@
 #include "logformattablemodel.h"
 #include "logtableview.h"
 
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 
 // Format Recognition as the coordinator of a Log File runs it (#104): once
@@ -100,15 +101,11 @@ bool writeLogFile( const QString& path )
     return true;
 }
 
-} // namespace
-
-struct FormatRecognitionAccess {};
-
-template <>
-struct CrawlerWidget::access_by<FormatRecognitionAccess> {
+// A tab, observed through its State and its child widgets.
+struct CrawlerAccess {
     std::unique_ptr<CrawlerWidget> crawler;
 
-    explicit access_by( ViewInterface* view )
+    explicit CrawlerAccess( ViewInterface* view )
         : crawler( static_cast<CrawlerWidget*>( view ) )
     {
     }
@@ -148,8 +145,7 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
     // offers.
     QStringList filteredViewCsvColumns() const
     {
-        const auto* front = qobject_cast<FilteredView*>(
-            crawler->tabbedFilteredView_->widget( crawler->state().frontFilteredView ) );
+        const auto* front = frontFilteredViewOf( *crawler );
         QStringList names;
         for ( const auto& column : front->csvExportSetup().columns ) {
             names << column.name;
@@ -159,11 +155,11 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     bool isTableViewToggled() const
     {
-        return crawler->tableViewToggle_->isChecked();
+        return tableViewToggleOf( *crawler ).isChecked();
     }
     LogTableView* tableView() const
     {
-        return crawler->logTableView_;
+        return &tableViewOf( *crawler );
     }
 
     void reload()
@@ -176,10 +172,6 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
         return waitUiState( [ this, lines ] { return nbLines() == lines && isLoadingFinished(); } );
     }
 };
-
-using CrawlerAccess = CrawlerWidget::access_by<FormatRecognitionAccess>;
-
-namespace {
 
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {

@@ -38,6 +38,7 @@
 #include <memory>
 #include <set>
 
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "logdata.h"
@@ -55,30 +56,26 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-struct FieldTermSearchLineTest {};
+namespace {
 
-template <>
-struct CrawlerWidget::access_by<FieldTermSearchLineTest> {
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static SearchLineWidget& searchLine( CrawlerWidget& crawler )
     {
-        return *crawler.searchLine_;
+        return searchLineOf( crawler );
     }
 
     static LogTableView& tableView( CrawlerWidget& crawler )
     {
-        return *crawler.logTableView_;
+        return tableViewOf( crawler );
     }
 
     static void focusMainView( CrawlerWidget& crawler )
     {
-        crawler.logMainView_->setFocus();
+        textViewOf( crawler ).setFocus();
         QCoreApplication::processEvents();
     }
 };
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<FieldTermSearchLineTest>;
 
 constexpr int LogLineCount = 40;
 

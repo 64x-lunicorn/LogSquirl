@@ -25,6 +25,7 @@
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
@@ -107,35 +108,41 @@ struct LogTableView::access_by<PluginContextMenuTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<PluginContextMenuTest> {
+using logsquirl::plugins::ApplicationPlugins;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
+
+namespace {
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     // The Filtered View in front, as the State says.
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *qobject_cast<AbstractLogView*>(
-            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
+        return *frontFilteredViewOf( crawler );
     }
 
     static LogTableView& tableView( const CrawlerWidget& crawler )
     {
-        return *crawler.logTableView_;
+        return tableViewOf( crawler );
     }
 
     // Runs a Search for pattern, as the Search Line does, until it is done.
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
         edit->clearEditText();
         QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
         QTest::qWait( 100 );
         REQUIRE( waitUiState(
-            [ & ] { return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden(); } ) );
+            [ & ] { return SearchLineAccess::stopButton( searchLine )->isHidden(); } ) );
     }
 
     // Shows the Table View of the Log File, once recognized with
@@ -144,18 +151,11 @@ struct CrawlerWidget::access_by<PluginContextMenuTest> {
     {
         REQUIRE( waitUiState(
             [ &crawler ] { return crawler.state().logFormatName == TestFormatName; } ) );
-        crawler.tableViewToggle_->setChecked( true );
+        tableViewToggleOf( crawler ).setChecked( true );
         QTest::qWait( 50 );
     }
 };
 
-using logsquirl::plugins::ApplicationPlugins;
-using logsquirl::plugins::PluginCatalog;
-using logsquirl::plugins::PluginHost;
-
-namespace {
-
-using CrawlerAccess = CrawlerWidget::access_by<PluginContextMenuTest>;
 using TextViewAccess = AbstractLogView::access_by<PluginContextMenuTest>;
 using TableViewAccess = LogTableView::access_by<PluginContextMenuTest>;
 

@@ -49,6 +49,7 @@
 #include "addpredefinedfilterdialog.h"
 #include "applicationplugins.h"
 #include "context_menu_entries.h"
+#include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
 #include "logfiltereddata.h"
@@ -81,50 +82,49 @@ struct AbstractLogView::access_by<AddPredefinedFilterTest> {
     }
 };
 
-template <>
-struct CrawlerWidget::access_by<AddPredefinedFilterTest> {
+namespace {
+
+using ViewAccess = AbstractLogView::access_by<AddPredefinedFilterTest>;
+
+// The child widgets of a tab, driven as a user does.
+struct CrawlerAccess {
     static AbstractLogView& textView( const CrawlerWidget& crawler )
     {
-        return *crawler.logMainView_;
+        return textViewOf( crawler );
     }
 
     // The Filtered View in front, as the State says.
     static AbstractLogView& filteredView( const CrawlerWidget& crawler )
     {
-        return *qobject_cast<AbstractLogView*>(
-            crawler.tabbedFilteredView_->widget( crawler.state().frontFilteredView ) );
+        return *frontFilteredViewOf( crawler );
     }
 
     static QString searchPattern( const CrawlerWidget& crawler )
     {
-        return SearchLineAccess::patternEdit( *crawler.searchLine_ )->currentText();
+        return SearchLineAccess::patternEdit( searchLineOf( crawler ) )->currentText();
     }
 
     static bool searchStopped( const CrawlerWidget& crawler )
     {
-        return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden();
+        return SearchLineAccess::stopButton( searchLineOf( crawler ) )->isHidden();
     }
 
     static QToolButton* useRegexpButton( const CrawlerWidget& crawler )
     {
-        return SearchLineAccess::useRegexpButton( *crawler.searchLine_ );
+        return SearchLineAccess::useRegexpButton( searchLineOf( crawler ) );
     }
 
     static void search( CrawlerWidget& crawler, const QString& pattern )
     {
-        auto* edit = SearchLineAccess::patternEdit( *crawler.searchLine_ );
+        auto& searchLine = searchLineOf( crawler );
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
         edit->clearEditText();
         QTest::keyClicks( edit, pattern );
-        QTest::mouseClick( SearchLineAccess::searchButton( *crawler.searchLine_ ), Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( searchLine ), Qt::LeftButton );
         QTest::qWait( 100 );
         REQUIRE( waitUiState( [ & ] { return searchStopped( crawler ); } ) );
     }
 };
-
-namespace {
-
-using ViewAccess = AbstractLogView::access_by<AddPredefinedFilterTest>;
-using CrawlerAccess = CrawlerWidget::access_by<AddPredefinedFilterTest>;
 
 const auto AddAsPredefinedFilter = QStringLiteral( "Add as Predefined Filter..." );
 const auto SelectedText = QStringLiteral( "a.b[1]" );
