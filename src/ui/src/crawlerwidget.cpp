@@ -370,6 +370,7 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.loadStatus = lastLoadStatus_;
     state.loadFailure = lastLoadFailure_;
     state.loadingProgress = loadingProgress_;
+    state.hasLoaded = hasLoaded_;
     state.lineCount = openLogFile_->logData()->getNbLine();
     state.logFormatName = recognizedFormat_ != nullptr ? recognizedFormat_->name() : QString{};
     state.selectedLine = currentLineNumber_;

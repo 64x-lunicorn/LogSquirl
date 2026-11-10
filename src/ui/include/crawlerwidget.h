@@ -220,6 +220,8 @@ public:
         std::optional<LoadingStatus> loadStatus;
         QString loadFailure;
         int loadingProgress = 0;
+        // Whether a load has finished successfully in this tab (hasLoaded()).
+        bool hasLoaded = false;
         // How many Log Lines the Log File has, as far as it is loaded.
         LinesCount lineCount;
         // The Log Format recognized, empty when none is.

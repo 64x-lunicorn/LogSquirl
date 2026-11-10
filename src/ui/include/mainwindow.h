@@ -66,6 +66,7 @@
 #include "crawlerwidget.h"
 #include "downloader.h"
 #include "filterspanel.h"
+#include "fronttabbinding.h"
 #include "iconloader.h"
 #include "logfileprovenance.h"
 #include "openstep.h"
@@ -237,6 +238,10 @@ protected:
     bool eventFilter( QObject* watched, QEvent* event ) override;
 
 private:
+    // Connects the window to the tab in front and shows its state in the
+    // window's actions (#946).
+    friend class FrontTabBinding;
+
     enum class ActionInitiator { User, App };
 
     // Hand the QuickFind bar and the mux the QuickFind Policy this window's
@@ -348,8 +353,6 @@ private Q_SLOTS:
     // its tab, and a Failed one is offered to be reported.
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
 
-    // Update quick find searchable
-    void handleFilteredViewChanged();
     void showStatusMessage( QString message );
 
     // Close the tab with the passed index
@@ -397,9 +400,6 @@ private:
     void createActions();
     void loadIcons();
     void createMenus();
-    // Enables the Edit menu and the File menu's actions on the current file
-    // while a tab holds a Log File, disables them while none does.
-    void setCurrentFileActionsEnabled( bool enabled );
     void createToolBars();
     void createTrayIcon();
     void readSettings();
@@ -503,12 +503,6 @@ private:
     // The tab is closing: plugins find its Log File no more (#858).
     void hideLogFileFromPlugins( const CrawlerWidget* crawler );
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
-    // Connects the window to the Log File in front, and it alone: the
-    // connections to the tab shown before go (#635). Nothing is connected for
-    // nullptr.
-    void connectFrontTab( CrawlerWidget* crawler );
-    void updateMenuBarFromDocument( const CrawlerWidget::State& state );
-    void updateGoToTimestampAction( const CrawlerWidget::State& state );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -540,8 +534,8 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
-    // The connections between the window and the Log File in front.
-    std::vector<QMetaObject::Connection> frontTabConnections_;
+    // The window's ties to the Log File in front, and to it alone (#635).
+    FrontTabBinding frontTab_{ *this };
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;

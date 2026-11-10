@@ -202,6 +202,8 @@ MainWindow::MainWindow( WindowSession session,
     // the dashboard list them once they have.
     createMenus();
     createToolBars();
+    // No Log File is in front yet.
+    frontTab_.bind( nullptr );
 
     setAcceptDrops( true );
 
@@ -782,7 +784,7 @@ void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
 
     crawler->setEncoding( source->second->outputEncoding()->mibEnum() );
     if ( crawler == currentCrawlerWidget() ) {
-        updateMenuBarFromDocument( crawler->state() );
+        frontTab_.apply();
         updateInfoLine();
     }
 }
@@ -1541,7 +1543,6 @@ void MainWindow::createMenus()
     editMenu->addSeparator();
     editMenu->addAction( searchLimitsTimeRangeAction );
     editMenu->addAction( searchLimitsAroundLineAction );
-    setCurrentFileActionsEnabled( false );
 
     viewMenu = menuBar()->addMenu( tr( menu::viewTitle ) );
     openedFilesMenu = viewMenu->addMenu( tr( menu::openedFilesTitle ) );
@@ -1612,22 +1613,6 @@ void MainWindow::createMenus()
     helpMenu->addSeparator();
     helpMenu->addAction( aboutQtAction );
     helpMenu->addAction( aboutAction );
-}
-
-void MainWindow::setCurrentFileActionsEnabled( bool enabled )
-{
-    // The Edit menu works on the Log Lines of the current tab, and the file
-    // actions of the File menu on its file: without one, neither does anything.
-    editMenu->setEnabled( enabled );
-    copyPathToClipboardAction->setEnabled( enabled );
-    openContainingFolderAction->setEnabled( enabled );
-    openInEditorAction->setEnabled( enabled );
-    clearLogAction->setEnabled( enabled );
-    // Export as CSV... needs a Log Format besides: the tab's state enables it
-    // (updateMenuBarFromDocument()).
-    if ( !enabled ) {
-        exportAsCsvAction->setEnabled( false );
-    }
 }
 
 void MainWindow::createToolBars()
@@ -2944,8 +2929,7 @@ void MainWindow::showLoadingProgress( int progress )
 
     showInfoLabels( false );
 
-    stopAction->setEnabled( true );
-    reloadAction->setEnabled( false );
+    frontTab_.apply();
 }
 
 void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
@@ -2966,17 +2950,11 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
 
         infoLine->hideGauge();
         showInfoLabels( true );
-        stopAction->setEnabled( false );
-        reloadAction->setEnabled( true );
 
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        const auto state = crawler->state();
-        updateGoToTimestampAction( state );
-        matchesOnlyAction->setEnabled( state.hasTableView );
-        exportAsCsvAction->setEnabled( state.hasTableView );
-        changeMatchesOnly( state.matchesOnly );
+        frontTab_.apply();
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -2986,8 +2964,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         // the Log File stays open with what it shows, and the newer load goes
         // on (#621). Only a first load that never finished closes the tab.
         infoLine->hideGauge();
-        stopAction->setEnabled( false );
-        reloadAction->setEnabled( true );
+        frontTab_.apply();
     }
     else {
         if ( status == LoadingStatus::NoMemory ) {
@@ -3022,18 +2999,6 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
 void MainWindow::showStatusMessage( QString message )
 {
     statusBar()->showMessage( message, 8000 );
-}
-
-void MainWindow::handleFilteredViewChanged()
-{
-    int currentIndex = mainTabWidget_.currentIndex();
-    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
-        auto* crawler_widget
-            = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
-        if ( crawler_widget ) {
-            quickFindMux_.registerSelector( crawler_widget );
-        }
-    }
 }
 
 void MainWindow::applyQuickFindPolicy()
@@ -3149,8 +3114,7 @@ void MainWindow::currentTabChanged( int index )
             session_.activate( crawler_widget );
         }
 
-        connectFrontTab( crawler_widget );
-        quickFindMux_.registerSelector( crawler_widget );
+        frontTab_.bind( crawler_widget );
 
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).
@@ -3175,11 +3139,9 @@ void MainWindow::currentTabChanged( int index )
         // first (#692).
         const auto state = crawler_widget->state();
         lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
-        updateMenuBarFromDocument( state );
+        frontTab_.apply();
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
-
-        setCurrentFileActionsEnabled( true );
 
         // Notify plugins about the active file change
         plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
@@ -3187,8 +3149,7 @@ void MainWindow::currentTabChanged( int index )
     else {
         // No tab, or one that holds no Log File, such as the dashboard -- clear
         // the document state
-        connectFrontTab( nullptr );
-        quickFindMux_.registerSelector( nullptr );
+        frontTab_.bind( nullptr );
 
         infoLine->hideGauge();
         infoLine->clear();
@@ -3203,7 +3164,6 @@ void MainWindow::currentTabChanged( int index )
             updateTitleBar( QString() );
         }
 
-        setCurrentFileActionsEnabled( false );
         addToFavoritesAction->setEnabled( false );
         addToFavoritesMenuAction->setEnabled( false );
 
@@ -3215,60 +3175,6 @@ void MainWindow::currentTabChanged( int index )
             showDashboardOrTabs();
         }
     }
-}
-
-void MainWindow::connectFrontTab( CrawlerWidget* crawler )
-{
-    for ( const auto& connection : frontTabConnections_ ) {
-        disconnect( connection );
-    }
-    frontTabConnections_.clear();
-    if ( crawler == nullptr ) {
-        return;
-    }
-
-    frontTabConnections_ = {
-        // What the window asks of the Log File in front
-        connect( this, &MainWindow::followSet, crawler, &CrawlerWidget::followSet ),
-        connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
-        connect( this, &MainWindow::valueNamesShownSet, crawler,
-                 &CrawlerWidget::valueNamesShownSet ),
-        connect( this, &MainWindow::matchesOnlySet, crawler, &CrawlerWidget::setMatchesOnly ),
-        connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
-        connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
-                 &CrawlerWidget::exitingQuickFind ),
-        connect( goToLineAction, &QAction::triggered, crawler, &CrawlerWidget::goToLine ),
-        connect( goToTimestampAction, &QAction::triggered, crawler, &CrawlerWidget::goToTimestamp ),
-        connect( searchLimitsTimeRangeAction, &QAction::triggered, crawler,
-                 &CrawlerWidget::setSearchLimitsToTimeRange ),
-        connect( searchLimitsAroundLineAction, &QAction::triggered, crawler,
-                 &CrawlerWidget::setSearchLimitsAroundCurrentLine ),
-        connect( reloadAction, &QAction::triggered, crawler, &CrawlerWidget::reload ),
-        connect( stopAction, &QAction::triggered, crawler, &CrawlerWidget::stopLoading ),
-
-        // What the Log File in front tells the window
-        connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
-        connect( crawler, &CrawlerWidget::matchesOnlyChanged, this,
-                 &MainWindow::changeMatchesOnly ),
-        connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
-        connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
-                 &MainWindow::newPredefinedFilterHandler ),
-        connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
-        connect( crawler, &CrawlerWidget::nameValueRequested, this, &MainWindow::nameValue ),
-        connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
-                 &MainWindow::replaceDataInScratchpad ),
-        connect( crawler, &CrawlerWidget::loadingProgressed, this,
-                 &MainWindow::updateLoadingProgress ),
-        connect( crawler, &CrawlerWidget::loadingFinished, this,
-                 &MainWindow::handleLoadingFinished ),
-        connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
-        connect( crawler, &CrawlerWidget::highlightThisRequested, this,
-                 &MainWindow::highlightThis ),
-        connect( crawler, &CrawlerWidget::addAsPredefinedFilterRequested, this,
-                 &MainWindow::addAsPredefinedFilter ),
-        connect( crawler, &CrawlerWidget::filteredViewChanged, this,
-                 &MainWindow::handleFilteredViewChanged ),
-    };
 }
 
 void MainWindow::changeQFPattern( const QString& newPattern )
@@ -4176,49 +4082,6 @@ void MainWindow::clearRecentFileActions()
     recentFiles.removeAll();
     recentFiles.save();
     updateRecentFileActions();
-}
-// Update our menu bar to match the settings of the crawler
-// (used when the tab is changed)
-void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
-{
-    const auto& encodingMib = state.encodingMib;
-
-    auto encodingActions = encodingGroup->actions();
-    auto encodingItem = std::find_if( encodingActions.begin(), encodingActions.end(),
-                                      [ &encodingMib ]( const auto& action ) {
-                                          return ( !encodingMib && !action->data().isValid() )
-                                                 || ( encodingMib && action->data().isValid()
-                                                      && *encodingMib == action->data().toInt() );
-                                      } );
-
-    if ( encodingItem != encodingActions.end() ) {
-        ( *encodingItem )->setChecked( true );
-    }
-
-    changeFollowMode( state.follows );
-    textWrapAction->setChecked( state.textWrap );
-    showValueNamesAction->setChecked( state.valueNamesShown );
-    matchesOnlyAction->setEnabled( state.hasTableView );
-    // The context menus offer Export as CSV... for a Log Format only.
-    exportAsCsvAction->setEnabled( state.hasTableView );
-    changeMatchesOnly( state.matchesOnly );
-    updateGoToTimestampAction( state );
-}
-
-// "Go to timestamp" is there for a Log File whose Log Format has a timestamp
-// field; without one it says why it is not.
-void MainWindow::updateGoToTimestampAction( const CrawlerWidget::State& state )
-{
-    const auto& reason = state.goToTimestampUnavailable;
-    goToTimestampAction->setEnabled( reason.isEmpty() );
-    goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
-
-    // The time Search Limits need the same: a Timestamp on the Log Lines.
-    const auto& limitsReason = state.searchLimitsByTimeUnavailable;
-    for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
-        action->setEnabled( limitsReason.isEmpty() );
-        action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
-    }
 }
 
 // Update the top info line from the session

@@ -35,6 +35,7 @@ add_executable(logsquirl_tests
     windowsfileassociations_test.cpp
     fileholder_test.cpp
     fontutils_test.cpp
+    fronttabactions_test.cpp
     groupexchange_test.cpp
     hsregularexpression_test.cpp
     teamfolder_test.cpp
