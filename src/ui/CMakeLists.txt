@@ -263,6 +263,7 @@ target_link_libraries(
          logsquirl_textviewscrolling
          logsquirl_searchline
          logsquirl_compression
+         logsquirl_opensteps
          logsquirl_crash_handler
          logsquirl_valuenames
          logsquirl_fileassociations

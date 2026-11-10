@@ -68,6 +68,7 @@
 #include "filterspanel.h"
 #include "iconloader.h"
 #include "logfileprovenance.h"
+#include "openstep.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -404,22 +405,24 @@ private:
     // What becomes of an open: whether the Log File is open, or on its way.
     using OpenDone = std::function<void( bool isOpen )>;
     // Opens a Log File now that the plugins have loaded: shows its tab if it
-    // is open already, converts it, decompresses it or builds its tab. A
-    // converter plugin whose extensions match converts it; else, when a
-    // converter plugin claims files by their content, it is asked on a worker
-    // thread first, and the open goes on once it answered (#861). Calls done
+    // is open already, converts it, decompresses it or builds its tab, in the
+    // order nextOpenStep() gives (#949). When a converter plugin is to be
+    // asked whether it claims the file by its content, that is done on a
+    // worker thread, and the open goes on once it answered (#861). Calls done
     // once, at once or once the converters have answered; returns what it
     // will be called with, true while the converters are asked.
     bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
                   const OpenDone& done );
     // Asks the converter plugins whether one claims `fileName` by its content
-    // (#861), and goes on as openNow() says once they answered. False when no
-    // converter plugin checks content: then nothing is asked.
+    // (#861), and goes on with the step nextOpenStep() gives once they
+    // answered. False when no converter plugin checks content: then nothing
+    // is asked.
     bool checkContentAndOpen( const QString& fileName, bool followFile, const LogFileOrigin& origin,
-                              const OpenDone& done );
-    // Decompresses the Log File or builds its tab, no converter plugin
-    // claiming it.
-    bool loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+                              const OpenFacts& known, const OpenDone& done );
+    // Looks whether the Log File is compressed, then decompresses it or
+    // builds its tab, as nextOpenStep() says from what is `known` of it.
+    bool loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                  OpenFacts known );
     // Starts the Conversion of `fileName` by the converter plugin
     // `converterId` on a worker thread of the Plugin Host's, shows its
     // progress beside the window, which stays in use, with Cancel, and opens

@@ -38,6 +38,7 @@
 #include "archivemember.h"
 #include "changed.h"
 #include "log.h"
+#include "logfilelifetime.h"
 #include "quickfindpattern.h"
 #include "sessioninfo.h"
 #include "settingspolicies.h"
@@ -59,15 +60,6 @@ class FileUnreadableErr {};
 // (SavedSearches, FileHistory, QFPattern...)
 
 class WindowSession;
-
-// Whether a Log File outlives the run of the application it was opened in. A
-// Transient Log File -- the spool of standard input, the file of a merged tab,
-// what a data source writes, the text pasted from the clipboard -- exists only
-// while the application runs, so the Session does not save it: a restart
-// neither opens a file that is gone nor reports an error for it (#570).
-// Whoever opens a Log File knows which it is and says so; the Session only
-// keeps it.
-enum class LogFileLifetime { Ordinary, Transient };
 
 // Where a Log File open in the Session came from, as far as the Session keeps
 // it beside its path: whether it is Transient, the archive and member it was
@@ -621,6 +613,12 @@ public:
     ViewInterface* getViewIfOpen( const QString& file_name ) const
     {
         return appSession_->getViewIfOpen( file_name );
+    }
+
+    // See the Session's own.
+    ViewInterface* viewShowing( const QString& fileName ) const
+    {
+        return appSession_->viewShowing( fileName );
     }
 
     // See the Session's own.
