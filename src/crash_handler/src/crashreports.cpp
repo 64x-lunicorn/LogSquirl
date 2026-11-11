@@ -75,9 +75,14 @@ QString formatSentryMessage( const char* message, va_list args )
 
 #ifdef Q_OS_MACOS
 namespace {
-// Runs in the child between fork and exec: a Mach call, no allocation. The
-// exception types are those Crashpad's client takes; without a port of the
-// task's own, the kernel hands them to the system's crash reporter.
+// Runs in the child between fork and exec, where only async-signal-safe calls
+// are safe: the child has just the forking thread, and a lock another thread
+// held stays held. task_set_exception_ports is a Mach message to the kernel
+// that takes no lock and allocates nothing, and mach_task_self() is already the
+// child's own task once libSystem's child handlers -- which run before any
+// registered with pthread_atfork -- have reset it. The exception types are
+// those Crashpad's client takes; without a port of the task's own, the kernel
+// hands them to the system's crash reporter.
 void dropInheritedCrashExceptionPort()
 {
     task_set_exception_ports( mach_task_self(), EXC_MASK_CRASH | EXC_MASK_RESOURCE | EXC_MASK_GUARD,
