@@ -21,6 +21,11 @@
 
 #include <QChar>
 
+#ifdef Q_OS_MACOS
+#include <mach/mach.h>
+#include <pthread.h>
+#endif
+
 bool handlePendingCrashReports( const std::vector<PendingCrashReport>& reports,
                                 const CrashReportActions& actions )
 {
@@ -66,4 +71,32 @@ QString crashpadToolPath( const QString& applicationDirectory, const QString& to
 QString formatSentryMessage( const char* message, va_list args )
 {
     return QString::vasprintf( message, args );
+}
+
+#ifdef Q_OS_MACOS
+namespace {
+// Runs in the child between fork and exec, where only async-signal-safe calls
+// are safe: the child has just the forking thread, and a lock another thread
+// held stays held. task_set_exception_ports is a Mach message to the kernel
+// that takes no lock and allocates nothing, and mach_task_self() is already the
+// child's own task once libSystem's child handlers -- which run before any
+// registered with pthread_atfork -- have reset it. The exception types are
+// those Crashpad's client takes; without a port of the task's own, the kernel
+// hands them to the system's crash reporter.
+void dropInheritedCrashExceptionPort()
+{
+    task_set_exception_ports( mach_task_self(), EXC_MASK_CRASH | EXC_MASK_RESOURCE | EXC_MASK_GUARD,
+                              MACH_PORT_NULL, EXCEPTION_DEFAULT, THREAD_STATE_NONE );
+}
+} // namespace
+#endif
+
+void detachChildProcessesFromCrashHandler()
+{
+#ifdef Q_OS_MACOS
+    // pthread_atfork has no way back, so it is registered once.
+    static const bool registered
+        = pthread_atfork( nullptr, nullptr, &dropInheritedCrashExceptionPort ) == 0;
+    Q_UNUSED( registered );
+#endif
 }

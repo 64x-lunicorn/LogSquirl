@@ -20,6 +20,7 @@
 #include "valueproposal.h"
 
 #include <algorithm>
+#include <array>
 
 #include <QList>
 
@@ -51,6 +52,114 @@ bool allOf( QStringView text, bool ( *predicate )( QChar ) )
 bool hasLetter( QStringView text )
 {
     return std::any_of( text.begin(), text.end(), []( QChar c ) { return c.isLetter(); } );
+}
+
+// A character of a text value under the cursor: a UUID or user_id is one
+// (#957).
+bool isTextValueCharacter( QChar character )
+{
+    return isWordCharacter( character ) || character == u'-';
+}
+
+// The UUID of the line the position is within, 8-4-4-4-12 hex digits with
+// no letter, digit or '_' next to it; none when there is none there.
+std::optional<LineRange> uuidAround( QStringView line, qsizetype position )
+{
+    const auto belongs = []( QChar c ) { return isHexDigit( c ) || c == u'-'; };
+    if ( position < 0 || position >= line.size() || !belongs( line[ position ] ) ) {
+        return std::nullopt;
+    }
+    auto start = position;
+    while ( start > 0 && belongs( line[ start - 1 ] ) ) {
+        --start;
+    }
+    auto end = position + 1;
+    while ( end < line.size() && belongs( line[ end ] ) ) {
+        ++end;
+    }
+    if ( ( start > 0 && isWordCharacter( line[ start - 1 ] ) )
+         || ( end < line.size() && isWordCharacter( line[ end ] ) ) ) {
+        return std::nullopt;
+    }
+    static constexpr std::array<qsizetype, 5> GroupSizes{ 8, 4, 4, 4, 12 };
+    const auto groups = line.mid( start, end - start ).split( u'-' );
+    if ( groups.size() != static_cast<qsizetype>( GroupSizes.size() ) ) {
+        return std::nullopt;
+    }
+    for ( std::size_t index = 0; index < GroupSizes.size(); ++index ) {
+        const auto group = groups[ static_cast<qsizetype>( index ) ];
+        if ( group.size() != GroupSizes[ index ] || !allOf( group, isHexDigit ) ) {
+            return std::nullopt;
+        }
+    }
+    return LineRange{ start, end - start };
+}
+
+// The character in a regex character class: one the class gives a meaning
+// to is escaped, a tab is written \t.
+QString classEscaped( QChar character )
+{
+    if ( character == u'\t' ) {
+        return QStringLiteral( "\\t" );
+    }
+    static const auto special = QStringLiteral( "\\]^-[" );
+    return special.contains( character ) ? QStringLiteral( "\\" ) + character
+                                         : QString( character );
+}
+
+// The capture group of a text value, and the escaped text that follows it in
+// the regex (NamingProposal::pattern).
+struct TextCapture {
+    QString group;
+    QString after;
+};
+
+TextCapture textCapture( QStringView line, LineRange value )
+{
+    const auto end = value.end();
+    if ( end >= line.size() ) {
+        return { QStringLiteral( "(.+)" ), {} };
+    }
+    const auto separator = line[ end ];
+    if ( !isWordCharacter( separator )
+         && !line.mid( value.start, value.length ).contains( separator ) ) {
+        return { QStringLiteral( "([^" ) + classEscaped( separator ) + QStringLiteral( "]+)" ),
+                 {} };
+    }
+    // What follows, up to the end of the next word; the end of the Log Line
+    // when no word follows.
+    auto afterEnd = end;
+    while ( afterEnd < line.size() && !isWordCharacter( line[ afterEnd ] ) ) {
+        ++afterEnd;
+    }
+    const auto wordFollows = afterEnd < line.size();
+    while ( afterEnd < line.size() && isWordCharacter( line[ afterEnd ] ) ) {
+        ++afterEnd;
+    }
+    auto after = escapedForRegex( line.mid( end, afterEnd - end ) );
+    if ( !wordFollows ) {
+        after += u'$';
+    }
+    return { QStringLiteral( "(.+?)" ), after };
+}
+
+// Where the text before the value the regex starts with begins: the
+// range's, or, when that holds no letter, the word before the value and
+// what separates them.
+qsizetype contextStartOf( QStringView line, LineRange range, LineRange valueRange )
+{
+    auto contextStart = std::min( range.start, valueRange.start );
+    if ( !hasLetter( line.mid( contextStart, valueRange.start - contextStart ) ) ) {
+        auto start = valueRange.start;
+        while ( start > 0 && !isWordCharacter( line[ start - 1 ] ) ) {
+            --start;
+        }
+        while ( start > 0 && isWordCharacter( line[ start - 1 ] ) ) {
+            --start;
+        }
+        contextStart = std::min( contextStart, start );
+    }
+    return contextStart;
 }
 
 // The value a word of the line is, or starts with; none for a word that is
@@ -122,6 +231,10 @@ QString capturePattern( const FoundValue& value )
     case FoundValue::Kind::BareHex:
         pattern = QStringLiteral( "[0-9A-Fa-f]+" );
         break;
+    case FoundValue::Kind::Uuid:
+        pattern = QStringLiteral(
+            "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" );
+        break;
     }
     if ( value.negative ) {
         pattern.prepend( QStringLiteral( "-?" ) );
@@ -140,6 +253,14 @@ std::optional<FoundValue> valueIn( QStringView line, LineRange range )
     const auto words = wordsOverlapping( line, range );
     std::optional<FoundValue> last;
     for ( int index = 0; index < words.size(); ++index ) {
+        // A UUID is one value, its words all of it (#957).
+        if ( const auto uuid = uuidAround( line, words[ index ].start ) ) {
+            last = FoundValue{ *uuid, FoundValue::Kind::Uuid, false };
+            while ( index + 1 < words.size() && words[ index + 1 ].start < uuid->end() ) {
+                ++index;
+            }
+            continue;
+        }
         auto value = valueOfWord( line, words[ index ] );
         if ( !value.has_value() ) {
             continue;
@@ -178,6 +299,7 @@ std::optional<LineRange> valueTextAt( QStringView line, qsizetype column )
         return std::nullopt;
     }
 
+    // The characters around the column that belong together.
     const auto around = [ & ]( bool ( *belongs )( QChar ) ) -> std::optional<LineRange> {
         if ( !belongs( line[ column ] ) ) {
             return std::nullopt;
@@ -190,46 +312,60 @@ std::optional<LineRange> valueTextAt( QStringView line, qsizetype column )
         while ( end < line.size() && belongs( line[ end ] ) ) {
             ++end;
         }
-        const LineRange range{ start, end - start };
-        return valueIn( line, range ).has_value() ? std::optional( range ) : std::nullopt;
+        return LineRange{ start, end - start };
+    };
+    const auto holdingValue = [ & ]( std::optional<LineRange> range ) {
+        return range && valueIn( line, *range ).has_value() ? range : std::nullopt;
     };
 
-    if ( const auto word = around( isWordCharacter ) ) {
+    if ( const auto uuid = uuidAround( line, column ) ) {
+        return uuid;
+    }
+    if ( const auto word = holdingValue( around( isWordCharacter ) ) ) {
         return word;
     }
-    return around( []( QChar c ) { return !c.isSpace(); } );
+    if ( const auto run = holdingValue( around( []( QChar c ) { return !c.isSpace(); } ) ) ) {
+        return run;
+    }
+    // A text value (#957): the word, '_' and '-' in it.
+    return around( isTextValueCharacter );
 }
 
 std::optional<NamingProposal> proposeNaming( QStringView line, LineRange range )
 {
     const auto value = valueIn( line, range );
-    if ( !value.has_value() ) {
-        return std::nullopt;
+    QString capture;
+    QString after;
+    LineRange valueRange;
+    if ( value.has_value() ) {
+        valueRange = value->range;
+        capture = capturePattern( *value );
+        const auto afterEnd = std::max( std::min( range.end(), line.size() ), valueRange.end() );
+        after = escapedForRegex( line.mid( valueRange.end(), afterEnd - valueRange.end() ) );
     }
-    const auto valueRange = value->range;
+    else {
+        // No number: the range as it is, a text value (#957).
+        if ( range.length <= 0 || range.start < 0 || range.end() > line.size() ) {
+            return std::nullopt;
+        }
+        const auto text = line.mid( range.start, range.length );
+        if ( allOf( text, []( QChar c ) { return c.isSpace(); } ) ) {
+            return std::nullopt;
+        }
+        valueRange = range;
+        auto textGroup = textCapture( line, valueRange );
+        capture = std::move( textGroup.group );
+        after = std::move( textGroup.after );
+    }
 
-    // Before the value: the range's text, or, when that holds no letter, the
-    // word before the value and what separates them.
-    auto contextStart = std::min( range.start, valueRange.start );
-    if ( !hasLetter( line.mid( contextStart, valueRange.start - contextStart ) ) ) {
-        auto start = valueRange.start;
-        while ( start > 0 && !isWordCharacter( line[ start - 1 ] ) ) {
-            --start;
-        }
-        while ( start > 0 && isWordCharacter( line[ start - 1 ] ) ) {
-            --start;
-        }
-        contextStart = std::min( contextStart, start );
-    }
+    const auto contextStart = contextStartOf( line, range, valueRange );
     const auto before = line.mid( contextStart, valueRange.start - contextStart );
-    const auto afterEnd = std::max( std::min( range.end(), line.size() ), valueRange.end() );
-    const auto after = line.mid( valueRange.end(), afterEnd - valueRange.end() );
 
     NamingProposal proposal;
     proposal.value = line.mid( valueRange.start, valueRange.length ).toString();
     proposal.valueRange = valueRange;
     proposal.pattern = ( before.isEmpty() ? QStringLiteral( "^" ) : escapedForRegex( before ) )
-                       + capturePattern( *value ) + escapedForRegex( after );
+                       + capture + after;
     proposal.key = escapedForRegex( proposal.value );
     proposal.displayTemplate = proposedTemplate();
 

@@ -17,20 +17,26 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "addpredefinedfilterdialog.h"
+#include "addtogrouplayout.h"
 #include "chartpanel.h"
 #include "chartseries.h"
 #include "crawlerwidget.h"
 #include "highlighterset.h"
+#include "logdata.h"
 #include "logformatcatalog.h"
 #include "logtableview.h"
 #include "mainwindow.h"
+#include "namevaluedialog.h"
 #include "pathline.h"
+#include "predefinedfilters.h"
 #include "recentfiles.h"
 #include "session.h"
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
+#include "valuenamescollection.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -58,6 +64,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -780,4 +787,108 @@ SCENARIO( "Every Theme is rendered to comparison screenshots", "[.screenshots]" 
     highlighterSets.save();
 
     QDir( NeutralLogDirectory ).removeRecursively();
+}
+
+// Add as Predefined Filter... and Name This Value, in the Light and the Dark
+// Theme (#958): the layout they share, their previews, and Name This Value
+// with the rows of its Name Table shown. Hidden as the run above is; run it on
+// its own by its tag [add-to-group-screenshots].
+SCENARIO( "The dialogs that add from the Log Line to a group are rendered to screenshots",
+          "[.screenshots][add-to-group-screenshots]" )
+{
+    const auto directory = qEnvironmentVariable( "LOGSQUIRL_SCREENSHOT_DIR" );
+    if ( directory.isEmpty() ) {
+        FAIL( "Set LOGSQUIRL_SCREENSHOT_DIR to the directory the images are written to" );
+    }
+    REQUIRE( QDir().mkpath( directory ) );
+
+    // The groups the dialogs offer are those of a first start: they are put
+    // back afterwards, as the test executables share one settings file.
+    auto& filterGroups = PredefinedFiltersCollection::getSynced();
+    const auto storedFilterGroups = filterGroups.filterSets();
+    filterGroups.setFilterSets( {} );
+    filterGroups.save();
+    auto& namingGroups = ValueNamesCollection::get();
+    const auto storedNamingGroups = namingGroups.ownGroups();
+    namingGroups.setTeamGroups( {} );
+    namingGroups.setGroups( {} );
+    namingGroups.save();
+
+    QTemporaryDir logDirectory;
+    REQUIRE( logDirectory.isValid() );
+    const auto logFile = logDirectory.filePath( QStringLiteral( "acorn-store.log" ) );
+    {
+        QFile file( logFile );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        for ( int index = 0; index < 400; ++index ) {
+            const auto line
+                = index % 9 == 4
+                      ? QStringLiteral( "2026-09-09 09:45:%1.120 ERROR [db-pool-2] connection "
+                                        "refused by host acorn-db-%2 after 3 retries" )
+                            .arg( index % 60, 2, 10, QChar( '0' ) )
+                            .arg( index % 3 )
+                      : QStringLiteral( "2026-09-09 09:45:%1.120 INFO [worker-%2] order %3 "
+                                        "stored, OrderState=%4" )
+                            .arg( index % 60, 2, 10, QChar( '0' ) )
+                            .arg( index % 4 )
+                            .arg( 4000 + index )
+                            .arg( index % 5 );
+            file.write( line.toUtf8() + '\n' );
+        }
+    }
+    const auto policies = testSettingsPolicies();
+    const auto logData = std::make_shared<LogData>( policies.indexing, policies.search,
+                                                    policies.fileAccess, policies.decoding );
+    {
+        SafeQSignalSpy loaded( logData.get(), SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData->attachFile( logFile );
+        REQUIRE( loaded.safeWait( 20000 ) );
+    }
+
+    const auto valueLine = QStringLiteral(
+        "2026-09-09 09:45:12.120 INFO [worker-1] order 4012 stored, OrderState=2" );
+    const auto message = QStringLiteral( "order 4012 stored, OrderState=2" );
+    const logsquirl::valuenames::LineRange messageRange{ valueLine.indexOf( message ),
+                                                         message.size() };
+    const logsquirl::valuenames::LineRange valueRange{ valueLine.size() - 1, 1 };
+
+    Screenshots screenshots( directory );
+    for ( const auto& theme : QStringList{ Theme::LightKey, Theme::DarkKey } ) {
+        INFO( theme.toStdString() );
+        Theme::apply( theme );
+        screenshots.setTheme( theme );
+        settle();
+
+        {
+            AddPredefinedFilterDialog dialog( QStringLiteral( "connection refused" ) );
+            dialog.previewIn( logData, SearchLine::Flags{} );
+            showUntilExposed( dialog );
+            REQUIRE( waitUiState( [ & ] {
+                return dialog.previewResult().state == FilterPreviewSearch::Result::State::Done;
+            } ) );
+            settle();
+            screenshots.save( &dialog, QStringLiteral( "dialog-add-as-predefined-filter" ) );
+        }
+        {
+            NameValueDialog dialog( valueLine, valueRange );
+            dialog.showMessageOnly( messageRange );
+            showUntilExposed( dialog );
+            QTest::keyClicks( dialog.findChild<QLineEdit*>( QStringLiteral( "valueName" ) ),
+                              QStringLiteral( "Shipped" ) );
+            settle();
+            screenshots.save( &dialog, QStringLiteral( "dialog-name-this-value" ) );
+
+            auto* moreRows = dialog.findChild<QPushButton*>( QStringLiteral( "moreRows" ) );
+            REQUIRE( moreRows != nullptr );
+            moreRows->click();
+            settle();
+            screenshots.save( &dialog, QStringLiteral( "dialog-name-this-value-more-rows" ) );
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
+    filterGroups.setFilterSets( storedFilterGroups );
+    filterGroups.save();
+    namingGroups.setGroups( storedNamingGroups );
+    namingGroups.save();
 }

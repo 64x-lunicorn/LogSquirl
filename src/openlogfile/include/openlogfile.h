@@ -261,8 +261,15 @@ public:
     // The Search pattern was changed and not yet requested: auto-refresh is
     // suspended.
     void changeSearchExpression();
-    // Whether the user asked for the Search to follow the Log File.
+    // Whether the user asked for the Searches to follow the Log File: one
+    // wish for all of them, as the Search Line has one button. The current
+    // Search follows it at once, and so does every kept one when it is no
+    // longer wished for; wished for again, a kept one follows it when it is
+    // next requested.
     void setAutoRefresh( bool autoRefresh );
+    // The current Search's own auto-refresh (#954): whether it follows the
+    // Log File, is suspended or had it truncated under it. Switching to
+    // another Search shows that one's.
     const SearchAutoRefresh& searchAutoRefresh() const;
 
     // The Search Limits: the Log Lines a Search runs over, from startLine up
@@ -371,9 +378,6 @@ private:
     bool settleEncoding();
     // Tells the Search Limits when they are others than last told.
     void tellSearchLimits();
-    // The current Search was requested as the user requests it: the
-    // auto-refresh follows it.
-    void followCurrentRequest();
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -385,11 +389,10 @@ private:
     // Declared before the Searches built from it, so it outlives them.
     std::shared_ptr<LogData> logData_;
     // Every Search of the Log File, the current one and the kept ones: their
-    // patterns, and whether they wait for the first load, are held or run.
+    // patterns, their auto-refresh, and whether they wait for the first load,
+    // are held or run.
     SearchSet<LogFilteredData> searchSet_;
     QMetaObject::Connection searchConnection_;
-
-    SearchAutoRefresh autoRefresh_;
     // What a load, a change on disk and a reload mean: every flag they set,
     // and whether watching the Log File has stopped.
     LoadRule loadRule_;

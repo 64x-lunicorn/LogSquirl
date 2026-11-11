@@ -171,8 +171,14 @@ first load, held by the Session, or running. A Search requested before the Log F
 first loaded waits for that load and then runs over the whole Log File, each with the
 pattern it was requested with; a load that does not succeed drops what waits. A restored
 Session holds the waiting Searches beyond the first load until it releases them; what the
-user asks for after that is never held. It makes every Search of the Log File, and the
-Search Policy reaches each one through it.
+user asks for after that is never held. It makes every Search the Kept Searches hold, and
+the Search Policy reaches each one through it; each is requested with its pattern prepared
+for the Log Format's fields. A Search that only previews what a pattern finds, such as Add
+as Predefined Filter's, is none of these: made outside it and not followed, it is
+requested with its pattern prepared the same way. Each Search keeps its own auto-refresh in
+it — followed, suspended, or truncated under — while the wish for auto-refresh, the Search
+Line's one button, is the Log File's; switching to another Search leaves each as it was,
+and a reload follows none of them until it is requested again.
 _Avoid_: search list, pending searches
 
 **Kept Searches**:
@@ -263,6 +269,19 @@ whose labels name the kind, Export... and Import... last; it needs no more width
 group name or row. The dialog holds the groups and
 hands the list their names; the list says what the user asked for and changes no group itself.
 _Avoid_: set list, group panel
+
+**Group Chooser**:
+Where a dialog that adds one thing from the Log Line to a group, Add as Predefined Filter...
+and Name This Value, lets the user choose that group: one choice listing the user's own groups
+and, when the Team Folder is on, the Team groups under the Group List's section headings, then
+New ... and New Team .... A new group gets a name field below the choice, filled with the first
+free name, and is made only on OK. A Team group chosen, a line says OK shares it with the team,
+and OK publishes it as the dialogs do. Plugin groups are not offered. The group chosen last is
+proposed the next time, the dialog's default group (the Default Filter Group; for a Naming Group
+the first of the user's own) when it is gone. Name This Value chooses the group that has a Name
+Table of the name it proposes before the one chosen last, and keeps the group of the rule when
+the value is one a rule captures already (Rename, Name ... in ...).
+_Avoid_: group picker, group combo
 
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually

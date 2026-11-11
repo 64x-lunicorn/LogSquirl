@@ -258,6 +258,9 @@ CrashHandler::CrashHandler()
     sentry_options_set_release( sentryOptions, logsquirlVersion().data() );
 
     sentry_init( sentryOptions );
+    // Before any process is started: one that outlives LogSquirl would keep
+    // the crash handler running (#953).
+    detachChildProcessesFromCrashHandler();
 
     sentry_set_tag( "commit", logsquirlCommit().data() );
     sentry_set_tag( "qt", qVersion() );

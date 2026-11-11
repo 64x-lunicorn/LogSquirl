@@ -91,6 +91,7 @@
 #include "highlightersmenu.h"
 #include "infoline.h"
 #include "issuereporter.h"
+#include "logfieldextractor.h"
 #include "logfileforplugins.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
@@ -255,6 +256,37 @@ CrawlerWidget::logLineTextReader() const
         const AttachedReader attached( *logData );
         return logData->getLinesSparse( lines );
     };
+}
+
+std::shared_ptr<const LogData> CrawlerWidget::logDataToSearch() const
+{
+    return openLogFile_->logData();
+}
+
+std::function<RegularExpressionPattern( RegularExpressionPattern )>
+CrawlerWidget::searchPreparation() const
+{
+    return [ openLogFile = openLogFile_ ]( RegularExpressionPattern pattern ) {
+        return openLogFile->withFieldReader( std::move( pattern ) );
+    };
+}
+
+std::optional<logsquirl::valuenames::LineRange>
+CrawlerWidget::messageOf( const QString& logLine ) const
+{
+    if ( !recognizedFormat_ ) {
+        return std::nullopt;
+    }
+    const LogFieldExtractor extractor( *recognizedFormat_ );
+    const auto spans = extractor.fieldSpans( logLine );
+    if ( !spans ) {
+        return std::nullopt;
+    }
+    const auto body = spans->constFind( recognizedFormat_->bodyField() );
+    if ( body == spans->constEnd() ) {
+        return std::nullopt;
+    }
+    return logsquirl::valuenames::LineRange{ body->first, body->second - body->first };
 }
 
 std::shared_ptr<const logsquirl::plugins::PluginLogFileSource>

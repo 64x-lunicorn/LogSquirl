@@ -11,6 +11,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/addpredefinedfilterdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/addtogrouplayout.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/filterpreviewsearch.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
@@ -40,6 +42,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/namevaluedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/groupchooser.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/choosergroups.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
@@ -142,6 +146,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/addpredefinedfilterdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/addtogrouplayout.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/filterpreviewsearch.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp
@@ -165,6 +171,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/namevaluedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/grouplist.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/groupchooser.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp

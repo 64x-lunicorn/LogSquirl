@@ -116,7 +116,6 @@ struct Searches {
                       ++prepared;
                       return requested;
                   },
-              .currentRequested = [ this ] { currentRequests.push_back( set.current() ); },
               .heldNoLonger = [ this ] { ++heldNoLonger; },
           } )
     {
@@ -128,9 +127,20 @@ struct Searches {
     // Every Search the set made, in the order made.
     std::vector<std::shared_ptr<FakeSearch>> made;
     int prepared = 0;
-    // The current Search each time it was requested as the user requests it.
-    std::vector<std::shared_ptr<FakeSearch>> currentRequests;
     int heldNoLonger = 0;
+
+    // The Searches made that are followed by their auto-refresh, as they are
+    // once handed a request, in the order made.
+    std::vector<std::shared_ptr<FakeSearch>> autoRefreshed() const
+    {
+        std::vector<std::shared_ptr<FakeSearch>> followed;
+        for ( const auto& search : made ) {
+            if ( set.autoRefresh( search ).state() != SearchAutoRefresh::State::NoSearch ) {
+                followed.push_back( search );
+            }
+        }
+        return followed;
+    }
     Set set;
 };
 
@@ -151,7 +161,7 @@ SCENARIO( "A Search requested before the first load waits for it", "[openlogfile
             REQUIRE( searches.set.state( current ) == State::Waiting );
             REQUIRE( searches.set.currentPattern().pattern == "fizz" );
             REQUIRE( current->requests.empty() );
-            REQUIRE( searches.currentRequests.empty() );
+            REQUIRE( searches.autoRefreshed().empty() );
             REQUIRE_FALSE( searches.set.hasFirstLoadFinished() );
         }
 
@@ -165,12 +175,13 @@ SCENARIO( "A Search requested before the first load waits for it", "[openlogfile
         {
             searches.set.loadFinished( true, Limits );
 
-            THEN( "it runs over the Search Limits that load leaves, as the user requests it" )
+            THEN( "it runs over the Search Limits that load leaves, followed by its "
+                  "auto-refresh" )
             {
                 REQUIRE( searches.set.hasFirstLoadFinished() );
                 REQUIRE( searches.set.state( current ) == State::Running );
                 REQUIRE( current->requests == std::vector{ over( "fizz" ) } );
-                REQUIRE( searches.currentRequests == std::vector{ current } );
+                REQUIRE( searches.autoRefreshed() == std::vector{ current } );
                 REQUIRE( searches.prepared == 1 );
             }
 
@@ -254,11 +265,11 @@ SCENARIO( "A Search requested before the first load waits for it", "[openlogfile
         {
             searches.set.loadFinished( true, Limits );
 
-            THEN( "each one runs with its pattern, the current one as the user requests it" )
+            THEN( "each one runs with its pattern, followed by its own auto-refresh" )
             {
                 REQUIRE( kept->requests == std::vector{ over( "fizz" ) } );
                 REQUIRE( another->requests == std::vector{ over( "buzz" ) } );
-                REQUIRE( searches.currentRequests == std::vector{ another } );
+                REQUIRE( searches.autoRefreshed() == std::vector{ kept, another } );
                 REQUIRE( searches.set.current() == another );
             }
         }
@@ -365,7 +376,7 @@ SCENARIO( "The Searches waiting for the first load are held beyond it until rele
                 REQUIRE( buzz->requests == std::vector{ over( "buzz", releasedOver ) } );
                 REQUIRE( line->requests == std::vector{ over( "line", releasedOver ) } );
                 REQUIRE( idle->requests.empty() );
-                REQUIRE( searches.currentRequests == std::vector{ buzz } );
+                REQUIRE( searches.autoRefreshed() == std::vector{ fizz, buzz, line } );
                 REQUIRE( searches.heldNoLonger == 1 );
                 REQUIRE_FALSE( searches.set.holdsAny() );
                 REQUIRE( searches.set.state( fizz ) == State::Running );
@@ -397,7 +408,7 @@ SCENARIO( "The Searches waiting for the first load are held beyond it until rele
             THEN( "it runs as the current Search, the one current before runs kept" )
             {
                 REQUIRE( searches.set.current() == fizz );
-                REQUIRE( searches.currentRequests == std::vector{ fizz } );
+                REQUIRE( searches.autoRefreshed() == std::vector{ fizz, buzz, line } );
                 REQUIRE( fizz->requests == std::vector{ over( "fizz" ) } );
                 REQUIRE( buzz->requests == std::vector{ over( "buzz" ) } );
             }
@@ -527,7 +538,8 @@ SCENARIO( "A request by the user is never held", "[openlogfile][searchset][sessi
             REQUIRE( kept->requests == std::vector{ over( "fizz" ) } );
             REQUIRE( searches.set.current() == another );
             REQUIRE( another->requests.empty() );
-            REQUIRE( searches.currentRequests.empty() );
+            REQUIRE( searches.set.currentAutoRefresh().state()
+                     == SearchAutoRefresh::State::NoSearch );
         }
     }
 
@@ -567,7 +579,7 @@ SCENARIO( "A Search waiting for the first load can be made current", "[openlogfi
         THEN( "it ran all the same, kept, and the new one stays idle" )
         {
             REQUIRE( first->requests == std::vector{ over( "fizz" ) } );
-            REQUIRE( searches.currentRequests.empty() );
+            REQUIRE( searches.autoRefreshed() == std::vector{ first } );
             REQUIRE( another->requests.empty() );
         }
     }
@@ -581,7 +593,9 @@ SCENARIO( "A Search waiting for the first load can be made current", "[openlogfi
         {
             REQUIRE( searches.set.current() == first );
             REQUIRE( first->requests == std::vector{ over( "fizz" ) } );
-            REQUIRE( searches.currentRequests == std::vector{ first } );
+            REQUIRE( searches.autoRefreshed() == std::vector{ first } );
+            REQUIRE( searches.set.currentAutoRefresh().state()
+                     == SearchAutoRefresh::State::Static );
         }
     }
 
@@ -656,7 +670,8 @@ SCENARIO( "A kept Search dropped while it waits for the first load is not waited
         {
             REQUIRE( dropped.expired() );
             REQUIRE( searches.set.current()->requests.empty() );
-            REQUIRE( searches.currentRequests.empty() );
+            REQUIRE( searches.set.currentAutoRefresh().state()
+                     == SearchAutoRefresh::State::NoSearch );
         }
     }
 }
@@ -702,7 +717,7 @@ SCENARIO( "The current Search's results are dropped on a truncation when it was 
             }
         }
         const auto droppedBefore = searches.set.current()->resultsDropped;
-        CHECK( searches.set.dropTruncatedResults() == row.dropped );
+        CHECK( searches.set.truncateFile() == row.dropped );
         CHECK( searches.set.current()->resultsDropped - droppedBefore == ( row.dropped ? 1 : 0 ) );
     }
 }
@@ -779,5 +794,95 @@ SCENARIO( "The Search Policy reaches every Search of the Search Set",
         REQUIRE( first->policy == policy );
         REQUIRE( second->policy == policy );
         REQUIRE( third->policy == policy );
+    }
+}
+
+SCENARIO( "Each Search of the Search Set keeps its own auto-refresh",
+          "[openlogfile][searchset][autorefresh]" )
+{
+    using AutoRefresh = SearchAutoRefresh::State;
+
+    Searches searches;
+    searches.set.loadFinished( true, Limits );
+    searches.set.setAutoRefresh( true );
+    const auto first = searches.set.current();
+    searches.set.requestCurrent( pattern( "fizz" ), Limits );
+    const auto second = searches.set.startAnother();
+
+    THEN( "the one requested is followed, the new one has no Search yet but the user's wish" )
+    {
+        REQUIRE( searches.set.autoRefresh( first ).state() == AutoRefresh::Autorefreshing );
+        REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::NoSearch );
+        REQUIRE( searches.set.currentAutoRefresh().isAutoRefreshRequested() );
+    }
+
+    WHEN( "the current one is requested, then stopped, and the first one made current" )
+    {
+        searches.set.requestCurrent( pattern( "buzz" ), Limits );
+        searches.set.stopCurrent();
+        searches.set.makeCurrent( first );
+
+        THEN( "each one keeps where it stood" )
+        {
+            REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::Autorefreshing );
+            REQUIRE( searches.set.autoRefresh( second ).state() == AutoRefresh::Static );
+        }
+    }
+
+    WHEN( "the user no longer wishes for auto-refresh" )
+    {
+        searches.set.makeCurrent( first );
+        searches.set.requestKept( second, pattern( "buzz" ), Limits );
+        searches.set.setAutoRefresh( false );
+
+        THEN( "no Search is followed any longer, the kept one included" )
+        {
+            REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::Static );
+            REQUIRE( searches.set.autoRefresh( second ).state() == AutoRefresh::Static );
+            REQUIRE_FALSE( searches.set.autoRefresh( second ).isAutoRefreshRequested() );
+        }
+
+        AND_WHEN( "the user wishes for it again" )
+        {
+            searches.set.setAutoRefresh( true );
+
+            THEN( "the current one follows the wish at once, the kept one when next requested" )
+            {
+                REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::Autorefreshing );
+                REQUIRE( searches.set.autoRefresh( second ).state() == AutoRefresh::Static );
+                REQUIRE( searches.set.autoRefresh( second ).isAutoRefreshRequested() );
+
+                searches.set.requestKept( second, pattern( "buzz" ), Limits );
+                REQUIRE( searches.set.autoRefresh( second ).state()
+                         == AutoRefresh::Autorefreshing );
+            }
+        }
+    }
+
+    WHEN( "the Log File is truncated under the new one, never requested" )
+    {
+        const auto dropped = searches.set.truncateFile();
+
+        THEN( "the current one is not, the first one is, and keeps its results" )
+        {
+            REQUIRE_FALSE( dropped );
+            REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::NoSearch );
+            REQUIRE( second->resultsDropped == 0 );
+            REQUIRE( searches.set.autoRefresh( first ).state()
+                     == AutoRefresh::TruncatedAutorefreshing );
+            REQUIRE( first->resultsDropped == 0 );
+        }
+
+        AND_WHEN( "the first one is made current and starts again" )
+        {
+            searches.set.makeCurrent( first );
+            searches.set.restartCurrent( Limits );
+
+            THEN( "it is followed again" )
+            {
+                REQUIRE( first->requests.back() == over( "fizz" ) );
+                REQUIRE( searches.set.currentAutoRefresh().state() == AutoRefresh::Autorefreshing );
+            }
+        }
     }
 }

@@ -20,17 +20,19 @@
 #include "addpredefinedfilterdialog.h"
 
 #include <QCheckBox>
-#include <QComboBox>
 #include <QDialogButtonBox>
-#include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRegularExpression>
-#include <QVBoxLayout>
 
+#include <algorithm>
+#include <climits>
+
+#include "addtogrouplayout.h"
+#include "groupchooser.h"
 #include "groupedits.h"
-#include "predefinedfilters.h"
+#include "regularexpression.h"
 #include "valueproposal.h"
 
 QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
@@ -44,10 +46,8 @@ QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
 
 namespace {
 
-// The names of a Filter Group's filters, held by its entry of the combo box.
-constexpr int FilterNamesRole = Qt::UserRole + 1;
-
-QStringList filterNames( const PredefinedFilterSet& group )
+// The names of the filters of a group, which the Group Chooser lists.
+QStringList filterNamesOf( const PredefinedFilterSet& group )
 {
     QStringList names;
     for ( const auto& filter : group.filters() ) {
@@ -60,76 +60,174 @@ QStringList filterNames( const PredefinedFilterSet& group )
 
 AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent )
     : QDialog( parent )
+    , selectedText_( selectedText )
 {
     setWindowTitle( tr( "Add as Predefined Filter" ) );
 
-    auto* form = new QFormLayout;
+    // What is added, where it goes, its preview: the layout Name This Value
+    // has too (#958).
+    layout_ = std::make_unique<AddToGroupLayout>( this );
+    using Section = AddToGroupLayout::Section;
 
     name_ = new QLineEdit( this );
     name_->setObjectName( QStringLiteral( "filterName" ) );
     name_->setToolTip( tr( "The name the Filters panel lists the Predefined Filter by" ) );
-    form->addRow( tr( "Name:" ), name_ );
+    layout_->addRow( Section::What, tr( "Name:" ), name_ );
 
     pattern_ = new QLineEdit( selectedText, this );
     pattern_->setObjectName( QStringLiteral( "filterPattern" ) );
     pattern_->setToolTip( tr( "What the Predefined Filter searches for; proposed from the "
                               "selection, it finds the selected text as it is" ) );
-    form->addRow( tr( "Pattern:" ), pattern_ );
+    layout_->addRow( Section::What, tr( "Pattern:" ), pattern_ );
 
     regex_ = new QCheckBox( tr( "Regular expression" ), this );
     regex_->setObjectName( QStringLiteral( "filterRegex" ) );
     regex_->setToolTip( tr( "Read the pattern as a regular expression; checking it escapes the "
                             "pattern so that it still finds the same text" ) );
-    form->addRow( QString{}, regex_ );
+    layout_->addRow( Section::What, QString{}, regex_ );
 
-    // The user's own groups, the Default Filter Group chosen. The Team's and
-    // the plugins' groups are not the user's to add to.
-    group_ = new QComboBox( this );
+    // The user's own groups and, once the dialog is given them, the Team's;
+    // the Default Filter Group chosen. The plugins' groups are read-only.
+    GroupChooser::Texts texts;
+    texts.ownSection = tr( "My Filter Groups" );
+    texts.teamSection = tr( "Team Filter Groups" );
+    texts.newGroup = tr( "New Filter Group..." );
+    texts.newTeamGroup = tr( "New Team Filter Group..." );
+    texts.newGroupName = tr( "New Filter Group" );
+    texts.teamHint = tr( "OK shares this Filter Group with the team." );
+    texts.nameEmpty = tr( "The new Filter Group has no name." );
+    texts.nameTaken = tr( "A Filter Group named \"%1\" exists already." );
+    group_ = new GroupChooser( texts, this );
     group_->setObjectName( QStringLiteral( "filterGroup" ) );
-    const auto groups = PredefinedFiltersCollection::getSynced().filterSets();
-    int chosen = 0;
-    for ( int row = 0; row < groups.size(); ++row ) {
-        group_->addItem( groups[ row ].name(), groups[ row ].id() );
-        group_->setItemData( row, filterNames( groups[ row ] ), FilterNamesRole );
-        if ( groups[ row ].id() == defaultFilterSetId() ) {
-            chosen = row;
-        }
-    }
-    group_->setCurrentIndex( chosen );
-    form->addRow( tr( "Filter Group:" ), group_ );
-
-    // A name no filter of the group has: the Filters panel tells the filters
-    // of a group apart by their names.
-    name_->setText(
-        logsquirl::valuenames::freeName( proposedName( selectedText ), chosenGroupNames() ) );
+    layout_->addRow( Section::Where, tr( "Filter Group:" ), group_ );
 
     applyNow_ = new QCheckBox( tr( "Search with it now" ), this );
     applyNow_->setObjectName( QStringLiteral( "applyNow" ) );
     applyNow_->setToolTip( tr( "Replace the current search with the Predefined Filter" ) );
-    form->addRow( QString{}, applyNow_ );
+    layout_->addRow( Section::Where, QString{}, applyNow_ );
 
-    warning_ = new QLabel( this );
-    warning_->setObjectName( QStringLiteral( "warning" ) );
-    warning_->setWordWrap( true );
-
-    buttons_ = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this );
-    auto* layout = new QVBoxLayout( this );
-    layout->addLayout( form );
-    layout->addWidget( warning_ );
-    layout->addWidget( buttons_ );
+    layout_->preview()->setRemark( tr( "No Log File to search in." ) );
 
     connect( name_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
+    connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::searchPreview );
     connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
-    connect( group_, &QComboBox::currentIndexChanged, this,
-             &AddPredefinedFilterDialog::updateState );
-    connect( buttons_, &QDialogButtonBox::accepted, this, &AddPredefinedFilterDialog::accept );
-    connect( buttons_, &QDialogButtonBox::rejected, this, &AddPredefinedFilterDialog::reject );
-    updateState();
+    connect( group_, &GroupChooser::choiceChanged, this, &AddPredefinedFilterDialog::groupChanged );
+
+    groups_ = std::make_unique<ChooserGroups<PredefinedFilterSet>>(
+        group_, PredefinedFiltersCollection::getSynced().filterSets(), filterNamesOf,
+        [ this ]( const QString& id ) { proposeGroup( id ); } );
+    groups_->offer( defaultFilterSetId() );
 
     name_->setFocus();
     name_->selectAll();
-    resize( 480, sizeHint().height() );
+    layout_->fitDialog();
+}
+
+AddPredefinedFilterDialog::~AddPredefinedFilterDialog() = default;
+
+void AddPredefinedFilterDialog::previewIn( std::shared_ptr<const LogData> logData,
+                                           const SearchLine::Flags& searchFlags,
+                                           FilterPreviewSearch::PreparePattern prepare )
+{
+    searchFlags_ = searchFlags;
+    previewSearch_
+        = std::make_unique<FilterPreviewSearch>( std::move( logData ), std::move( prepare ) );
+    connect( previewSearch_.get(), &FilterPreviewSearch::resultChanged, this,
+             &AddPredefinedFilterDialog::showPreview );
+    searchPreview();
+}
+
+RegularExpressionPattern AddPredefinedFilterDialog::previewPattern() const
+{
+    const auto text = pattern_->text();
+    // A filter with Field Terms is a logical combination of its own, as the
+    // Search Line uses it (SearchLine::useFilters()): as written, its
+    // sub-patterns read as the tab's Search reads them (#798).
+    if ( hasFieldTerms( text ) ) {
+        return RegularExpressionPattern( QChar( '(' ) + text + QChar( ')' ), searchFlags_.matchCase,
+                                         false, true, !searchFlags_.useRegexp );
+    }
+    // As the Search Line reads the filter: as a regex or as plain text,
+    // matching case as the tab's Search does.
+    return RegularExpressionPattern( text, searchFlags_.matchCase, false, false,
+                                     !regex_->isChecked() );
+}
+
+void AddPredefinedFilterDialog::searchPreview()
+{
+    if ( !previewSearch_ ) {
+        return;
+    }
+    // A regex that is not valid finds nothing: the warning says why.
+    auto pattern = previewPattern();
+    if ( regex_->isChecked() && !QRegularExpression( pattern_->text() ).isValid() ) {
+        pattern.pattern.clear();
+    }
+    previewSearch_->setPattern( pattern );
+}
+
+FilterPreviewSearch::Result AddPredefinedFilterDialog::previewResult() const
+{
+    return previewSearch_ ? previewSearch_->result() : FilterPreviewSearch::Result{};
+}
+
+void AddPredefinedFilterDialog::showPreview()
+{
+    auto* preview = layout_->preview();
+    auto* note = layout_->previewNote();
+    const auto result = previewSearch_->result();
+    const auto count = static_cast<int>(
+        std::min<LinesCount::UnderlyingType>( result.matchCount.get(), INT_MAX ) );
+
+    using State = FilterPreviewSearch::Result::State;
+    switch ( result.state ) {
+    case State::Idle:
+        note->hide();
+        preview->setRemark( tr( "The pattern finds nothing." ) );
+        return;
+    case State::Failed:
+        note->hide();
+        preview->setRemark( result.error );
+        return;
+    case State::Searching:
+        note->setText( tr( "Searching... %Ln Log Line(s) so far", "", count ) );
+        break;
+    case State::Done:
+        note->setText( tr( "%Ln Log Line(s) found", "", count ) );
+        break;
+    }
+    note->show();
+
+    if ( !result.firstMatch ) {
+        preview->setRemark( result.state == State::Done
+                                ? tr( "The pattern finds no Log Line in this Log File." )
+                                : tr( "Searching the Log File..." ) );
+        return;
+    }
+    // The first Log Line found, its matches marked as the Search marks them.
+    QList<LinePreview::Mark> marks;
+    const auto regex = static_cast<QRegularExpression>( previewPattern() );
+    auto matches = regex.globalMatch( result.firstLine );
+    while ( matches.hasNext() && marks.size() < MaxPreviewMarks ) {
+        const auto match = matches.next();
+        if ( match.capturedLength() > 0 ) {
+            marks.append( LinePreview::Mark{ match.capturedStart(), match.capturedLength() } );
+        }
+    }
+    preview->setLine( result.firstLine, marks, LinePreview::MarkStyle::Highlight );
+}
+
+void AddPredefinedFilterDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
+                                                bool editable,
+                                                const QHash<QString, QString>& revisions )
+{
+    groups_->showTeam( groups, editable, revisions );
+}
+
+void AddPredefinedFilterDialog::proposeGroup( const QString& groupId )
+{
+    group_->choose( groupId, defaultFilterSetId() );
 }
 
 PredefinedFilter AddPredefinedFilterDialog::filter() const
@@ -139,12 +237,12 @@ PredefinedFilter AddPredefinedFilterDialog::filter() const
 
 QString AddPredefinedFilterDialog::chosenGroupId() const
 {
-    return group_->currentData().toString();
+    return groups_->chosenId();
 }
 
 QStringList AddPredefinedFilterDialog::chosenGroupNames() const
 {
-    return group_->currentData( FilterNamesRole ).toStringList();
+    return group_->itemNames();
 }
 
 bool AddPredefinedFilterDialog::applyNow() const
@@ -154,7 +252,7 @@ bool AddPredefinedFilterDialog::applyNow() const
 
 QString AddPredefinedFilterDialog::warning() const
 {
-    return warning_->text();
+    return layout_->warning()->text();
 }
 
 void AddPredefinedFilterDialog::regexToggled( bool regex )
@@ -166,6 +264,19 @@ void AddPredefinedFilterDialog::regexToggled( bool regex )
     // Unless the regex was edited, it was plain text before.
     else if ( pattern_->text() == logsquirl::valuenames::escapedForRegex( plainPattern_ ) ) {
         pattern_->setText( plainPattern_ );
+    }
+    updateState();
+    searchPreview();
+}
+
+void AddPredefinedFilterDialog::groupChanged()
+{
+    // A name no filter of the group has: the Filters panel tells the filters
+    // of a group apart by their names.
+    if ( name_->text() == proposedFilterName_ ) {
+        proposedFilterName_
+            = logsquirl::valuenames::freeName( proposedName( selectedText_ ), chosenGroupNames() );
+        name_->setText( proposedFilterName_ );
     }
     updateState();
 }
@@ -184,15 +295,42 @@ void AddPredefinedFilterDialog::updateState()
     else if ( chosenGroupNames().contains( name ) ) {
         warning = tr( "The Filter Group already has a filter named \"%1\"." ).arg( name );
     }
-    warning_->setText( warning );
-    warning_->setVisible( !warning.isEmpty() );
-    buttons_->button( QDialogButtonBox::Ok )->setEnabled( warning.isEmpty() && !name.isEmpty() );
+    else {
+        warning = group_->warning();
+    }
+    layout_->setWarning( warning );
+    layout_->buttons()
+        ->button( QDialogButtonBox::Ok )
+        ->setEnabled( warning.isEmpty() && !name.isEmpty() );
 }
 
 void AddPredefinedFilterDialog::accept()
 {
-    auto& collection = PredefinedFiltersCollection::get();
-    collection.addFilter( chosenGroupId(), filter() );
-    collection.save();
+    const auto chosen = group_->choice();
+    const auto added = filter();
+    const auto* before = groups_->chosen();
+    auto group = before != nullptr ? *before : PredefinedFilterSet::createNewSet( chosen.name );
+    group.addFilter( added );
+    const auto requests = groups_->put( group );
+
+    if ( chosen.section == GroupChooser::Section::Team ) {
+        // Published as the Predefined Filters dialog publishes a Team group:
+        // what changed against the group as given, based on its revision.
+        if ( !requests.isEmpty() ) {
+            Q_EMIT publishRequested( requests );
+        }
+    }
+    else {
+        auto& collection = PredefinedFiltersCollection::get();
+        if ( chosen.isNew() ) {
+            auto groups = collection.filterSets();
+            groups.append( group );
+            collection.setFilterSets( groups );
+        }
+        else {
+            collection.addFilter( chosen.id, added );
+        }
+        collection.save();
+    }
     QDialog::accept();
 }

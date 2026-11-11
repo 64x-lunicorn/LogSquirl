@@ -19,8 +19,41 @@
   the link or closing the line hides it for good, also after an update. The
   first start and the number of starts are kept in your settings only and are
   never sent anywhere. (#934)
+- **Add as Predefined Filter chooses Team and new groups**: the Filter Group
+  choice lists your own groups and, with the Team Folder on, the Team groups
+  under their own headings, plus *New Filter Group...* and *New Team Filter
+  Group...*. A filter added to a Team group is shared with the team on OK,
+  with the same question as the Predefined Filters dialog when someone else
+  changed the group meanwhile, and the group chosen last is proposed next
+  time. (#955)
+- **Name This Value chooses its Naming Group like Add as Predefined
+  Filter**: it lists your own and, with the Team Folder on, the Team Naming
+  Groups, plus *New Naming Group...* and *New Team Naming Group...*; a value
+  named into a Team Naming Group is shared with the team, and the group
+  chosen last is proposed again. (#956)
+- **Name This Value names text values**: *Name this value...* is offered on
+  a word, an id such as a UUID, or any selection, not only on a number. The
+  proposed rule captures the text up to the separator after it, and the new
+  row names exactly that value. (#957)
+- **Add as Predefined Filter and Name This Value share one layout**: both
+  dialogs show what is added, where it goes, a one-line preview, the warning
+  and the buttons in the same order and width. Add as Predefined Filter
+  previews how many Log Lines the filter finds and the first one; Name This
+  Value shows one row for the value and its name, with *More rows...* for the
+  whole Name Table, and previews the Log Line's message with the value
+  marked. (#958)
 
 ## Bug fixes
+
+- **The crash handler ends with LogSquirl on macOS**: a process LogSquirl
+  started that keeps running, such as the adb server of the Android Logcat
+  plugin, no longer keeps LogSquirl's crash handler running after LogSquirl
+  has quit; that process's own crashes are left to macOS's crash reporter.
+  (#953)
+- **Auto-refresh follows each kept Search**: after switching to another kept
+  Search, a growing or truncated Log File no longer restarts or continues it
+  with the auto-refresh of the Search shown before; each Search keeps its
+  own, and a Search you stopped stays stopped. (#954)
 
 - **The group list of the Predefined Filters, Highlighters and Value Names
   dialogs is narrow again**: its buttons wrap onto short rows (New, Delete,
