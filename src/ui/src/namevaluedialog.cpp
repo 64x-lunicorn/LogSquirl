@@ -21,10 +21,8 @@
 
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -34,6 +32,7 @@
 
 #include <algorithm>
 
+#include "addtogrouplayout.h"
 #include "groupchooser.h"
 #include "valuenamer.h"
 #include "valuenamescollection.h"
@@ -142,7 +141,70 @@ void NameValueDialog::build()
         setWindowTitle( tr( "Name %1 in %2" ).arg( captured_->value, captured_->table ) );
     }
 
-    auto* form = new QFormLayout;
+    // What is added, where it goes, its preview: the layout Add as Predefined
+    // Filter... has too (#958).
+    layout_ = std::make_unique<AddToGroupLayout>( this );
+    using Section = AddToGroupLayout::Section;
+
+    // The value as a key and its name, in one row; More rows... shows the
+    // rows of the Name Table instead, to add and remove some.
+    valueKey_ = new QLineEdit( this );
+    valueKey_->setObjectName( QStringLiteral( "valueKey" ) );
+    valueKey_->setToolTip( tr( "The key of the value in the Name Table" ) );
+    valueName_ = new QLineEdit( this );
+    valueName_->setObjectName( QStringLiteral( "valueName" ) );
+    valueName_->setPlaceholderText( tr( "Its name" ) );
+    valueName_->setToolTip( tr( "The name the value is shown with" ) );
+    moreRows_ = new QPushButton( tr( "More rows..." ), this );
+    moreRows_->setObjectName( QStringLiteral( "moreRows" ) );
+    moreRows_->setToolTip( tr( "Show every row of the Name Table, to add and remove rows" ) );
+    valueRow_ = new QWidget( this );
+    auto* valueRow = new QHBoxLayout( valueRow_ );
+    valueRow->setContentsMargins( 0, 0, 0, 0 );
+    valueRow->addWidget( valueKey_, 1 );
+    valueRow->addWidget( valueName_, 2 );
+    valueRow->addWidget( moreRows_ );
+
+    rows_ = new QTableWidget( 0, 2, this );
+    rows_->setObjectName( QStringLiteral( "nameRows" ) );
+    rows_->setHorizontalHeaderLabels( { tr( "Key" ), tr( "Name" ) } );
+    rows_->horizontalHeader()->setStretchLastSection( true );
+    rows_->verticalHeader()->setVisible( false );
+    rows_->setEditTriggers( QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
+                            | QAbstractItemView::AnyKeyPressed
+                            | QAbstractItemView::SelectedClicked );
+    addRowButton_ = new QPushButton( tr( "Add Row" ), this );
+    removeRowButton_ = new QPushButton( tr( "Remove Row" ), this );
+    addRowButton_->setObjectName( QStringLiteral( "addRow" ) );
+    removeRowButton_->setObjectName( QStringLiteral( "removeRow" ) );
+    rowsBox_ = new QWidget( this );
+    rowsBox_->setObjectName( QStringLiteral( "rowsBox" ) );
+    auto* rowButtons = new QHBoxLayout;
+    rowButtons->addWidget( addRowButton_ );
+    rowButtons->addWidget( removeRowButton_ );
+    rowButtons->addStretch( 1 );
+    auto* rowsColumn = new QVBoxLayout( rowsBox_ );
+    rowsColumn->setContentsMargins( 0, 0, 0, 0 );
+    rowsColumn->addWidget( rows_ );
+    rowsColumn->addLayout( rowButtons );
+    rowsBox_->hide();
+
+    auto* valueColumn = new QVBoxLayout;
+    valueColumn->addWidget( valueRow_ );
+    valueColumn->addWidget( rowsBox_ );
+    layout_->addRow( Section::What, tr( "Value:" ), valueColumn );
+
+    pattern_ = new QLineEdit( proposal_.pattern, this );
+    pattern_->setObjectName( QStringLiteral( "rulePattern" ) );
+    pattern_->setToolTip( tr( "The regex of the Naming Rule; its first capture group is the "
+                              "value looked up in the Name Table" ) );
+    layout_->addRow( Section::What, tr( "Naming Rule:" ), pattern_ );
+
+    template_ = new QLineEdit( proposal_.displayTemplate, this );
+    template_->setObjectName( QStringLiteral( "ruleTemplate" ) );
+    template_->setToolTip( tr( "How a named value is shown: {name} is its name, {value} the "
+                               "value itself" ) );
+    layout_->addRow( Section::What, tr( "Template:" ), template_ );
 
     // The group: one of the user's own, a Team Naming Group once the dialog
     // is given them, or a new one of either, named here. The plugins' groups
@@ -158,7 +220,7 @@ void NameValueDialog::build()
     texts.nameTaken = tr( "A Naming Group named \"%1\" exists already." );
     group_ = new GroupChooser( texts, this );
     group_->setObjectName( QStringLiteral( "namingGroup" ) );
-    form->addRow( tr( "Naming Group:" ), group_ );
+    layout_->addRow( Section::Where, tr( "Naming Group:" ), group_ );
 
     // The table: a new one, named after the text before the value -- without
     // any, Name Table N, as the Value Names dialog names a new one -- or one
@@ -170,58 +232,7 @@ void NameValueDialog::build()
     auto* tableRow = new QHBoxLayout;
     tableRow->addWidget( table_, 1 );
     tableRow->addWidget( newTableName_, 1 );
-    form->addRow( tr( "Name Table:" ), tableRow );
-
-    pattern_ = new QLineEdit( proposal_.pattern, this );
-    pattern_->setObjectName( QStringLiteral( "rulePattern" ) );
-    pattern_->setToolTip( tr( "The regex of the Naming Rule; its first capture group is the "
-                              "value looked up in the Name Table" ) );
-    form->addRow( tr( "Naming Rule:" ), pattern_ );
-
-    template_ = new QLineEdit( proposal_.displayTemplate, this );
-    template_->setObjectName( QStringLiteral( "ruleTemplate" ) );
-    template_->setToolTip( tr( "How a named value is shown: {name} is its name, {value} the "
-                               "value itself" ) );
-    form->addRow( tr( "Template:" ), template_ );
-
-    rows_ = new QTableWidget( 0, 2, this );
-    rows_->setObjectName( QStringLiteral( "nameRows" ) );
-    rows_->setHorizontalHeaderLabels( { tr( "Key" ), tr( "Name" ) } );
-    rows_->horizontalHeader()->setStretchLastSection( true );
-    rows_->verticalHeader()->setVisible( false );
-    rows_->setEditTriggers( QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
-                            | QAbstractItemView::AnyKeyPressed
-                            | QAbstractItemView::SelectedClicked );
-    addRowButton_ = new QPushButton( tr( "Add Row" ), this );
-    removeRowButton_ = new QPushButton( tr( "Remove Row" ), this );
-    addRowButton_->setObjectName( QStringLiteral( "addRow" ) );
-    removeRowButton_->setObjectName( QStringLiteral( "removeRow" ) );
-    auto* rowButtons = new QHBoxLayout;
-    rowButtons->addWidget( addRowButton_ );
-    rowButtons->addWidget( removeRowButton_ );
-    rowButtons->addStretch( 1 );
-    auto* rowsColumn = new QVBoxLayout;
-    rowsColumn->addWidget( rows_ );
-    rowsColumn->addLayout( rowButtons );
-    form->addRow( tr( "Rows:" ), rowsColumn );
-
-    preview_ = new QLabel( this );
-    preview_->setObjectName( QStringLiteral( "preview" ) );
-    preview_->setTextFormat( Qt::RichText );
-    preview_->setWordWrap( true );
-    preview_->setTextInteractionFlags( Qt::TextSelectableByMouse );
-    warning_ = new QLabel( this );
-    warning_->setObjectName( QStringLiteral( "previewWarning" ) );
-    warning_->setWordWrap( true );
-    auto* previewColumn = new QVBoxLayout;
-    previewColumn->addWidget( preview_ );
-    previewColumn->addWidget( warning_ );
-    form->addRow( tr( "Preview:" ), previewColumn );
-
-    buttons_ = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this );
-    auto* layout = new QVBoxLayout( this );
-    layout->addLayout( form );
-    layout->addWidget( buttons_ );
+    layout_->addRow( Section::Where, tr( "Name Table:" ), tableRow );
 
     connect( group_, &GroupChooser::choiceChanged, this, &NameValueDialog::groupChosen );
     offerGroups( {} );
@@ -239,15 +250,86 @@ void NameValueDialog::build()
     connect( newTableName_, &QLineEdit::textChanged, this, &NameValueDialog::updatePreview );
     connect( pattern_, &QLineEdit::textChanged, this, &NameValueDialog::updatePreview );
     connect( template_, &QLineEdit::textChanged, this, &NameValueDialog::updatePreview );
-    connect( rows_, &QTableWidget::itemChanged, this, &NameValueDialog::updatePreview );
+    connect( rows_, &QTableWidget::itemChanged, this, &NameValueDialog::rowChanged );
+    connect( valueKey_, &QLineEdit::textChanged, this, &NameValueDialog::valueRowEdited );
+    connect( valueName_, &QLineEdit::textChanged, this, &NameValueDialog::valueRowEdited );
+    connect( moreRows_, &QPushButton::clicked, this, &NameValueDialog::showRows );
     connect( addRowButton_, &QPushButton::clicked, this, &NameValueDialog::addRow );
     connect( removeRowButton_, &QPushButton::clicked, this, &NameValueDialog::removeRow );
-    connect( buttons_, &QDialogButtonBox::accepted, this, &NameValueDialog::accept );
-    connect( buttons_, &QDialogButtonBox::rejected, this, &NameValueDialog::reject );
 
+    layout_->fitDialog();
+    focusName();
+}
+
+NameValueDialog::~NameValueDialog() = default;
+
+bool NameValueDialog::showsRows() const
+{
+    return !rowsBox_->isHidden();
+}
+
+void NameValueDialog::showRows()
+{
+    if ( showsRows() ) {
+        return;
+    }
+    valueRow_->hide();
+    rowsBox_->show();
+    // Taller by the table, as wide as it was.
+    resize( width(), std::max( height(), sizeHint().height() ) );
+    focusName();
+}
+
+void NameValueDialog::focusName()
+{
     // The name is what the user types next.
-    rows_->setFocus();
-    resize( 640, sizeHint().height() );
+    if ( showsRows() ) {
+        rows_->setFocus();
+    }
+    else {
+        valueName_->setFocus();
+    }
+}
+
+void NameValueDialog::rowChanged( QTableWidgetItem* item )
+{
+    // The value's row shows in the one row too.
+    if ( item != nullptr && item->row() == valueRowIndex_ ) {
+        syncValueRow();
+    }
+    updatePreview();
+}
+
+void NameValueDialog::syncValueRow()
+{
+    const auto* key = valueRowIndex_ >= 0 ? rows_->item( valueRowIndex_, RowKey ) : nullptr;
+    const auto* name = valueRowIndex_ >= 0 ? rows_->item( valueRowIndex_, RowName ) : nullptr;
+    const QSignalBlocker keyBlocker( valueKey_ );
+    const QSignalBlocker nameBlocker( valueName_ );
+    valueKey_->setText( key != nullptr ? key->text() : QString{} );
+    valueName_->setText( name != nullptr ? name->text() : QString{} );
+}
+
+void NameValueDialog::valueRowEdited()
+{
+    if ( valueRowIndex_ < 0 ) {
+        return;
+    }
+    // Into the table, which OK reads, as though the row were edited there.
+    const QSignalBlocker blocker( rows_ );
+    rows_->item( valueRowIndex_, RowKey )->setText( valueKey_->text() );
+    rows_->item( valueRowIndex_, RowName )->setText( valueName_->text() );
+    updatePreview();
+}
+
+void NameValueDialog::showMessageOnly( LineRange message )
+{
+    // Only a message the value lies in: the preview marks the value.
+    if ( message.start <= proposal_.valueRange.start
+         && proposal_.valueRange.end() <= message.end() ) {
+        message_ = message;
+        updatePreview();
+    }
 }
 
 void NameValueDialog::showTeamGroups( const QList<NamingGroup>& groups, bool editable,
@@ -263,7 +345,7 @@ void NameValueDialog::proposeGroup( const QString& groupId )
 {
     const auto fixed = fixedGroupId();
     group_->choose( fixed.isEmpty() ? groupId : fixed, {} );
-    rows_->setFocus();
+    focusName();
 }
 
 void NameValueDialog::offerGroups( const QString& chosenId )
@@ -276,7 +358,7 @@ void NameValueDialog::offerGroups( const QString& chosenId )
     group_->setGroups( choicesOf( groups_ ), team );
     const auto fixed = fixedGroupId();
     group_->choose( fixed.isEmpty() ? chosenId : fixed, {} );
-    rows_->setFocus();
+    focusName();
 }
 
 QString NameValueDialog::fixedGroupId() const
@@ -400,6 +482,12 @@ void NameValueDialog::populateRows()
     }
     // The name is what the user types next.
     rows_->setCurrentCell( valueRow, RowName );
+    valueRowIndex_ = valueRow;
+    syncValueRow();
+    // A table of more rows than the value's shows them all.
+    if ( rows.size() > 1 ) {
+        showRows();
+    }
 }
 
 void NameValueDialog::addRow()
@@ -422,6 +510,12 @@ void NameValueDialog::removeRow()
         return;
     }
     rows_->removeRow( row );
+    if ( row == valueRowIndex_ ) {
+        valueRowIndex_ = -1;
+    }
+    else if ( row < valueRowIndex_ ) {
+        --valueRowIndex_;
+    }
     updatePreview();
 }
 
@@ -511,19 +605,43 @@ void NameValueDialog::updatePreview()
 
     const logsquirl::valuenames::ValueNamer namer( { groupAfter() } );
     const auto namedValues = namer.namedValues( logLine_ );
-    shownPreview_ = logsquirl::valuenames::shownLine( logLine_, namedValues );
 
-    // The Named Values underlined, as the views mark them.
-    QString html = QStringLiteral( "<span style=\"white-space: pre-wrap\">" );
-    qsizetype position = 0;
+    // The message, or the whole Log Line, as it will be shown: the Named
+    // Values in it underlined, as the views mark them, and the value named
+    // here marked too while it has no name yet.
+    const auto message = message_.value_or( LineRange{ 0, logLine_.size() } );
+    const auto& value = proposal_.valueRange;
+    QString shown;
+    QList<LinePreview::Mark> marks;
+    bool valueMarked = false;
+    auto position = message.start;
+    const auto markRaw = [ & ]( qsizetype end ) {
+        // The value, unnamed, where it lies before end.
+        if ( !valueMarked && value.length > 0 && position <= value.start && value.end() <= end ) {
+            shown += logLine_.mid( position, value.start - position );
+            marks.append( LinePreview::Mark{ shown.size(), value.length } );
+            shown += logLine_.mid( value.start, value.length );
+            position = value.end();
+            valueMarked = true;
+        }
+    };
     for ( const auto& namedValue : namedValues ) {
-        html += logLine_.mid( position, namedValue.start - position ).toHtmlEscaped();
-        html += QStringLiteral( "<u>" ) + namedValue.shown.toHtmlEscaped()
-                + QStringLiteral( "</u>" );
+        if ( namedValue.start < position || namedValue.end() > message.end() ) {
+            continue;
+        }
+        markRaw( namedValue.start );
+        shown += logLine_.mid( position, namedValue.start - position );
+        marks.append( LinePreview::Mark{ shown.size(), namedValue.shown.size() } );
+        shown += namedValue.shown;
         position = namedValue.end();
+        if ( namedValue.start <= value.start && value.end() <= namedValue.end() ) {
+            valueMarked = true;
+        }
     }
-    html += logLine_.mid( position ).toHtmlEscaped() + QStringLiteral( "</span>" );
-    preview_->setText( html );
+    markRaw( message.end() );
+    shown += logLine_.mid( position, message.end() - position );
+    shownPreview_ = shown;
+    layout_->preview()->setLine( shown, marks, LinePreview::MarkStyle::Underline );
 }
 
 void NameValueDialog::updateWarning()
@@ -531,9 +649,8 @@ void NameValueDialog::updateWarning()
     // A new group's name that will not do comes first: OK waits for it.
     const auto groupWarning = group_->warning();
     const auto warning = groupWarning.isEmpty() ? previewWarning_ : groupWarning;
-    warning_->setText( warning );
-    warning_->setVisible( !warning.isEmpty() );
-    buttons_->button( QDialogButtonBox::Ok )->setEnabled( groupWarning.isEmpty() );
+    layout_->setWarning( warning );
+    layout_->buttons()->button( QDialogButtonBox::Ok )->setEnabled( groupWarning.isEmpty() );
 }
 
 void NameValueDialog::accept()

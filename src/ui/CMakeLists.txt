@@ -11,6 +11,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/addpredefinedfilterdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/addtogrouplayout.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/filterpreviewsearch.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
@@ -143,6 +145,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/addpredefinedfilterdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/addtogrouplayout.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/filterpreviewsearch.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp

@@ -53,11 +53,13 @@
 
 #include "abstractlogview.h"
 #include "addpredefinedfilterdialog.h"
+#include "addtogrouplayout.h"
 #include "applicationplugins.h"
 #include "configuration.h"
 #include "context_menu_entries.h"
 #include "crawler_children.h"
 #include "crawlerwidget.h"
+#include "filterpreviewsearch.h"
 #include "filterspanel.h"
 #include "groupchooser.h"
 #include "logfiltereddata.h"
@@ -785,6 +787,60 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
                      == 2_lcount );
         }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter... previews what the filter finds in the tab's Log File",
+          "[ui][predefinedfilters][addpredefinedfilter][addtogroup]" )
+{
+    const KeptFilterGroups kept;
+    const AddFilterWindow shown;
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+    selectText( textView );
+    const auto menu = ViewAccess::contextMenu( textView );
+    auto* entry = contextMenuEntry( *menu, AddAsPredefinedFilter );
+    REQUIRE( entry != nullptr );
+
+    FilterPreviewSearch::Result asProposed;
+    FilterPreviewSearch::Result asRegex;
+    QString shownLine;
+    QStringList marked;
+    QTimer::singleShot( 0, [ & ] {
+        auto* dialog
+            = qobject_cast<AddPredefinedFilterDialog*>( QApplication::activeModalWidget() );
+        REQUIRE( dialog != nullptr );
+        const auto done = [ dialog ] {
+            return dialog->previewResult().state == FilterPreviewSearch::Result::State::Done;
+        };
+        REQUIRE( waitUiState( done ) );
+        asProposed = dialog->previewResult();
+        auto* preview = dialog->addToGroupLayout().preview();
+        shownLine = preview->shownText();
+        marked = preview->markedTexts();
+
+        // A regex that the lookalike matches too.
+        childOf<QCheckBox>( *dialog, QStringLiteral( "filterRegex" ) )->setChecked( true );
+        childOf<QLineEdit>( *dialog, QStringLiteral( "filterPattern" ) )
+            ->setText( QStringLiteral( "a.b.?1" ) );
+        REQUIRE( waitUiState(
+            [ & ] { return done() && dialog->previewResult().matchCount == 2_lcount; } ) );
+        asRegex = dialog->previewResult();
+        dialog->reject();
+    } );
+    entry->trigger();
+
+    THEN( "the selection as proposed finds its Log Line, which shows with the match marked" )
+    {
+        REQUIRE( asProposed.matchCount == 1_lcount );
+        REQUIRE( asProposed.firstMatch == 0_lnum );
+        REQUIRE( shownLine == TheLogLine );
+        REQUIRE( marked == QStringList{ SelectedText } );
+    }
+
+    THEN( "edited into a regex, the filter finds the lookalike too" )
+    {
+        REQUIRE( asRegex.matchCount == 2_lcount );
+        REQUIRE( asRegex.firstMatch == 0_lnum );
     }
 }
 

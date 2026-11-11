@@ -19,20 +19,24 @@
 
 #pragma once
 
+#include <memory>
+
 #include <QDialog>
 #include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
 
+#include "filterpreviewsearch.h"
 #include "predefinedfilter.h"
 #include "predefinedfilters.h"
+#include "regularexpressionpattern.h"
 #include "teamfolder.h"
 #include "teamgroupedits.h"
 
+class AddToGroupLayout;
+class LogData;
 class QCheckBox;
-class QDialogButtonBox;
-class QLabel;
 class QLineEdit;
 class GroupChooser;
 
@@ -46,6 +50,12 @@ class GroupChooser;
 // picks the Filter Group with the Group Chooser (#955) -- one of the user's
 // own, a Team group, or a new one of either -- and whether the Search runs
 // with the filter now.
+//
+// It is laid out as Name This Value is, with AddToGroupLayout (#958): what is
+// added, where it goes, the preview, the warning, the buttons. Given the Log
+// File (previewIn()), the preview tells how many Log Lines the pattern finds
+// there and shows the first one with what it matches marked; it follows the
+// pattern and Regular expression as they change, counting off the UI thread.
 //
 // OK adds the Predefined Filter at the end of the group. A group of the
 // user's own is saved in PredefinedFiltersCollection, as the Predefined
@@ -64,7 +74,26 @@ public:
     // text on one line, its white space collapsed, cut short when long.
     static QString proposedName( const QString& selectedText );
 
+    // The most matches of the first Log Line found the preview marks.
+    static constexpr qsizetype MaxPreviewMarks = 50;
+
     explicit AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent = nullptr );
+    ~AddPredefinedFilterDialog() override;
+
+    // Previews the filter in the Log File of logData, which the dialog holds
+    // on to while it is open: it is searched as the Search of the tab reads
+    // the filter, matching case when matchCase says so. Without a call there
+    // is no Log File to preview in.
+    void previewIn( std::shared_ptr<const LogData> logData, bool matchCase );
+
+    // What the preview found last.
+    FilterPreviewSearch::Result previewResult() const;
+
+    // The layout shared with Name This Value.
+    const AddToGroupLayout& addToGroupLayout() const
+    {
+        return *layout_;
+    }
 
     // Offers the Team groups too, the Team Folder being on: under a heading
     // of their own, with New Team Filter Group.... Only when editable can
@@ -119,6 +148,13 @@ private:
     // The names of the filters of the Filter Group chosen.
     QStringList chosenGroupNames() const;
 
+    // The pattern the preview searches for, as edited.
+    RegularExpressionPattern previewPattern() const;
+    // The pattern or Regular expression changed: the preview searches again.
+    void searchPreview();
+    // The preview's Search told what it found.
+    void showPreview();
+
     // The selection the dialog was opened for.
     QString selectedText_;
     // The plain text the pattern was before Regular expression turned it into
@@ -135,11 +171,14 @@ private:
     bool showsTeam_ = false;
     TeamGroupEdits<PredefinedFilterSet> teamEdits_;
 
+    std::unique_ptr<AddToGroupLayout> layout_;
     QLineEdit* name_ = nullptr;
     QLineEdit* pattern_ = nullptr;
     QCheckBox* regex_ = nullptr;
     GroupChooser* group_ = nullptr;
     QCheckBox* applyNow_ = nullptr;
-    QLabel* warning_ = nullptr;
-    QDialogButtonBox* buttons_ = nullptr;
+
+    // How the tab's Search reads a pattern.
+    bool matchCase_ = false;
+    std::unique_ptr<FilterPreviewSearch> previewSearch_;
 };

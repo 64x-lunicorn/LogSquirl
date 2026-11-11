@@ -1975,6 +1975,11 @@ void MainWindow::addAsPredefinedFilter( const QString& selectedText )
     }
     // The group chosen last is proposed again (#955).
     dialog.proposeGroup( Configuration::get().lastFilterGroupId() );
+    // The preview counts what the filter finds in the tab's Log File, read as
+    // its Search Line would read it (#958).
+    if ( const auto* crawler = currentCrawlerWidget() ) {
+        dialog.previewIn( crawler->logDataToSearch(), crawler->searchFlags().matchCase );
+    }
     if ( dialog.exec() != QDialog::Accepted ) {
         return;
     }
@@ -2034,6 +2039,12 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
         = captured ? std::make_unique<NameValueDialog>( logLine, *captured, this )
                    : std::make_unique<NameValueDialog>(
                          logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    // The preview shows the Log Line's message, not every field (#958).
+    if ( const auto* crawler = currentCrawlerWidget() ) {
+        if ( const auto message = crawler->messageOf( logLine ) ) {
+            dialog->showMessageOnly( *message );
+        }
+    }
     // Name This Value chooses the group (#956): a Team Naming Group it names
     // the value in is published as the Value Names dialog publishes it, a
     // colleague's change meanwhile asked about as there

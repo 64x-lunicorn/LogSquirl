@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -34,13 +35,13 @@
 #include "valuenamer.h"
 #include "valueproposal.h"
 
+class AddToGroupLayout;
 class GroupChooser;
 class QComboBox;
-class QDialogButtonBox;
-class QLabel;
 class QLineEdit;
 class QPushButton;
 class QTableWidget;
+class QTableWidgetItem;
 
 // What "Name this value..." of the context menu of the Text View and the
 // Filtered View opens (#883): a compact dialog naming one value of a Log
@@ -53,6 +54,15 @@ class QTableWidget;
 // one of the user's own, a Team Naming Group, or a new one of either. The Name
 // Table choice offers the tables of the group chosen, a rule only using the
 // Name Tables of its own group.
+//
+// It is laid out as Add as Predefined Filter... is, with AddToGroupLayout
+// (#958): what is added (the value and its name, the Naming Rule, the
+// Template), where it goes (the Naming Group, the Name Table), the preview,
+// the warning, the buttons. The value and its name take one row, the focus in
+// the name; More rows... shows the rows of the Name Table instead, to add and
+// remove some, and a Name Table that has more rows than the value's shows
+// them from the start. The preview shows the Log Line in one line -- only its
+// message, when the caller says where that is -- with the value marked.
 //
 // OK adds the rule, and the table unless it is one the group has, to the
 // group -- the operation the Value Names dialog's Add buttons use -- and checks
@@ -82,11 +92,28 @@ public:
     // dialog proposes a new rule for the value as the other constructor does.
     NameValueDialog( const QString& logLine, const logsquirl::valuenames::CapturedValue& captured,
                      QWidget* parent = nullptr );
+    ~NameValueDialog() override;
 
-    // The Log Line of the preview as it will be shown, without its markup.
+    // The preview shows only the message of the Log Line, which lies at
+    // message: the body field of the tab's Log Format. A message the value
+    // does not lie in is not taken.
+    void showMessageOnly( logsquirl::valuenames::LineRange message );
+
+    // What the preview shows, the Log Line or its message as it will be
+    // shown, without markup and not elided.
     QString shownPreview() const
     {
         return shownPreview_;
+    }
+
+    // Whether the rows of the Name Table show, rather than the one row of the
+    // value.
+    bool showsRows() const;
+
+    // The layout shared with Add as Predefined Filter....
+    const AddToGroupLayout& addToGroupLayout() const
+    {
+        return *layout_;
     }
 
     // What the preview warns of, empty when the regex matches the Log Line.
@@ -151,6 +178,16 @@ private:
     void tableChosen();
     void addRow();
     void removeRow();
+    // More rows...: the rows of the Name Table show instead of the value's.
+    void showRows();
+    // The focus goes where the value's name is typed.
+    void focusName();
+    // A row of the table changed: the value's shows in its one row too.
+    void rowChanged( QTableWidgetItem* item );
+    // The value's one row shows the value's row of the table, or was edited
+    // and goes into it.
+    void syncValueRow();
+    void valueRowEdited();
     void updatePreview();
     // The warning line and OK: OK is disabled while the new group's name
     // will not do.
@@ -174,15 +211,25 @@ private:
     // The id of the group OK made.
     QString madeGroupId_;
 
+    // Where the message lies in the Log Line, when the preview shows only it.
+    std::optional<logsquirl::valuenames::LineRange> message_;
+    // The row of the table that is the value's, -1 once it is removed.
+    int valueRowIndex_ = -1;
+
+    std::unique_ptr<AddToGroupLayout> layout_;
     GroupChooser* group_ = nullptr;
     QComboBox* table_ = nullptr;
     QLineEdit* newTableName_ = nullptr;
     QLineEdit* pattern_ = nullptr;
     QLineEdit* template_ = nullptr;
+    // The value's one row.
+    QWidget* valueRow_ = nullptr;
+    QLineEdit* valueKey_ = nullptr;
+    QLineEdit* valueName_ = nullptr;
+    QPushButton* moreRows_ = nullptr;
+    // The rows of the Name Table, with Add Row and Remove Row.
+    QWidget* rowsBox_ = nullptr;
     QTableWidget* rows_ = nullptr;
     QPushButton* addRowButton_ = nullptr;
     QPushButton* removeRowButton_ = nullptr;
-    QLabel* preview_ = nullptr;
-    QLabel* warning_ = nullptr;
-    QDialogButtonBox* buttons_ = nullptr;
 };

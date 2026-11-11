@@ -39,6 +39,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/chartthisvalue_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/grouplist_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/groupchooser_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addtogroupdialogs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/dialog_queued_work_test.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp

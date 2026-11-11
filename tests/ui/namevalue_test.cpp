@@ -1252,7 +1252,7 @@ SCENARIO( "Name This Value chooses its Naming Group with the Group Chooser",
             THEN( "OK is disabled, and the dialog says why" )
             {
                 REQUIRE_FALSE( okButton( dialog )->isEnabled() );
-                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "previewWarning" ) )->text()
+                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "warning" ) )->text()
                          == QStringLiteral( "The new Naming Group has no name." ) );
             }
         }
@@ -1264,7 +1264,7 @@ SCENARIO( "Name This Value chooses its Naming Group with the Group Chooser",
             THEN( "OK is disabled, and the dialog says why" )
             {
                 REQUIRE_FALSE( okButton( dialog )->isEnabled() );
-                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "previewWarning" ) )
+                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "warning" ) )
                              ->text()
                              .contains( QStringLiteral( "Other" ) ) );
             }
