@@ -172,7 +172,9 @@ first loaded waits for that load and then runs over the whole Log File, each wit
 pattern it was requested with; a load that does not succeed drops what waits. A restored
 Session holds the waiting Searches beyond the first load until it releases them; what the
 user asks for after that is never held. It makes every Search of the Log File, and the
-Search Policy reaches each one through it.
+Search Policy reaches each one through it. Each Search keeps its own auto-refresh in it —
+followed, suspended, or truncated under — while the wish for auto-refresh, the Search
+Line's one button, is the Log File's; switching to another Search leaves each as it was.
 _Avoid_: search list, pending searches
 
 **Kept Searches**:

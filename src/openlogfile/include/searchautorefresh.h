@@ -19,10 +19,12 @@
 
 #pragma once
 
-// Whether the Search of an Open Log File follows the Log File as it changes
+// Whether a Search of an Open Log File follows the Log File as it changes
 // on disk: the auto-refresh state machine. It decides whether a Search may be
 // refreshed when Log Lines were loaded again, and whether the Log File was
-// truncated under it; what refreshing means is up to the Open Log File.
+// truncated under it; what refreshing means is up to the Open Log File. Every
+// Search has its own, kept in the Search Set; the user's wish for it is the
+// Log File's, one for all its Searches (#954).
 class SearchAutoRefresh {
 public:
     enum class State {
@@ -43,6 +45,13 @@ public:
     void resetState();
     // The user asked for auto-refresh, or no longer does.
     void setAutoRefresh( bool refresh );
+    // The user's wish, as the Open Log File keeps it for all its Searches,
+    // heard by a Search that is not current: it starts from it when next
+    // requested, and stays where it stands until then (#954).
+    void takeRequest( bool refresh )
+    {
+        autoRefreshRequested_ = refresh;
+    }
     // The Log File was truncated.
     void truncateFile();
     // The Search pattern was changed: auto-refresh is suspended.

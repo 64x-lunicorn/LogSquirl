@@ -22,6 +22,7 @@
 #include "linetypes.h"
 #include "loadrule.h"
 #include "regularexpressionpattern.h"
+#include "searchautorefresh.h"
 #include "searchsessionstate.h"
 #include "settingspolicies.h"
 
@@ -49,16 +50,20 @@ concept SearchPort
 
 // The Search Set of an Open Log File (#941): every Search of its Log File,
 // the current one and the kept ones, each with the pattern it was last
-// requested with and whether it waits for the first load, is held by the
-// Session before or after that load, or runs.
+// requested with, its own auto-refresh, and whether it waits for the first
+// load, is held by the Session before or after that load, or runs.
 //
 // A Search requested before the first load has finished waits for it and
 // then runs over the Search Limits as that load leaves them; a load that does
 // not succeed drops what waits. A restored Session holds the waiting Searches
 // beyond that load, until it releases them (#777, #779); what is asked for
-// after that is the user's and never held. The current Search runs as the
-// user requests it, and the Open Log File hears of every such request to
-// follow it with its auto-refresh.
+// after that is the user's and never held.
+//
+// Whether the user wishes for auto-refresh -- the Search Line's one button --
+// is the Log File's, and every Search hears of it. Whether a Search follows
+// the Log File, is suspended, or had the Log File truncated under it is the
+// Search's own (#954): it is followed from the moment it is handed a request,
+// and switching to another Search leaves it as it was.
 //
 // Every Search is made here, from the factory it is handed, so a Search's
 // whole life is in one place; the Search Policy reaches each one still alive.
@@ -95,9 +100,6 @@ public:
         // reader of the Log Format's fields, say (#798).
         std::function<RegularExpressionPattern( RegularExpressionPattern )> preparePattern
             = []( RegularExpressionPattern pattern ) { return pattern; };
-        // The current Search was just requested, as the user requests it, and
-        // has not waited.
-        std::function<void()> currentRequested = [] {};
         // Fewer Searches are held than before.
         std::function<void()> heldNoLonger = [] {};
     };
@@ -106,7 +108,7 @@ public:
         : hooks_( std::move( hooks ) )
         , current_( hooks_.newSearch() )
     {
-        entries_.push_back( Entry{ current_, {}, State::Idle } );
+        entries_.push_back( newEntry( current_ ) );
     }
 
     // The current Search: the one requestCurrent() runs and the Open Log
@@ -129,6 +131,46 @@ public:
         return entry ? entry->state : State::Idle;
     }
 
+    // The current Search's own auto-refresh: what growth and truncation of
+    // the Log File decide on for it, and what the Search Line shows.
+    const SearchAutoRefresh& currentAutoRefresh() const
+    {
+        return entryOf( current_ )->autoRefresh;
+    }
+
+    // The auto-refresh of search, current or kept; for one this does not
+    // hold, that of a Search never requested.
+    SearchAutoRefresh autoRefresh( const std::shared_ptr<Search>& search ) const
+    {
+        const auto* entry = entryOf( search );
+        return entry ? entry->autoRefresh : newEntry( search ).autoRefresh;
+    }
+
+    // The user wishes for auto-refresh, or no longer does. The current
+    // Search follows the wish at once. A kept one follows it at once when it
+    // is no longer wished for, so no Search is followed against the user's
+    // wish; wished for again, a kept one starts from it when next requested,
+    // so a Search the user stopped is not followed again behind their back.
+    void setAutoRefresh( bool refresh )
+    {
+        autoRefreshRequested_ = refresh;
+        for ( auto& entry : entries_ ) {
+            if ( !refresh || entry.search.lock() == current_ ) {
+                entry.autoRefresh.setAutoRefresh( refresh );
+            }
+            else {
+                entry.autoRefresh.takeRequest( refresh );
+            }
+        }
+    }
+
+    // The current Search's pattern was changed and not yet requested: its
+    // auto-refresh is suspended.
+    void changeCurrentExpression()
+    {
+        entryOf( current_ )->autoRefresh.changeExpression();
+    }
+
     // Whether the first load has finished, whatever its outcome: until it
     // has, a Search requested waits for it.
     bool hasFirstLoadFinished() const
@@ -143,7 +185,7 @@ public:
         forgetDropped();
         current_->stop();
         current_ = hooks_.newSearch();
-        entries_.push_back( Entry{ current_, {}, State::Idle } );
+        entries_.push_back( newEntry( current_ ) );
         return current_;
     }
 
@@ -171,16 +213,16 @@ public:
 
     // Requests the current Search for pattern over limits, as the user does,
     // and returns whether it waits for the first load. A held one is held no
-    // longer.
+    // longer. Handed the request, it is followed by its auto-refresh.
     bool requestCurrent( const RegularExpressionPattern& pattern, SearchLimits limits )
     {
-        if ( !settleRequested( *entryOf( current_ ), pattern ) ) {
+        auto& entry = *entryOf( current_ );
+        if ( !settleRequested( entry, pattern ) ) {
             // Nothing to search yet: it runs over the Log Lines once they
             // have loaded, rather than over none now.
             return true;
         }
-        current_->request( hooks_.preparePattern( pattern ), limits.start, limits.end );
-        hooks_.currentRequested();
+        handRequest( entry, *current_, limits );
         return false;
     }
 
@@ -198,25 +240,28 @@ public:
             return;
         }
 
-        if ( !settleRequested( entryFor( search ), pattern ) ) {
+        auto& entry = entryFor( search );
+        if ( !settleRequested( entry, pattern ) ) {
             return;
         }
-        search->request( hooks_.preparePattern( pattern ), limits.start, limits.end );
+        handRequest( entry, *search, limits );
     }
 
     // No Search is active any longer: the current one drops its results and
-    // goes idle, and neither waits nor is held. Its cached results stay.
+    // goes idle, and neither waits nor is held nor is followed. Its cached
+    // results stay.
     void clearCurrent()
     {
         auto& entry = *entryOf( current_ );
         const auto wasHeld = isHeld( entry );
         entry.state = State::Idle;
+        entry.autoRefresh.resetState();
         tellHeldNoLonger( wasHeld );
         current_->dropResults();
     }
 
     // Stops the current Search, keeping what it found: it neither waits nor
-    // is held any longer.
+    // is held any longer, and its auto-refresh is suspended.
     void stopCurrent()
     {
         auto& entry = *entryOf( current_ );
@@ -224,6 +269,7 @@ public:
         if ( entry.state != State::Idle ) {
             entry.state = State::Running;
         }
+        entry.autoRefresh.stopSearch();
         tellHeldNoLonger( wasHeld );
         current_->stop();
     }
@@ -249,11 +295,19 @@ public:
         requestCurrent( pattern, limits );
     }
 
-    // The Log File was truncated under the current Search: its results no
-    // longer describe it. Drops them when a Search was requested -- waiting,
-    // held or run -- and returns whether it did.
-    bool dropTruncatedResults()
+    // The Log File was truncated: every Search requested -- waiting, held or
+    // run, current or kept -- has it truncated under it, so one auto-refreshed
+    // starts again once it is current and the Log File has loaded. The
+    // current one's results no longer describe the Log File: they are
+    // dropped. Returns whether they were. A kept Search drops what it found
+    // beyond the Log File's end as every Search is told the Log Lines changed.
+    bool truncateFile()
     {
+        for ( auto& entry : entries_ ) {
+            if ( entry.state != State::Idle ) {
+                entry.autoRefresh.truncateFile();
+            }
+        }
         if ( entryOf( current_ )->state == State::Idle ) {
             return false;
         }
@@ -373,6 +427,8 @@ private:
         std::weak_ptr<Search> search;
         RegularExpressionPattern pattern;
         State state = State::Idle;
+        // The Search's own: whether it follows the Log File (#954).
+        SearchAutoRefresh autoRefresh;
     };
 
     static bool isHeld( const Entry& entry )
@@ -405,7 +461,7 @@ private:
         if ( auto* entry = entryOf( search ) ) {
             return *entry;
         }
-        return entries_.emplace_back( Entry{ search, {}, State::Idle } );
+        return entries_.emplace_back( newEntry( search ) );
     }
 
     // The Search of entry was requested for pattern: it waits for the first
@@ -437,10 +493,35 @@ private:
         }
         for ( const auto& entry : entries ) {
             const auto search = entry.search.lock();
-            if ( search && search != current_ ) {
-                search->request( hooks_.preparePattern( entry.pattern ), limits.start, limits.end );
+            auto* kept = search && search != current_ ? entryOf( search ) : nullptr;
+            if ( kept ) {
+                handRequest( *kept, *search, limits );
             }
         }
+    }
+
+    // Hands the Search of entry the request settled for it, over limits: from
+    // now on its auto-refresh follows it, as the user wishes; an invalid
+    // pattern leaves no Search active.
+    void handRequest( Entry& entry, Search& search, SearchLimits limits )
+    {
+        search.request( hooks_.preparePattern( entry.pattern ), limits.start, limits.end );
+        if ( search.searchState().phase != SearchSessionPhase::InvalidPattern ) {
+            entry.autoRefresh.startSearch();
+        }
+        else {
+            entry.autoRefresh.resetState();
+        }
+    }
+
+    // The entry of a Search new to this, never requested; its auto-refresh
+    // starts from the user's wish.
+    Entry newEntry( const std::shared_ptr<Search>& search ) const
+    {
+        Entry entry;
+        entry.search = search;
+        entry.autoRefresh.takeRequest( autoRefreshRequested_ );
+        return entry;
     }
 
     // Forgets the Searches dropped since, so the list does not grow without
@@ -455,4 +536,7 @@ private:
     // Every Search made, the current one among them, in the order made.
     std::vector<Entry> entries_;
     bool firstLoadFinished_ = false;
+    // Whether the user wishes for auto-refresh: one for the Log File, heard by
+    // every Search.
+    bool autoRefreshRequested_ = false;
 };

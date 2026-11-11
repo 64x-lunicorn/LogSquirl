@@ -37,6 +37,7 @@
 #include <QTemporaryDir>
 
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -950,6 +951,207 @@ SCENARIO( "An Open Log File keeps Searches and follows the current one", "[openl
                 {
                     REQUIRE( logFile.openLogFile.filteredData() == first );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "Each Search of an Open Log File keeps its own auto-refresh",
+          "[openlogfile][autorefresh][keptsearches]" )
+{
+    // The wish for auto-refresh -- the Search Line's one button -- is the Log
+    // File's; whether a Search is followed, suspended or truncated under is
+    // the Search's own (#954).
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "kept.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    auto& openLogFile = logFile.openLogFile;
+
+    constexpr auto TruncatedLineCount = 10;
+
+    GIVEN( "an auto-refreshed Search, and another one started and current, never requested" )
+    {
+        openLogFile.setAutoRefresh( true );
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+        const auto first = openLogFile.filteredData();
+        const auto second = openLogFile.startAnotherSearch();
+
+        THEN( "no Search is active in the current one, which still wishes for auto-refresh" )
+        {
+            REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::NoSearch );
+            REQUIRE( openLogFile.searchAutoRefresh().isAutoRefreshRequested() );
+        }
+
+        WHEN( "Log Lines are added to the Log File" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+            THEN( "the current Search is not requested and stays idle" )
+            {
+                REQUIRE( openLogFile.filteredData() == second );
+                REQUIRE( second->searchState().phase == Phase::Idle );
+                REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::NoSearch );
+            }
+        }
+
+        WHEN( "the Log File is truncated" )
+        {
+            REQUIRE( logFile.fileWatch->truncate( path, logLines( TruncatedLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( TruncatedLineCount ) );
+
+            THEN( "the current Search is not requested and stays idle" )
+            {
+                REQUIRE_FALSE( logFile.observer.loads.back().searchRestarted );
+                REQUIRE( second->searchState().phase == Phase::Idle );
+                REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::NoSearch );
+            }
+
+            AND_WHEN( "the first one is made current again, and the Log File grows" )
+            {
+                openLogFile.makeSearchCurrent( first );
+                REQUIRE( openLogFile.searchAutoRefresh().state()
+                         == AutoRefreshState::TruncatedAutorefreshing );
+                REQUIRE( logFile.fileWatch->grow( path, logLines( 5, TruncatedLineCount ) ) );
+                REQUIRE( logFile.observer.waitLoads( 3 ) );
+                REQUIRE( logFile.waitSearchSettled() );
+
+                THEN( "it starts again over the truncated Log File, auto-refreshed" )
+                {
+                    REQUIRE( logFile.observer.loads.back().searchRestarted );
+                    const auto state = first->searchState();
+                    REQUIRE_FALSE( state.isContinuation );
+                    REQUIRE( state.pattern.pattern == "fizz" );
+                    REQUIRE( state.startLine == 0_lnum );
+                    REQUIRE( state.endLine == LineNumber( TruncatedLineCount + 5 ) );
+                    REQUIRE( state.matchCount == fizzCount( TruncatedLineCount + 5 ) );
+                    REQUIRE( openLogFile.searchAutoRefresh().state()
+                             == AutoRefreshState::Autorefreshing );
+                }
+            }
+        }
+
+        WHEN( "the Log File is truncated, and the first one is made current again before it has "
+              "loaded" )
+        {
+            QObject connectionContext;
+            QObject::connect( &openLogFile, &OpenLogFile::truncated, &connectionContext,
+                              [ & ]( const QString& ) { openLogFile.makeSearchCurrent( first ); } );
+            REQUIRE( logFile.fileWatch->truncate( path, logLines( TruncatedLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.waitSearchSettled() );
+
+            THEN( "it starts again over the truncated Log File once it has loaded" )
+            {
+                REQUIRE( openLogFile.filteredData() == first );
+                REQUIRE( logFile.observer.loads.back().searchRestarted );
+                const auto state = first->searchState();
+                REQUIRE_FALSE( state.isContinuation );
+                REQUIRE( state.pattern.pattern == "fizz" );
+                REQUIRE( state.endLine == LineNumber( TruncatedLineCount ) );
+                REQUIRE( state.matchCount == fizzCount( TruncatedLineCount ) );
+                REQUIRE( openLogFile.searchAutoRefresh().state()
+                         == AutoRefreshState::Autorefreshing );
+            }
+
+            THEN( "the one current before is not requested" )
+            {
+                REQUIRE( second->searchState().phase == Phase::Idle );
+            }
+        }
+    }
+
+    GIVEN( "a Search stopped by the user, and another one requested with auto-refresh" )
+    {
+        openLogFile.setAutoRefresh( true );
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+        openLogFile.stopSearch();
+        REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::Static );
+        const auto first = openLogFile.filteredData();
+
+        const auto second = openLogFile.startAnotherSearch();
+        openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+        REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::Autorefreshing );
+
+        WHEN( "the stopped one is made current again" )
+        {
+            openLogFile.makeSearchCurrent( first );
+
+            THEN( "its auto-refresh is still suspended" )
+            {
+                REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::Static );
+                REQUIRE( openLogFile.searchAutoRefresh().isAutoRefreshRequested() );
+            }
+
+            AND_WHEN( "Log Lines are added to the Log File" )
+            {
+                REQUIRE(
+                    logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+                REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+                THEN( "it does not continue over them" )
+                {
+                    const auto state = first->searchState();
+                    REQUIRE_FALSE( state.isContinuation );
+                    REQUIRE( state.endLine == LineNumber( FirstLineCount ) );
+                    REQUIRE( state.matchCount == fizzCount( FirstLineCount ) );
+                }
+            }
+
+            AND_WHEN( "the other one is made current again" )
+            {
+                openLogFile.makeSearchCurrent( second );
+
+                THEN( "it is auto-refreshed still" )
+                {
+                    REQUIRE( openLogFile.searchAutoRefresh().state()
+                             == AutoRefreshState::Autorefreshing );
+                }
+            }
+        }
+    }
+
+    GIVEN( "two Searches that have run" )
+    {
+        openLogFile.setAutoRefresh( true );
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+        const auto first = openLogFile.filteredData();
+        const auto second = openLogFile.startAnotherSearch();
+        openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+
+        // What a Search found, and over which Log Lines.
+        const auto found = []( const std::shared_ptr<LogFilteredData>& search ) {
+            const auto state = search->searchState();
+            return std::tuple( state.phase, state.pattern.pattern, state.startLine, state.endLine,
+                               state.matchCount, state.isContinuation );
+        };
+        const auto firstFound = found( first );
+        const auto secondFound = found( second );
+
+        WHEN( "they are made current in turn, the Log File unchanged" )
+        {
+            openLogFile.makeSearchCurrent( first );
+            openLogFile.makeSearchCurrent( second );
+            openLogFile.makeSearchCurrent( first );
+            REQUIRE_FALSE(
+                waitUiState( [ & ] { return logFile.observer.loads.size() > 1; }, 100 ) );
+
+            THEN( "neither is requested, and both keep what they found" )
+            {
+                REQUIRE( found( first ) == firstFound );
+                REQUIRE( found( second ) == secondFound );
+                REQUIRE( openLogFile.searchAutoRefresh().state()
+                         == AutoRefreshState::Autorefreshing );
             }
         }
     }
