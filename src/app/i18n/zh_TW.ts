@@ -50,42 +50,42 @@
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="96"/>
         <source>My Filter Groups</source>
-        <translation type="unfinished">我的篩選器群組</translation>
+        <translation>我的篩選器群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="97"/>
         <source>Team Filter Groups</source>
-        <translation type="unfinished">團隊篩選器群組</translation>
+        <translation>團隊篩選器群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="98"/>
         <source>New Filter Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>新增篩選器群組...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="99"/>
         <source>New Team Filter Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>新增團隊篩選器群組...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="100"/>
         <source>New Filter Group</source>
-        <translation type="unfinished">新增篩選器群組</translation>
+        <translation>新增篩選器群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="101"/>
         <source>OK shares this Filter Group with the team.</source>
-        <translation type="unfinished"></translation>
+        <translation>按一下 OK 即與團隊共用此篩選器群組。</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="102"/>
         <source>The new Filter Group has no name.</source>
-        <translation type="unfinished"></translation>
+        <translation>新篩選器群組沒有名稱。</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="103"/>
         <source>A Filter Group named &quot;%1&quot; exists already.</source>
-        <translation type="unfinished"></translation>
+        <translation>名為「%1」的篩選器群組已存在。</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="106"/>
@@ -105,36 +105,36 @@
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="113"/>
         <source>No Log File to search in.</source>
-        <translation type="unfinished"></translation>
+        <translation>沒有可搜尋的日誌檔案。</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="177"/>
         <source>The pattern finds nothing.</source>
-        <translation type="unfinished"></translation>
+        <translation>此模式找不到任何內容。</translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="184"/>
         <source>Searching... %Ln Log Line(s) so far</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>搜尋中... 目前已找到 %Ln 個日誌行</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="187"/>
         <source>%Ln Log Line(s) found</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>找到 %Ln 個日誌行</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="194"/>
         <source>The pattern finds no Log Line in this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>此模式在此日誌檔案中找不到任何日誌行。</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="195"/>
         <source>Searching the Log File...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在搜尋日誌檔案...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="294"/>
@@ -157,7 +157,7 @@
     <message>
         <location filename="../../ui/src/addtogrouplayout.cpp" line="242"/>
         <source>Preview:</source>
-        <translation type="unfinished">預覽：</translation>
+        <translation>預覽：</translation>
     </message>
 </context>
 <context>
@@ -2982,17 +2982,17 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="218"/>
         <source>OK shares this Naming Group with the team.</source>
-        <translation type="unfinished"></translation>
+        <translation>按一下 OK 即與團隊共用此命名群組。</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="219"/>
         <source>The new Naming Group has no name.</source>
-        <translation type="unfinished"></translation>
+        <translation>新命名群組沒有名稱。</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="220"/>
         <source>A Naming Group named &quot;%1&quot; exists already.</source>
-        <translation type="unfinished"></translation>
+        <translation>名為「%1」的命名群組已存在。</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="223"/>
@@ -3012,32 +3012,32 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="153"/>
         <source>The key of the value in the Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>此值在名稱表中的鍵</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="156"/>
         <source>Its name</source>
-        <translation type="unfinished"></translation>
+        <translation>其名稱</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="157"/>
         <source>The name the value is shown with</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示此值時使用的名稱</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="158"/>
         <source>More rows...</source>
-        <translation type="unfinished"></translation>
+        <translation>更多列...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="160"/>
         <source>Show every row of the Name Table, to add and remove rows</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示名稱表的所有列，以便新增和移除列</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="195"/>
         <source>Value:</source>
-        <translation type="unfinished"></translation>
+        <translation>值：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="201"/>
@@ -3057,22 +3057,22 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="213"/>
         <source>My Naming Groups</source>
-        <translation type="unfinished">我的命名群組</translation>
+        <translation>我的命名群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="214"/>
         <source>Team Naming Groups</source>
-        <translation type="unfinished">團隊命名群組</translation>
+        <translation>團隊命名群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="215"/>
         <source>New Naming Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>新增命名群組...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="216"/>
         <source>New Team Naming Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>新增團隊命名群組...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="170"/>

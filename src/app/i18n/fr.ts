@@ -50,42 +50,42 @@
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="96"/>
         <source>My Filter Groups</source>
-        <translation type="unfinished">Mes groupes de filtres</translation>
+        <translation>Mes groupes de filtres</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="97"/>
         <source>Team Filter Groups</source>
-        <translation type="unfinished">Groupes de filtres d&apos;équipe</translation>
+        <translation>Groupes de filtres d&apos;équipe</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="98"/>
         <source>New Filter Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>Nouveau groupe de filtres...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="99"/>
         <source>New Team Filter Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>Nouveau groupe de filtres d&apos;équipe...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="100"/>
         <source>New Filter Group</source>
-        <translation type="unfinished">Nouveau groupe de filtres</translation>
+        <translation>Nouveau groupe de filtres</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="101"/>
         <source>OK shares this Filter Group with the team.</source>
-        <translation type="unfinished"></translation>
+        <translation>OK partage ce groupe de filtres avec l&apos;équipe.</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="102"/>
         <source>The new Filter Group has no name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le nouveau groupe de filtres n&apos;a pas de nom.</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="103"/>
         <source>A Filter Group named &quot;%1&quot; exists already.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un groupe de filtres nommé « %1 » existe déjà.</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="106"/>
@@ -105,38 +105,38 @@
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="113"/>
         <source>No Log File to search in.</source>
-        <translation type="unfinished"></translation>
+        <translation>Aucun fichier journal dans lequel rechercher.</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="177"/>
         <source>The pattern finds nothing.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le motif ne trouve rien.</translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="184"/>
         <source>Searching... %Ln Log Line(s) so far</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Recherche en cours... %Ln ligne de journal jusqu&apos;ici</numerusform>
+            <numerusform>Recherche en cours... %Ln lignes de journal jusqu&apos;ici</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="187"/>
         <source>%Ln Log Line(s) found</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%Ln ligne de journal trouvée</numerusform>
+            <numerusform>%Ln lignes de journal trouvées</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="194"/>
         <source>The pattern finds no Log Line in this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le motif ne trouve aucune ligne de journal dans ce fichier journal.</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="195"/>
         <source>Searching the Log File...</source>
-        <translation type="unfinished"></translation>
+        <translation>Recherche dans le fichier journal...</translation>
     </message>
     <message>
         <location filename="../../ui/src/addpredefinedfilterdialog.cpp" line="294"/>
@@ -159,7 +159,7 @@
     <message>
         <location filename="../../ui/src/addtogrouplayout.cpp" line="242"/>
         <source>Preview:</source>
-        <translation type="unfinished">Aperçu :</translation>
+        <translation>Aperçu :</translation>
     </message>
 </context>
 <context>
@@ -2985,17 +2985,17 @@ Dossier de travail : %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="218"/>
         <source>OK shares this Naming Group with the team.</source>
-        <translation type="unfinished"></translation>
+        <translation>OK partage ce groupe de nommage avec l&apos;équipe.</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="219"/>
         <source>The new Naming Group has no name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le nouveau groupe de nommage n&apos;a pas de nom.</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="220"/>
         <source>A Naming Group named &quot;%1&quot; exists already.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un groupe de nommage nommé « %1 » existe déjà.</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="223"/>
@@ -3015,32 +3015,32 @@ Dossier de travail : %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="153"/>
         <source>The key of the value in the Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>La clé de la valeur dans la table de noms</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="156"/>
         <source>Its name</source>
-        <translation type="unfinished"></translation>
+        <translation>Son nom</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="157"/>
         <source>The name the value is shown with</source>
-        <translation type="unfinished"></translation>
+        <translation>Le nom sous lequel la valeur est affichée</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="158"/>
         <source>More rows...</source>
-        <translation type="unfinished"></translation>
+        <translation>Plus de lignes...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="160"/>
         <source>Show every row of the Name Table, to add and remove rows</source>
-        <translation type="unfinished"></translation>
+        <translation>Afficher toutes les lignes de la table de noms, pour ajouter et supprimer des lignes</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="195"/>
         <source>Value:</source>
-        <translation type="unfinished"></translation>
+        <translation>Valeur :</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="201"/>
@@ -3060,22 +3060,22 @@ Dossier de travail : %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="213"/>
         <source>My Naming Groups</source>
-        <translation type="unfinished">Mes groupes de nommage</translation>
+        <translation>Mes groupes de nommage</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="214"/>
         <source>Team Naming Groups</source>
-        <translation type="unfinished">Groupes de nommage d&apos;équipe</translation>
+        <translation>Groupes de nommage d&apos;équipe</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="215"/>
         <source>New Naming Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>Nouveau groupe de nommage...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="216"/>
         <source>New Team Naming Group...</source>
-        <translation type="unfinished"></translation>
+        <translation>Nouveau groupe de nommage d&apos;équipe...</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="170"/>
