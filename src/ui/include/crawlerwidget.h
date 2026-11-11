@@ -85,6 +85,7 @@
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
 #include "timenavigation.h"
+#include "valueproposal.h"
 
 class RegexLabWindow;
 class LogFormatCatalog;
@@ -166,6 +167,20 @@ public:
     // thread: it holds on to the Log File's data for as long as it lives.
     std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
     logLineTextReader() const;
+    // The Log File's data, for a Search of its own that shows what a pattern
+    // would find, as Add as Predefined Filter... previews it (#958): held on
+    // to for as long as it is.
+    std::shared_ptr<const LogData> logDataToSearch() const;
+    // What a pattern for such a Search is prepared with, as the tab's own
+    // Searches are: the reader of its Log Format's fields, for Field Terms
+    // (OpenLogFile::withFieldReader()). Called on the UI thread; holds on to
+    // the Open Log File for as long as it is held.
+    std::function<RegularExpressionPattern( RegularExpressionPattern )> searchPreparation() const;
+    // Where the message of the Log Line lies in it: the body field of the
+    // tab's Log Format, a regex one. None without a Log Format, for a Log
+    // Line it does not match, and for a format that places no field in the
+    // line (JSON, logfmt).
+    std::optional<logsquirl::valuenames::LineRange> messageOf( const QString& logLine ) const;
     // The Log File as plugins read its Log Lines, on any thread (#858), and
     // their fields under the Log Format the tab applies (#867): it holds on
     // to the Log File's data for as long as it lives.

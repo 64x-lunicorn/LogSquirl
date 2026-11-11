@@ -186,6 +186,16 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE( config.csvSeparator() == QChar( ',' ) );
             REQUIRE( config.csvHeader() );
         }
+
+        THEN( "No Filter Group was chosen last" )
+        {
+            REQUIRE( config.lastFilterGroupId().isEmpty() );
+        }
+
+        THEN( "No Naming Group was chosen last" )
+        {
+            REQUIRE( config.lastNamingGroupId().isEmpty() );
+        }
     }
 }
 
@@ -320,6 +330,8 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setContextLinesCount( 10 );
         config.setCsvSeparator( '\t' );
         config.setCsvHeader( false );
+        config.setLastFilterGroupId( "{a-filter-group}" );
+        config.setLastNamingGroupId( "{a-naming-group}" );
 
         WHEN( "Saved to QSettings and restored" )
         {
@@ -397,6 +409,16 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
             {
                 REQUIRE( restored.csvSeparator() == QChar( '\t' ) );
                 REQUIRE_FALSE( restored.csvHeader() );
+            }
+
+            THEN( "The Filter Group Add as Predefined Filter... chose last is preserved" )
+            {
+                REQUIRE( restored.lastFilterGroupId() == "{a-filter-group}" );
+            }
+
+            THEN( "The Naming Group Name This Value chose last is preserved" )
+            {
+                REQUIRE( restored.lastNamingGroupId() == "{a-naming-group}" );
             }
         }
     }
@@ -652,6 +674,8 @@ const QStringList StoredSettingNames = {
     "filewatch.pollingIntervalMs",
     "filewatch.useNative",
     "filewatch.usePolling",
+    "groupChooser.lastFilterGroup",
+    "groupChooser.lastNamingGroup",
     "logformat.autoDetect",
     "logformat.autoShowTable",
     "logging.enableLogging",
@@ -806,6 +830,8 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.chartPresets() == expected.chartPresets() );
     CHECK( actual.csvSeparator() == expected.csvSeparator() );
     CHECK( actual.csvHeader() == expected.csvHeader() );
+    CHECK( actual.lastFilterGroupId() == expected.lastFilterGroupId() );
+    CHECK( actual.lastNamingGroupId() == expected.lastNamingGroupId() );
     CHECK( actual.recentCommands() == expected.recentCommands() );
     CHECK( actual.darkPalette() == expected.darkPalette() );
 }
@@ -1044,7 +1070,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "fileAssociations.ask", "fileAssociations.chosen",
                         "fileAssociations.chosenTypes", "fileAssociations.dismissed",
                         "fileAssociations.confirmed", "archives.decompressionBudgetMb",
-                        "plugins.chosen" } ) {
+                        "plugins.chosen", "groupChooser.lastFilterGroup",
+                        "groupChooser.lastNamingGroup" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );

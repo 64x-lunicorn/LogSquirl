@@ -16,6 +16,12 @@ description: "Run the E2E suite (without performance benchmarks) inside the imag
 # built them a moment ago, so a skip here means the job is broken, not that
 # there is nothing to test. Without it the suite reported success while
 # skipping 78 of 98 tests (#366).
+#
+# --network host: the container resolves names through the runner, as the
+# runner's own steps do. On the Docker bridge, names stopped resolving on
+# 2026-11-11 in the noble container ("Could not resolve 'archive.ubuntu.com'")
+# although its resolver files had not changed, and this step is the only one
+# whose container needs the network (#968).
 runs:
   using: "composite"
   steps:
@@ -23,7 +29,7 @@ runs:
       shell: sh
       run: |
         set -eu
-        docker run --rm -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
+        docker run --rm --network host -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
           set -eu
           if command -v apt-get >/dev/null; then
             apt-get update -qq && apt-get install -y -qq zstd lz4 bzip2 xz-utils

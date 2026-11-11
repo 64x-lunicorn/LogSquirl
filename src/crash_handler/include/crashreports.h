@@ -69,4 +69,21 @@ QString crashpadToolPath( const QString& applicationDirectory, const QString& to
 // neither, so the text is made here first (#833).
 QString formatSentryMessage( const char* message, va_list args ) Q_ATTRIBUTE_FORMAT_PRINTF( 1, 0 );
 
+// Makes every process the application forks from now on leave the crash
+// handler alone: what QProcess starts on macOS -- a Command Source's shell,
+// git, a plugin's adb -- since QProcess forks there. On macOS a child process
+// inherits the task's crash exception port, which Crashpad's client points at
+// its handler, and keeps it across exec. The handler ends only once no process
+// holds that port, so a child that outlives the application, such as the
+// server "adb devices" leaves running, kept a handler running for days
+// (#953); and a child's crash went into the application's own crash reports.
+// A forked child now has the system's crash reporter instead.
+//
+// It covers fork() only, through pthread_atfork: a process started with
+// posix_spawn -- system(), popen(), NSTask -- still inherits the port unless
+// its starter sets posix_spawnattr_setexceptionports_np(). LogSquirl's own
+// code starts none so; a plugin that does is on its own. Elsewhere it does
+// nothing. Calling it again does no more.
+void detachChildProcessesFromCrashHandler();
+
 #endif

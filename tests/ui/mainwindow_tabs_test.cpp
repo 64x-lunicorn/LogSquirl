@@ -106,17 +106,25 @@ bool writeLines( const QString& path, const QByteArray& lines, QIODevice::OpenMo
 // A main window over a Session of its own, shown and active. It is built with
 // the dashboard on or off in the settings when one is given, else as the
 // settings have it. Its Log Files are watched only through `fileWatch`.
+//
+// A dashboard setting given is set in the settings store too, and put back
+// there and in memory when the window goes: anything the window saves meanwhile
+// (a command it remembers, say) writes the setting along, and a later test
+// that reads the store again must not find it there (#966).
 struct TabsWindow {
     explicit TabsWindow( std::optional<bool> showDashboard = {},
                          std::shared_ptr<PolicyFileWatchPort> fileWatch = {} )
-        : previousShowDashboard( Configuration::get().showDashboard() )
+        : previousShowDashboard( showDashboard.has_value()
+                                     ? Configuration::getSynced().showDashboard()
+                                     : Configuration::get().showDashboard() )
+        , overridesDashboard( showDashboard.has_value() )
         , session( std::make_shared<Session>( testSettingsPolicies(),
                                               std::make_shared<LogFormatCatalog>(),
                                               std::move( fileWatch ) ) )
         , plugins( std::make_shared<logsquirl::plugins::ApplicationPlugins>() )
     {
         if ( showDashboard.has_value() ) {
-            Configuration::get().setShowDashboard( *showDashboard );
+            keepShowDashboard( *showDashboard );
         }
         mainWindow = std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 }, plugins );
         mainWindow->show();
@@ -129,8 +137,19 @@ struct TabsWindow {
     ~TabsWindow()
     {
         mainWindow.reset();
-        Configuration::get().setShowDashboard( previousShowDashboard );
+        if ( overridesDashboard ) {
+            keepShowDashboard( previousShowDashboard );
+        }
         QTest::qWait( 50 );
+    }
+
+    // Sets the dashboard setting in memory and in the settings store, leaving
+    // the rest of the store as it is.
+    static void keepShowDashboard( bool show )
+    {
+        auto& config = Configuration::getSynced();
+        config.setShowDashboard( show );
+        config.save();
     }
 
     TabsWindow( const TabsWindow& ) = delete;
@@ -239,6 +258,7 @@ struct TabsWindow {
     }
 
     bool previousShowDashboard;
+    bool overridesDashboard;
     std::shared_ptr<Session> session;
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins;
     std::unique_ptr<MainWindow> mainWindow;
@@ -1666,36 +1686,47 @@ SCENARIO( "Open Command Output asks for a command and remembers it", "[ui][tabs]
 #ifndef Q_OS_WIN
     const ShellForTests shell;
 #endif
-    const auto savedConfiguration = Configuration::get();
-    TabsWindow window( false );
-
-    auto* openCommand = fileMenuAction( *window.mainWindow,
-                                        logsquirl::mainwindow::action::openCommandOutputText );
-    REQUIRE( openCommand != nullptr );
-
+    const auto savedConfiguration = Configuration::getSynced();
     const auto commandLine = QStringLiteral( "echo from the dialog" );
-    bool answered = false;
-    QTimer answerer;
-    QObject::connect( &answerer, &QTimer::timeout, [ & ] {
-        auto* dialog = qobject_cast<CommandOutputDialog*>( QApplication::activeModalWidget() );
-        if ( dialog == nullptr ) {
-            return;
-        }
-        dialog->commandBox()->setEditText( commandLine );
-        dialog->standardErrorBox()->setChecked( false );
-        answered = true;
-        dialog->accept();
-    } );
-    answerer.start( 20 );
-    openCommand->trigger();
-    answerer.stop();
-    REQUIRE( answered );
+    auto recent = std::vector<RecentCommand>{};
+    {
+        TabsWindow window( false );
 
-    waitForTab( window, commandLine );
-    const auto recent = Configuration::get().recentCommands();
-    Configuration::get() = savedConfiguration;
+        auto* openCommand = fileMenuAction( *window.mainWindow,
+                                            logsquirl::mainwindow::action::openCommandOutputText );
+        REQUIRE( openCommand != nullptr );
+
+        bool answered = false;
+        QTimer answerer;
+        QObject::connect( &answerer, &QTimer::timeout, [ & ] {
+            auto* dialog = qobject_cast<CommandOutputDialog*>( QApplication::activeModalWidget() );
+            if ( dialog == nullptr ) {
+                return;
+            }
+            dialog->commandBox()->setEditText( commandLine );
+            dialog->standardErrorBox()->setChecked( false );
+            answered = true;
+            dialog->accept();
+        } );
+        answerer.start( 20 );
+        openCommand->trigger();
+        answerer.stop();
+        REQUIRE( answered );
+
+        waitForTab( window, commandLine );
+        recent = Configuration::get().recentCommands();
+    }
     REQUIRE_FALSE( recent.empty() );
     REQUIRE( recent.front() == RecentCommand{ commandLine, {}, false } );
+
+    // The window saved the settings to remember the command. Neither the
+    // dashboard setting the window was built with nor the command stays in
+    // the settings store, so a later test that reads the store again starts
+    // from what this one found (#966).
+    REQUIRE( Configuration::getSynced().showDashboard() == savedConfiguration.showDashboard() );
+    Configuration::get() = savedConfiguration;
+    Configuration::get().save();
+    REQUIRE( Configuration::getSynced().recentCommands() == savedConfiguration.recentCommands() );
 }
 
 // View -> Show Value Names switches them for the tab in front, as Wrap text

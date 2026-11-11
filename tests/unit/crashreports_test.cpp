@@ -24,6 +24,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QProcess>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -32,6 +33,11 @@
 #include <cstdarg>
 #include <cstddef>
 #include <vector>
+
+#ifdef Q_OS_MACOS
+#include <mach/mach.h>
+#include <signal.h>
+#endif
 
 #include "crashreports.h"
 #include "issuereporter.h"
@@ -279,3 +285,151 @@ TEST_CASE( "Characters of the issue text that mean something in a URL survive it
     CHECK( QUrlQuery( url ).queryItems().size() == 1 );
     CHECK( issueBody( url ).contains( "Exception:\n" + information + "\n" ) );
 }
+
+#ifdef Q_OS_MACOS
+
+namespace {
+
+constexpr exception_mask_t CrashpadExceptionMask
+    = EXC_MASK_CRASH | EXC_MASK_RESOURCE | EXC_MASK_GUARD;
+
+// Stands in for Crashpad's client and handler: a port of its own becomes the
+// task's crash exception port, as the client makes the handler's port, and
+// it hears when no process holds a send right to it any more -- the no-senders
+// notification on which the handler ends. Gives the task its old exception
+// ports back when it goes.
+class CrashHandlerStandIn {
+public:
+    CrashHandlerStandIn()
+    {
+        const auto task = mach_task_self();
+        mach_port_allocate( task, MACH_PORT_RIGHT_RECEIVE, &port_ );
+        mach_port_allocate( task, MACH_PORT_RIGHT_RECEIVE, &notifyPort_ );
+        mach_port_insert_right( task, port_, port_, MACH_MSG_TYPE_MAKE_SEND );
+        task_swap_exception_ports(
+            task, CrashpadExceptionMask, port_,
+            static_cast<exception_behavior_t>( EXCEPTION_STATE_IDENTITY | MACH_EXCEPTION_CODES ),
+            MACHINE_THREAD_STATE, savedMasks_, &savedCount_, savedPorts_, savedBehaviors_,
+            savedFlavors_ );
+        // From here on only the task's exception port holds a send right.
+        mach_port_deallocate( task, port_ );
+        mach_port_t previous = MACH_PORT_NULL;
+        mach_port_request_notification( task, port_, MACH_NOTIFY_NO_SENDERS, 0, notifyPort_,
+                                        MACH_MSG_TYPE_MAKE_SEND_ONCE, &previous );
+    }
+
+    ~CrashHandlerStandIn()
+    {
+        clientEnds();
+        mach_port_mod_refs( mach_task_self(), port_, MACH_PORT_RIGHT_RECEIVE, -1 );
+        mach_port_mod_refs( mach_task_self(), notifyPort_, MACH_PORT_RIGHT_RECEIVE, -1 );
+    }
+
+    CrashHandlerStandIn( const CrashHandlerStandIn& ) = delete;
+    CrashHandlerStandIn& operator=( const CrashHandlerStandIn& ) = delete;
+
+    bool isTaskCrashPort() const
+    {
+        exception_mask_t masks[ EXC_TYPES_COUNT ] = {};
+        mach_msg_type_number_t count = EXC_TYPES_COUNT;
+        mach_port_t ports[ EXC_TYPES_COUNT ] = {};
+        exception_behavior_t behaviors[ EXC_TYPES_COUNT ] = {};
+        thread_state_flavor_t flavors[ EXC_TYPES_COUNT ] = {};
+        task_get_exception_ports( mach_task_self(), EXC_MASK_CRASH, masks, &count, ports, behaviors,
+                                  flavors );
+        bool found = false;
+        for ( mach_msg_type_number_t i = 0; i < count; ++i ) {
+            found = found || ports[ i ] == port_;
+            if ( MACH_PORT_VALID( ports[ i ] ) ) {
+                mach_port_deallocate( mach_task_self(), ports[ i ] );
+            }
+        }
+        return found;
+    }
+
+    // As the client process ending: the task lets go of the handler's port.
+    void clientEnds()
+    {
+        if ( clientEnded_ ) {
+            return;
+        }
+        clientEnded_ = true;
+        task_set_exception_ports( mach_task_self(), CrashpadExceptionMask, MACH_PORT_NULL,
+                                  EXCEPTION_DEFAULT, THREAD_STATE_NONE );
+        for ( mach_msg_type_number_t i = 0; i < savedCount_; ++i ) {
+            task_set_exception_ports( mach_task_self(), savedMasks_[ i ], savedPorts_[ i ],
+                                      savedBehaviors_[ i ], savedFlavors_[ i ] );
+            if ( MACH_PORT_VALID( savedPorts_[ i ] ) ) {
+                mach_port_deallocate( mach_task_self(), savedPorts_[ i ] );
+            }
+        }
+    }
+
+    // Whether the handler would end within the time: no process is left with
+    // a send right to its port.
+    bool wouldEndWithin( mach_msg_timeout_t milliseconds )
+    {
+        struct {
+            mach_msg_header_t header;
+            char body[ 256 ];
+        } message = {};
+        return mach_msg( &message.header, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof( message ),
+                         notifyPort_, milliseconds, MACH_PORT_NULL )
+                   == MACH_MSG_SUCCESS
+               && message.header.msgh_id == MACH_NOTIFY_NO_SENDERS;
+    }
+
+private:
+    mach_port_t port_ = MACH_PORT_NULL;
+    mach_port_t notifyPort_ = MACH_PORT_NULL;
+    bool clientEnded_ = false;
+    exception_mask_t savedMasks_[ EXC_TYPES_COUNT ] = {};
+    mach_msg_type_number_t savedCount_ = EXC_TYPES_COUNT;
+    mach_port_t savedPorts_[ EXC_TYPES_COUNT ] = {};
+    exception_behavior_t savedBehaviors_[ EXC_TYPES_COUNT ] = {};
+    thread_state_flavor_t savedFlavors_[ EXC_TYPES_COUNT ] = {};
+};
+
+} // namespace
+
+// A process LogSquirl starts, such as the adb server a plugin's "adb devices"
+// leaves running, kept the crash handler of a LogSquirl that had quit alive
+// for days (#953).
+TEST_CASE( "A child process outliving the application does not keep its crash handler running",
+           "[crashreports][childprocesses]" )
+{
+    detachChildProcessesFromCrashHandler();
+    CrashHandlerStandIn handler;
+
+    QProcess child;
+    child.start( QStringLiteral( "/bin/sleep" ), { QStringLiteral( "10" ) } );
+    REQUIRE( child.waitForStarted() );
+
+    // The application itself is still watched.
+    CHECK( handler.isTaskCrashPort() );
+
+    handler.clientEnds();
+    CHECK( handler.wouldEndWithin( 3000 ) );
+    CHECK( child.state() == QProcess::Running );
+
+    child.kill();
+    child.waitForFinished();
+}
+
+TEST_CASE( "A detached child process does not keep the crash handler running",
+           "[crashreports][childprocesses]" )
+{
+    detachChildProcessesFromCrashHandler();
+    CrashHandlerStandIn handler;
+
+    qint64 pid = 0;
+    REQUIRE( QProcess::startDetached( QStringLiteral( "/bin/sleep" ), { QStringLiteral( "10" ) },
+                                      {}, &pid ) );
+
+    handler.clientEnds();
+    CHECK( handler.wouldEndWithin( 3000 ) );
+
+    ::kill( static_cast<pid_t>( pid ), SIGKILL );
+}
+
+#endif

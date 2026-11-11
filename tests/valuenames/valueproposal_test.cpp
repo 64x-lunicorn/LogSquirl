@@ -245,7 +245,9 @@ SCENARIO( "Name this value proposes a regex, a table and a template from the sel
         {
             REQUIRE( valueTextAt( line, line.indexOf( u'9' ) )
                      == rangeOf( line, QStringLiteral( "9" ) ) );
-            REQUIRE_FALSE( valueTextAt( line, line.indexOf( u'S' ) ).has_value() );
+            // Not EsimState=\t9: the word alone, a text value (#957).
+            REQUIRE( valueTextAt( line, line.indexOf( u'S' ) )
+                     == rangeOf( line, QStringLiteral( "EsimState" ) ) );
         }
     }
 
@@ -265,19 +267,213 @@ SCENARIO( "Name this value proposes a regex, a table and a template from the sel
 
     GIVEN( "a selection without a number" )
     {
-        THEN( "nothing is proposed" )
+        THEN( "it holds no number" )
         {
             const auto line = QStringLiteral( "EsimState=on" );
-            REQUIRE_FALSE( proposeNaming( line, rangeOf( line, line ) ).has_value() );
             REQUIRE_FALSE( valueIn( line, rangeOf( line, line ) ).has_value() );
-            REQUIRE_FALSE( proposeNaming( line, LineRange{ 0, 0 } ).has_value() );
-            REQUIRE_FALSE( proposeNaming( line, LineRange{ 5, 100 } ).has_value() );
         }
 
-        THEN( "a word of hex letters without a digit is no value" )
+        THEN( "a word of hex letters without a digit is no number" )
         {
             const auto line = QStringLiteral( "state=beef" );
             REQUIRE_FALSE( valueIn( line, rangeOf( line, line ) ).has_value() );
+        }
+
+        THEN( "nothing is proposed for an empty range, one past the Log Line, or blanks" )
+        {
+            const auto line = QStringLiteral( "EsimState=on  x" );
+            REQUIRE_FALSE( proposeNaming( line, LineRange{ 0, 0 } ).has_value() );
+            REQUIRE_FALSE( proposeNaming( line, LineRange{ 5, 100 } ).has_value() );
+            REQUIRE_FALSE( proposeNaming( line, LineRange{ -1, 2 } ).has_value() );
+            REQUIRE_FALSE(
+                proposeNaming( line, rangeOf( line, QStringLiteral( "  " ) ) ).has_value() );
+        }
+    }
+}
+
+SCENARIO( "Name this value proposes a text value: a word, an id or a selection",
+          "[valuenames][valueproposal]" )
+{
+    // What a click on the text, nothing selected, proposes.
+    const auto clickedOn = []( const QString& line, const QString& text ) {
+        const auto at = valueTextAt( line, line.indexOf( text ) );
+        REQUIRE( at.has_value() );
+        const auto proposal = proposeNaming( line, *at );
+        REQUIRE( proposal.has_value() );
+        return *proposal;
+    };
+
+    GIVEN( "a word" )
+    {
+        const auto line = QStringLiteral( "12:00:01 level=info ready" );
+        const auto proposal = clickedOn( line, QStringLiteral( "info" ) );
+
+        THEN( "the word is the value, captured up to the blank after it" )
+        {
+            REQUIRE( proposal.value == QStringLiteral( "info" ) );
+            REQUIRE( proposal.valueRange == rangeOf( line, QStringLiteral( "info" ) ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "level=([^ ]+)" ) );
+            REQUIRE( proposal.tableName == QStringLiteral( "level" ) );
+            REQUIRE( proposal.displayTemplate == QStringLiteral( "{name} ({value})" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "info" ) );
+            REQUIRE( capturedBy( proposal, QStringLiteral( "12:00:02 level=warning ready" ) )
+                     == QStringLiteral( "warning" ) );
+        }
+
+        THEN( "the key names exactly that value" )
+        {
+            REQUIRE( proposal.key == QStringLiteral( "info" ) );
+            REQUIRE( keyMatches( proposal, QStringLiteral( "info" ) ) );
+            REQUIRE_FALSE( keyMatches( proposal, QStringLiteral( "information" ) ) );
+            REQUIRE_FALSE( keyMatches( proposal, QStringLiteral( "xinfo" ) ) );
+        }
+    }
+
+    GIVEN( "a UUID" )
+    {
+        const auto uuid = QStringLiteral( "84f1fc54-cd08-51c3-af5b-3687900e5e6a" );
+        const auto line = QStringLiteral( "request " ) + uuid + QStringLiteral( " done" );
+        const auto uuidPattern = QStringLiteral( "([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+                                                 "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})" );
+
+        THEN( "a click on any part of it takes all of it, captured by its shape" )
+        {
+            for ( const auto& part : { QStringLiteral( "84f1" ), QStringLiteral( "cd08" ),
+                                       QStringLiteral( "af5b" ), QStringLiteral( "5e6a" ) } ) {
+                REQUIRE( valueTextAt( line, line.indexOf( part ) ) == rangeOf( line, uuid ) );
+                const auto proposal = clickedOn( line, part );
+                REQUIRE( proposal.value == uuid );
+                REQUIRE( proposal.pattern == QStringLiteral( "request " ) + uuidPattern );
+                REQUIRE( proposal.tableName == QStringLiteral( "request" ) );
+                REQUIRE( proposal.key == uuid );
+                REQUIRE( capturedBy( proposal, line ) == uuid );
+            }
+        }
+
+        THEN( "a selection of it, or of a part of it, proposes the same" )
+        {
+            for ( const auto& selected : { uuid, QStringLiteral( "51c3" ) } ) {
+                const auto proposal = proposalFor( line, selected );
+                REQUIRE( proposal.value == uuid );
+                REQUIRE( proposal.pattern == QStringLiteral( "request " ) + uuidPattern );
+            }
+        }
+
+        THEN( "a selection with the text before it keeps that text" )
+        {
+            const auto proposal = proposalFor( line, QStringLiteral( "request " ) + uuid );
+            REQUIRE( proposal.value == uuid );
+            REQUIRE( proposal.pattern == QStringLiteral( "request " ) + uuidPattern );
+        }
+    }
+
+    GIVEN( "a word with _ or -" )
+    {
+        THEN( "it is one value" )
+        {
+            const auto line = QStringLiteral( "field user_id missing" );
+            const auto proposal = clickedOn( line, QStringLiteral( "id " ) );
+            REQUIRE( proposal.value == QStringLiteral( "user_id" ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "field ([^ ]+)" ) );
+            REQUIRE( proposal.tableName == QStringLiteral( "field" ) );
+            REQUIRE( proposal.key == QStringLiteral( "user_id" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "user_id" ) );
+
+            const auto dashLine = QStringLiteral( "mode read-only set" );
+            const auto dashed = clickedOn( dashLine, QStringLiteral( "only" ) );
+            REQUIRE( dashed.value == QStringLiteral( "read-only" ) );
+            REQUIRE( capturedBy( dashed, dashLine ) == QStringLiteral( "read-only" ) );
+        }
+    }
+
+    GIVEN( "a selection with a blank" )
+    {
+        const auto line = QStringLiteral( "login user bob done" );
+        const auto proposal = proposalFor( line, QStringLiteral( "user bob" ) );
+
+        THEN( "the selection is the value as it is, up to the word after it" )
+        {
+            REQUIRE( proposal.value == QStringLiteral( "user bob" ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "login (.+?) done" ) );
+            REQUIRE( proposal.tableName == QStringLiteral( "login" ) );
+            REQUIRE( proposal.key == QStringLiteral( "user bob" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "user bob" ) );
+            REQUIRE( capturedBy( proposal, QStringLiteral( "login alice smith done" ) )
+                     == QStringLiteral( "alice smith" ) );
+        }
+    }
+
+    GIVEN( "a selection of text without a number" )
+    {
+        const auto line = QStringLiteral( "EsimState=on" );
+        const auto proposal = proposalFor( line, line );
+
+        THEN( "it is the value as it is, with regex metacharacters of the key escaped" )
+        {
+            REQUIRE( proposal.value == line );
+            REQUIRE( proposal.pattern == QStringLiteral( "^(.+)" ) );
+            REQUIRE( keyMatches( proposal, line ) );
+
+            const auto dotted = QStringLiteral( "at a.b now" );
+            const auto dot = proposalFor( dotted, QStringLiteral( "a.b" ) );
+            REQUIRE( dot.key == QStringLiteral( "a\\.b" ) );
+            REQUIRE( keyMatches( dot, QStringLiteral( "a.b" ) ) );
+            REQUIRE_FALSE( keyMatches( dot, QStringLiteral( "axb" ) ) );
+        }
+    }
+
+    GIVEN( "a value at the end of the Log Line" )
+    {
+        const auto line = QStringLiteral( "status: ready" );
+        const auto proposal = clickedOn( line, QStringLiteral( "ready" ) );
+
+        THEN( "the rest of the Log Line is captured" )
+        {
+            REQUIRE( proposal.value == QStringLiteral( "ready" ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "status: (.+)" ) );
+            REQUIRE( proposal.tableName == QStringLiteral( "status" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "ready" ) );
+        }
+    }
+
+    GIVEN( "a value followed by , or )" )
+    {
+        THEN( "it is captured up to that separator" )
+        {
+            const auto commaLine = QStringLiteral( "user=bob, id=7" );
+            const auto comma = clickedOn( commaLine, QStringLiteral( "bob" ) );
+            REQUIRE( comma.pattern == QStringLiteral( "user=([^,]+)" ) );
+            REQUIRE( comma.tableName == QStringLiteral( "user" ) );
+            REQUIRE( capturedBy( comma, commaLine ) == QStringLiteral( "bob" ) );
+            REQUIRE( capturedBy( comma, QStringLiteral( "user=alice smith, id=8" ) )
+                     == QStringLiteral( "alice smith" ) );
+
+            const auto parenLine = QStringLiteral( "login(bob) ok" );
+            const auto paren = clickedOn( parenLine, QStringLiteral( "bob" ) );
+            REQUIRE( paren.pattern == QStringLiteral( "login\\(([^)]+)" ) );
+            REQUIRE( paren.tableName == QStringLiteral( "login" ) );
+            REQUIRE( capturedBy( paren, parenLine ) == QStringLiteral( "bob" ) );
+        }
+
+        THEN( "a separator a character class gives a meaning to is escaped there" )
+        {
+            const auto line = QStringLiteral( "tag=x]y" );
+            const auto proposal = proposalFor( line, QStringLiteral( "x" ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "tag=([^\\]]+)" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "x" ) );
+        }
+    }
+
+    GIVEN( "a selection that ends within a word" )
+    {
+        const auto line = QStringLiteral( "mode information x" );
+        const auto proposal = proposalFor( line, QStringLiteral( "inf" ) );
+
+        THEN( "the rest of that word follows the capture group" )
+        {
+            REQUIRE( proposal.value == QStringLiteral( "inf" ) );
+            REQUIRE( proposal.pattern == QStringLiteral( "mode (.+?)ormation" ) );
+            REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "inf" ) );
         }
     }
 }
@@ -299,9 +495,16 @@ SCENARIO( "Name this value takes the value under the cursor when nothing is sele
         REQUIRE( at == rangeOf( line, QStringLiteral( "EsimState=9" ) ) );
     }
 
-    THEN( "on a word without a value, or on a blank, there is none" )
+    THEN( "on a word without a value, it is the word, a text value" )
     {
-        REQUIRE_FALSE( valueTextAt( line, line.indexOf( QStringLiteral( "ERROR" ) ) ).has_value() );
+        const auto at = valueTextAt( line, line.indexOf( QStringLiteral( "ERROR" ) ) + 2 );
+        REQUIRE( at == rangeOf( line, QStringLiteral( "ERROR" ) ) );
+    }
+
+    THEN( "on a blank, or on a separator outside a value, there is none" )
+    {
+        const auto colon = QStringLiteral( "state: on" );
+        REQUIRE_FALSE( valueTextAt( colon, colon.indexOf( u':' ) ).has_value() );
         REQUIRE_FALSE( valueTextAt( line, 1 ).has_value() );
         REQUIRE_FALSE( valueTextAt( line, -1 ).has_value() );
         REQUIRE_FALSE( valueTextAt( line, line.size() ).has_value() );

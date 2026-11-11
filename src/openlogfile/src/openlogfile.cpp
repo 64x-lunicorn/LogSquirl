@@ -74,7 +74,6 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
               [ this ]( RegularExpressionPattern pattern ) {
                   return withFieldReader( std::move( pattern ) );
               },
-          .currentRequested = [ this ] { followCurrentRequest(); },
           .heldNoLonger = [ this ] { Q_EMIT searchesHeldNoLonger(); },
       } )
     , recognitionPolicy_( recognitionPolicy )
@@ -183,13 +182,14 @@ void OpenLogFile::reload()
         return;
     }
 
-    autoRefresh_.resetState();
-
+    // No Search follows the Log File loaded anew, kept or current, until it
+    // is requested again (#954).
+    searchSet_.followNoLonger();
     const auto decision = loadRule_.reload();
     if ( decision.dropSearch ) {
         // The cached results go once the Log File is indexed again, which
         // tells every Search that its Log Lines changed. It waits for the
-        // first load no longer, and is held no longer.
+        // first load no longer, is held no longer and is no longer followed.
         searchSet_.clearCurrent();
     }
     if ( decision.clearMarks ) {
@@ -315,16 +315,6 @@ SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& p
     return searchSet_.current()->searchState();
 }
 
-void OpenLogFile::followCurrentRequest()
-{
-    if ( searchSet_.current()->searchState().phase != SearchSessionPhase::InvalidPattern ) {
-        autoRefresh_.startSearch();
-    }
-    else {
-        autoRefresh_.resetState();
-    }
-}
-
 SearchSessionState OpenLogFile::searchState() const
 {
     return searchSet_.current()->searchState();
@@ -343,28 +333,26 @@ LinesCount OpenLogFile::displayedLineCount() const
 void OpenLogFile::clearSearch()
 {
     searchSet_.clearCurrent();
-    autoRefresh_.resetState();
 }
 
 void OpenLogFile::stopSearch()
 {
     searchSet_.stopCurrent();
-    autoRefresh_.stopSearch();
 }
 
 void OpenLogFile::changeSearchExpression()
 {
-    autoRefresh_.changeExpression();
+    searchSet_.changeCurrentExpression();
 }
 
 void OpenLogFile::setAutoRefresh( bool autoRefresh )
 {
-    autoRefresh_.setAutoRefresh( autoRefresh );
+    searchSet_.setAutoRefresh( autoRefresh );
 }
 
 const SearchAutoRefresh& OpenLogFile::searchAutoRefresh() const
 {
-    return autoRefresh_;
+    return searchSet_.currentAutoRefresh();
 }
 
 void OpenLogFile::setSearchLimits( LineNumber startLine, LineNumber endLine )
@@ -506,7 +494,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // settled.
     const auto searched = searchSet_.current()->searchState();
     auto decision
-        = loadRule_.loadFinished( status, lineCount, autoRefresh_, searchLimits_,
+        = loadRule_.loadFinished( status, lineCount, searchSet_.currentAutoRefresh(), searchLimits_,
                                   LoadRule::SearchLimits{ searched.startLine, searched.endLine } );
 
     LoadFinished load;
@@ -634,12 +622,13 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
     if ( decision.clearMarks ) {
         clearMarks();
     }
-    // The Search's results no longer describe a truncated Log File; whether
-    // it continues or starts again stays with the auto-refresh. Its cached
-    // results go once the Log File is indexed again, which tells every Search
-    // that its Log Lines changed.
-    if ( decision.report == LoadRule::Change::Truncated && searchSet_.dropTruncatedResults() ) {
-        autoRefresh_.truncateFile();
+    // The current Search's results no longer describe a truncated Log File;
+    // whether a Search continues or starts again stays with its own
+    // auto-refresh, which every Search requested hears of, kept or current.
+    // Their cached results go once the Log File is indexed again, which tells
+    // every Search that its Log Lines changed.
+    if ( decision.report == LoadRule::Change::Truncated ) {
+        searchSet_.truncateFile();
     }
     if ( decision.forgetLogFormat ) {
         logFormat_.reset();
