@@ -2658,8 +2658,13 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
     // what is pointed at, in display columns, is taken back to its raw
     // characters (#883).
     std::optional<ValueToName> valueToName;
+    // What is pointed at, when "Name this value..." proposes a Naming Rule
+    // for it: a number, a UUID, a word or a selection that is not only
+    // blanks (#957).
+    std::optional<logsquirl::valuenames::LineRange> proposable;
     if ( selection_.isPortion() ) {
         if ( auto selected = selectionInLogLine() ) {
+            proposable = selected->range;
             valueToName = ValueToName{ std::move( selected->logLine ), selected->range.start,
                                        selected->range.length };
         }
@@ -2669,10 +2674,10 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
         const auto position = logLineFilePosAt( pos );
         auto text = lines_->logFile().getLineString( position.line() );
         const auto column = rawCharacterAt( rawToDisplayColumns( text ), position.column().get() );
-        // Without a number there, the column alone: a Naming Rule may
-        // capture a word (#885).
-        const auto range = logsquirl::valuenames::valueTextAt( text, column )
-                               .value_or( logsquirl::valuenames::LineRange{ column, 1 } );
+        // On a blank or a separator, the column alone: a Naming Rule may
+        // capture it all the same (#885).
+        proposable = logsquirl::valuenames::valueTextAt( text, column );
+        const auto range = proposable.value_or( logsquirl::valuenames::LineRange{ column, 1 } );
         valueToName = ValueToName{ std::move( text ), range.start, range.length };
     }
     if ( !valueToName.has_value() ) {
@@ -2685,10 +2690,9 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
         ValueNamesCollection::get().groups(), valueToName->logLine, valueToName->start,
         valueToName->length );
     if ( !valueToName->captured.has_value()
-         && !logsquirl::valuenames::valueIn(
-                 valueToName->logLine,
-                 logsquirl::valuenames::LineRange{ valueToName->start, valueToName->length } )
-                 .has_value() ) {
+         && !( proposable.has_value()
+               && logsquirl::valuenames::proposeNaming( valueToName->logLine, *proposable )
+                      .has_value() ) ) {
         return std::nullopt;
     }
     return valueToName;

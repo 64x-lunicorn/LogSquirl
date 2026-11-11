@@ -331,7 +331,8 @@ protected:
     // What Name this value... of the context menu opened at pos names
     // (#883): the text selected within a Log Line, or with none the word
     // under the cursor; as the Log Line and the range of it. None when that
-    // holds no value, and no Naming Rule captures one there (#885).
+    // holds nothing proposeNaming() proposes for, and no Naming Rule
+    // captures a value there (#885, #957).
     struct ValueToName {
         QString logLine;
         qsizetype start = 0;

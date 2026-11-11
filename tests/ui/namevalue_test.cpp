@@ -288,9 +288,22 @@ SCENARIO( "The context menu of the Text View and the Filtered View offers Name t
             }
         }
 
-        WHEN( "text without a value is selected" )
+        WHEN( "text that is not a number is selected" )
         {
             ViewAccess::selectPortion( textView, 0_lnum, 0_lcol, 4_lcol );
+            const auto menu
+                = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 0, 0 ) );
+
+            THEN( "the entry is enabled, for a text value (#957)" )
+            {
+                REQUIRE( contextMenuEntry( *menu, NameThisValue )->isEnabled() );
+            }
+        }
+
+        WHEN( "only a blank is selected" )
+        {
+            const auto blank = EsimLine.indexOf( u' ' );
+            ViewAccess::selectPortion( textView, 0_lnum, LineColumn{ blank }, LineColumn{ blank } );
             const auto menu
                 = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 0, 0 ) );
 
@@ -312,12 +325,25 @@ SCENARIO( "The context menu of the Text View and the Filtered View offers Name t
             }
         }
 
-        WHEN( "nothing is selected within a Log Line, and the menu opens on a word without a "
-              "value" )
+        WHEN( "nothing is selected within a Log Line, and the menu opens on a word that is not a "
+              "number" )
         {
             textView.selectAndDisplayLine( 1_lnum );
             const auto menu
                 = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 1, 1 ) );
+
+            THEN( "the entry is enabled, for a text value (#957)" )
+            {
+                REQUIRE( contextMenuEntry( *menu, NameThisValue )->isEnabled() );
+            }
+        }
+
+        WHEN( "nothing is selected within a Log Line, and the menu opens on a blank" )
+        {
+            textView.selectAndDisplayLine( 1_lnum );
+            const auto menu = ViewAccess::contextMenu(
+                textView, ViewAccess::pointOn( textView, 1,
+                                               QStringLiteral( "other line" ).indexOf( u' ' ) ) );
 
             THEN( "the entry is disabled" )
             {
@@ -406,6 +432,71 @@ SCENARIO( "Name this value... names the value in the tab", "[ui][valuenames][nam
         {
             REQUIRE( ValueNamesCollection::get().ownGroups().isEmpty() );
             REQUIRE_FALSE( shown.action( QStringLiteral( "Show &Value Names" ) )->isChecked() );
+        }
+    }
+}
+
+SCENARIO( "Name this value... names a text value in the tab", "[ui][valuenames][namevalue]" )
+{
+    const StoredValueNamesGuard guard;
+    StoredValueNamesGuard::storeGroups( {} );
+    const auto userLine = QStringLiteral( "12:00 user=alice logged in" );
+    const auto uuid = QStringLiteral( "84f1fc54-cd08-51c3-af5b-3687900e5e6a" );
+    const auto requestLine = QStringLiteral( "request " ) + uuid + QStringLiteral( " done" );
+    const NameValueWindow shown( userLine + u'\n' + requestLine + u'\n' );
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    // What the dialog the entry opens proposes.
+    QString pattern;
+    QString key;
+    QString warning;
+    const auto openAndName = [ & ]( QMenu& menu, const QString& name ) {
+        nameInDialog( menu, [ & ]( NameValueDialog& dialog ) {
+            pattern = childOf<QLineEdit>( dialog, QStringLiteral( "rulePattern" ) )->text();
+            key = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) )
+                      ->item( 0, 0 )
+                      ->text();
+            setName( dialog, 0, name );
+            warning = dialog.previewWarning();
+        } );
+    };
+
+    WHEN( "the menu opens on a word, nothing selected, and it is named" )
+    {
+        textView.selectAndDisplayLine( 0_lnum );
+        const auto menu = ViewAccess::contextMenu(
+            textView, ViewAccess::pointOn( textView, 0, userLine.indexOf( u'l' ) + 1 ) );
+        openAndName( *menu, QStringLiteral( "Alice Admin" ) );
+
+        THEN( "the rule captures the word, and the Log Line shows its name in the Template" )
+        {
+            REQUIRE( pattern == QStringLiteral( "user=([^ ]+)" ) );
+            REQUIRE( key == QStringLiteral( "alice" ) );
+            REQUIRE( warning.isEmpty() );
+            REQUIRE( waitUiState( [ & ] { return textView.showsValueNames(); } ) );
+            textView.selectAndDisplayLine( 0_lnum );
+            REQUIRE( textView.getSelectedTextAsShown()
+                     == QStringLiteral( "12:00 user=Alice Admin (alice) logged in" ) );
+        }
+    }
+
+    WHEN( "the menu opens on a part of a UUID, nothing selected, and it is named" )
+    {
+        textView.selectAndDisplayLine( 1_lnum );
+        const auto menu = ViewAccess::contextMenu(
+            textView,
+            ViewAccess::pointOn( textView, 1, requestLine.indexOf( QStringLiteral( "cd08" ) ) ) );
+        openAndName( *menu, QStringLiteral( "Checkout" ) );
+
+        THEN( "the whole UUID is the value, and the Log Line shows its name" )
+        {
+            REQUIRE( key == uuid );
+            REQUIRE( warning.isEmpty() );
+            REQUIRE( waitUiState( [ & ] { return textView.showsValueNames(); } ) );
+            textView.selectAndDisplayLine( 1_lnum );
+            REQUIRE( textView.getSelectedTextAsShown()
+                     == QStringLiteral( "request Checkout (" ) + uuid
+                            + QStringLiteral( ") done" ) );
         }
     }
 }

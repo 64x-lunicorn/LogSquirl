@@ -59,7 +59,7 @@ class NameValueDialog : public QDialog {
 
 public:
     // selection is the range of the Log Line the user pointed at; it holds a
-    // value (logsquirl::valuenames::valueIn()).
+    // value logsquirl::valuenames::proposeNaming() proposes for.
     NameValueDialog( const QString& logLine, logsquirl::valuenames::LineRange selection,
                      QWidget* parent = nullptr );
 
