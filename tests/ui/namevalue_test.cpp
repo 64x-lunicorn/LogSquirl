@@ -1647,9 +1647,10 @@ bool listsRule( MainWindow& window, const QString& teamGroup, const QString& rul
 
 } // namespace
 
-SCENARIO( "A value named in a Team Naming Group reaches the team and every window; a colleague's "
-          "change meanwhile is asked about",
-          "[ui][valuenames][namevalue][groupchooser][teamfolder]" )
+SCENARIO(
+    "A value named in a Team Naming Group reaches the team and every window, and a colleague's "
+    "change meanwhile is asked about",
+    "[ui][valuenames][namevalue][groupchooser][teamfolder]" )
 {
     using logsquirl::teamfolder::GroupAction;
     using logsquirl::teamfolder::PublishOutcome;

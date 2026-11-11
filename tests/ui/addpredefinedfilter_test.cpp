@@ -1228,7 +1228,7 @@ SCENARIO( "Add as Predefined Filter proposes the group chosen last, the Default 
     }
 }
 
-SCENARIO( "A filter added to a Team group reaches the team and every window; a colleague's "
+SCENARIO( "A filter added to a Team group reaches the team and every window, and a colleague's "
           "change meanwhile is asked about",
           "[ui][predefinedfilters][addpredefinedfilter][groupchooser][teamfolder]" )
 {
