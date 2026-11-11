@@ -386,6 +386,42 @@ SCENARIO( "Name this value proposes a text value: a word, an id or a selection",
         }
     }
 
+    GIVEN( "a word right before a number: user_id=5, req-42" )
+    {
+        const auto line = QStringLiteral( "lookup user_id=5 for req-42 done" );
+
+        THEN( "a click on the word proposes the word" )
+        {
+            const auto userId = clickedOn( line, QStringLiteral( "user_id" ) );
+            REQUIRE( userId.value == QStringLiteral( "user_id" ) );
+            REQUIRE( userId.valueRange == rangeOf( line, QStringLiteral( "user_id" ) ) );
+            REQUIRE( capturedBy( userId, line ) == QStringLiteral( "user_id" ) );
+
+            // The word without the number: req-42 holds one, which a click on
+            // its digits names.
+            const auto req = clickedOn( line, QStringLiteral( "req" ) );
+            REQUIRE( req.value == QStringLiteral( "req" ) );
+            REQUIRE( req.valueRange == rangeOf( line, QStringLiteral( "req" ) ) );
+        }
+
+        THEN( "a click on the digits proposes the number, as before" )
+        {
+            const auto five = clickedOn( line, QStringLiteral( "5" ) );
+            REQUIRE( five.value == QStringLiteral( "5" ) );
+            REQUIRE( five.pattern == QStringLiteral( "user_id=(\\d+)" ) );
+
+            const auto fortyTwo = clickedOn( line, QStringLiteral( "42" ) );
+            REQUIRE( fortyTwo.value == QStringLiteral( "42" ) );
+            REQUIRE( fortyTwo.pattern == QStringLiteral( "req-(\\d+)" ) );
+        }
+
+        THEN( "a click on the separator between them proposes the number, as before" )
+        {
+            REQUIRE( clickedOn( line, QStringLiteral( "=" ) ).value == QStringLiteral( "5" ) );
+            REQUIRE( clickedOn( line, QStringLiteral( "-42" ) ).value == QStringLiteral( "42" ) );
+        }
+    }
+
     GIVEN( "a selection with a blank" )
     {
         const auto line = QStringLiteral( "login user bob done" );
@@ -489,9 +525,15 @@ SCENARIO( "Name this value takes the value under the cursor when nothing is sele
         REQUIRE( at == rangeOf( line, QStringLiteral( "9" ) ) );
     }
 
-    THEN( "on the word before the value, it is the text up to the next blank" )
+    THEN( "on the word before the value, it is that word, a text value" )
     {
         const auto at = valueTextAt( line, line.indexOf( u'S' ) );
+        REQUIRE( at == rangeOf( line, QStringLiteral( "EsimState" ) ) );
+    }
+
+    THEN( "on a separator next to the value, it is the text up to the next blank" )
+    {
+        const auto at = valueTextAt( line, line.indexOf( u'=' ) );
         REQUIRE( at == rangeOf( line, QStringLiteral( "EsimState=9" ) ) );
     }
 
