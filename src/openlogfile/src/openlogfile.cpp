@@ -182,6 +182,9 @@ void OpenLogFile::reload()
         return;
     }
 
+    // No Search follows the Log File loaded anew, kept or current, until it
+    // is requested again (#954).
+    searchSet_.followNoLonger();
     const auto decision = loadRule_.reload();
     if ( decision.dropSearch ) {
         // The cached results go once the Log File is indexed again, which

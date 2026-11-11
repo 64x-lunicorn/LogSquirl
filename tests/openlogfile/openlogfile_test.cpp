@@ -1154,6 +1154,33 @@ SCENARIO( "Each Search of an Open Log File keeps its own auto-refresh",
                          == AutoRefreshState::Autorefreshing );
             }
         }
+
+        WHEN( "the Log File is reloaded, and the kept one is made current" )
+        {
+            openLogFile.reload();
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            openLogFile.makeSearchCurrent( first );
+
+            THEN( "no Search is followed: a reload left none active, kept or current" )
+            {
+                REQUIRE( openLogFile.searchAutoRefresh().state() == AutoRefreshState::NoSearch );
+                REQUIRE( openLogFile.searchAutoRefresh().isAutoRefreshRequested() );
+            }
+
+            AND_WHEN( "Log Lines are added to the Log File" )
+            {
+                REQUIRE(
+                    logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+                REQUIRE( logFile.observer.waitLoads( 3 ) );
+
+                THEN( "it does not continue over the reloaded Log File" )
+                {
+                    REQUIRE_FALSE( logFile.observer.loads.back().searchRestarted );
+                    REQUIRE_FALSE( first->searchState().isContinuation );
+                    REQUIRE( first->searchState().endLine == LineNumber( FirstLineCount ) );
+                }
+            }
+        }
     }
 }
 

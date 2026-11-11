@@ -62,8 +62,8 @@ concept SearchPort
 // Whether the user wishes for auto-refresh -- the Search Line's one button --
 // is the Log File's, and every Search hears of it. Whether a Search follows
 // the Log File, is suspended, or had the Log File truncated under it is the
-// Search's own (#954): it is followed from the moment it is handed a request,
-// and switching to another Search leaves it as it was.
+// Search's own (#954): it is followed from the moment it is handed a request
+// until a reload, and switching to another Search leaves it as it was.
 //
 // Every Search is made here, from the factory it is handed, so a Search's
 // whole life is in one place; the Search Policy reaches each one still alive.
@@ -258,6 +258,16 @@ public:
         entry.autoRefresh.resetState();
         tellHeldNoLonger( wasHeld );
         current_->dropResults();
+    }
+
+    // The Log File is loaded anew: no Search follows it any longer, current or
+    // kept, until it is requested again, so a kept one made current does not
+    // continue a run over the Log File as it was. What they found stays.
+    void followNoLonger()
+    {
+        for ( auto& entry : entries_ ) {
+            entry.autoRefresh.resetState();
+        }
     }
 
     // Stops the current Search, keeping what it found: it neither waits nor
