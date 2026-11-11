@@ -20,7 +20,6 @@
 #include "addpredefinedfilterdialog.h"
 
 #include <QCheckBox>
-#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLabel>
@@ -29,8 +28,10 @@
 #include <QRegularExpression>
 #include <QVBoxLayout>
 
+#include <optional>
+
+#include "groupchooser.h"
 #include "groupedits.h"
-#include "predefinedfilters.h"
 #include "valueproposal.h"
 
 QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
@@ -44,22 +45,25 @@ QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
 
 namespace {
 
-// The names of a Filter Group's filters, held by its entry of the combo box.
-constexpr int FilterNamesRole = Qt::UserRole + 1;
-
-QStringList filterNames( const PredefinedFilterSet& group )
+QList<GroupChooser::Group> choicesOf( const QList<PredefinedFilterSet>& groups )
 {
-    QStringList names;
-    for ( const auto& filter : group.filters() ) {
-        names.append( filter.name );
+    QList<GroupChooser::Group> choices;
+    for ( const auto& group : groups ) {
+        QStringList names;
+        for ( const auto& filter : group.filters() ) {
+            names.append( filter.name );
+        }
+        choices.append( GroupChooser::Group{ group.id(), group.name(), names } );
     }
-    return names;
+    return choices;
 }
 
 } // namespace
 
 AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent )
     : QDialog( parent )
+    , selectedText_( selectedText )
+    , ownGroups_( PredefinedFiltersCollection::getSynced().filterSets() )
 {
     setWindowTitle( tr( "Add as Predefined Filter" ) );
 
@@ -82,26 +86,20 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
                             "pattern so that it still finds the same text" ) );
     form->addRow( QString{}, regex_ );
 
-    // The user's own groups, the Default Filter Group chosen. The Team's and
-    // the plugins' groups are not the user's to add to.
-    group_ = new QComboBox( this );
+    // The user's own groups and, once the dialog is given them, the Team's;
+    // the Default Filter Group chosen. The plugins' groups are read-only.
+    GroupChooser::Texts texts;
+    texts.ownSection = tr( "My Filter Groups" );
+    texts.teamSection = tr( "Team Filter Groups" );
+    texts.newGroup = tr( "New Filter Group..." );
+    texts.newTeamGroup = tr( "New Team Filter Group..." );
+    texts.newGroupName = tr( "New Filter Group" );
+    texts.teamHint = tr( "OK shares this Filter Group with the team." );
+    texts.nameEmpty = tr( "The new Filter Group has no name." );
+    texts.nameTaken = tr( "A Filter Group named \"%1\" exists already." );
+    group_ = new GroupChooser( texts, this );
     group_->setObjectName( QStringLiteral( "filterGroup" ) );
-    const auto groups = PredefinedFiltersCollection::getSynced().filterSets();
-    int chosen = 0;
-    for ( int row = 0; row < groups.size(); ++row ) {
-        group_->addItem( groups[ row ].name(), groups[ row ].id() );
-        group_->setItemData( row, filterNames( groups[ row ] ), FilterNamesRole );
-        if ( groups[ row ].id() == defaultFilterSetId() ) {
-            chosen = row;
-        }
-    }
-    group_->setCurrentIndex( chosen );
     form->addRow( tr( "Filter Group:" ), group_ );
-
-    // A name no filter of the group has: the Filters panel tells the filters
-    // of a group apart by their names.
-    name_->setText(
-        logsquirl::valuenames::freeName( proposedName( selectedText ), chosenGroupNames() ) );
 
     applyNow_ = new QCheckBox( tr( "Search with it now" ), this );
     applyNow_->setObjectName( QStringLiteral( "applyNow" ) );
@@ -121,15 +119,41 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
     connect( name_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
-    connect( group_, &QComboBox::currentIndexChanged, this,
-             &AddPredefinedFilterDialog::updateState );
+    connect( group_, &GroupChooser::choiceChanged, this, &AddPredefinedFilterDialog::groupChanged );
     connect( buttons_, &QDialogButtonBox::accepted, this, &AddPredefinedFilterDialog::accept );
     connect( buttons_, &QDialogButtonBox::rejected, this, &AddPredefinedFilterDialog::reject );
-    updateState();
+
+    offerGroups( defaultFilterSetId() );
 
     name_->setFocus();
     name_->selectAll();
     resize( 480, sizeHint().height() );
+}
+
+void AddPredefinedFilterDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
+                                                bool editable,
+                                                const QHash<QString, QString>& revisions )
+{
+    const auto chosen = group_->choice().id;
+    teamEdits_.reset( groups, editable, revisions );
+    showsTeam_ = true;
+    offerGroups( chosen );
+}
+
+void AddPredefinedFilterDialog::proposeGroup( const QString& groupId )
+{
+    group_->choose( groupId, defaultFilterSetId() );
+}
+
+void AddPredefinedFilterDialog::offerGroups( const QString& chosenId )
+{
+    std::optional<GroupChooser::TeamGroups> team;
+    if ( showsTeam_ ) {
+        team
+            = GroupChooser::TeamGroups{ choicesOf( teamEdits_.groups() ), teamEdits_.isEditable() };
+    }
+    group_->setGroups( choicesOf( ownGroups_ ), team );
+    group_->choose( chosenId, defaultFilterSetId() );
 }
 
 PredefinedFilter AddPredefinedFilterDialog::filter() const
@@ -139,12 +163,13 @@ PredefinedFilter AddPredefinedFilterDialog::filter() const
 
 QString AddPredefinedFilterDialog::chosenGroupId() const
 {
-    return group_->currentData().toString();
+    const auto chosen = group_->choice();
+    return chosen.isNew() ? madeGroupId_ : chosen.id;
 }
 
 QStringList AddPredefinedFilterDialog::chosenGroupNames() const
 {
-    return group_->currentData( FilterNamesRole ).toStringList();
+    return group_->itemNames();
 }
 
 bool AddPredefinedFilterDialog::applyNow() const
@@ -170,6 +195,18 @@ void AddPredefinedFilterDialog::regexToggled( bool regex )
     updateState();
 }
 
+void AddPredefinedFilterDialog::groupChanged()
+{
+    // A name no filter of the group has: the Filters panel tells the filters
+    // of a group apart by their names.
+    if ( name_->text() == proposedFilterName_ ) {
+        proposedFilterName_
+            = logsquirl::valuenames::freeName( proposedName( selectedText_ ), chosenGroupNames() );
+        name_->setText( proposedFilterName_ );
+    }
+    updateState();
+}
+
 void AddPredefinedFilterDialog::updateState()
 {
     const auto name = name_->text().trimmed();
@@ -184,6 +221,9 @@ void AddPredefinedFilterDialog::updateState()
     else if ( chosenGroupNames().contains( name ) ) {
         warning = tr( "The Filter Group already has a filter named \"%1\"." ).arg( name );
     }
+    else {
+        warning = group_->warning();
+    }
     warning_->setText( warning );
     warning_->setVisible( !warning.isEmpty() );
     buttons_->button( QDialogButtonBox::Ok )->setEnabled( warning.isEmpty() && !name.isEmpty() );
@@ -191,8 +231,43 @@ void AddPredefinedFilterDialog::updateState()
 
 void AddPredefinedFilterDialog::accept()
 {
-    auto& collection = PredefinedFiltersCollection::get();
-    collection.addFilter( chosenGroupId(), filter() );
-    collection.save();
+    const auto chosen = group_->choice();
+    const auto added = filter();
+    auto made = PredefinedFilterSet::createNewSet( chosen.name );
+    made.addFilter( added );
+
+    if ( chosen.section == GroupChooser::Section::Team ) {
+        // Published as the Predefined Filters dialog publishes a Team group:
+        // what changed against the group as given, based on its revision.
+        auto& groups = teamEdits_.groups();
+        if ( chosen.isNew() ) {
+            madeGroupId_ = made.id();
+            groups.append( made );
+        }
+        else {
+            for ( auto& group : groups ) {
+                if ( group.id() == chosen.id ) {
+                    group.addFilter( added );
+                }
+            }
+        }
+        const auto requests = teamEdits_.takeRequests();
+        if ( !requests.isEmpty() ) {
+            Q_EMIT publishRequested( requests );
+        }
+    }
+    else {
+        auto& collection = PredefinedFiltersCollection::get();
+        if ( chosen.isNew() ) {
+            madeGroupId_ = made.id();
+            auto groups = collection.filterSets();
+            groups.append( made );
+            collection.setFilterSets( groups );
+        }
+        else {
+            collection.addFilter( chosen.id, added );
+        }
+        collection.save();
+    }
     QDialog::accept();
 }

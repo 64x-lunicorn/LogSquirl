@@ -1962,9 +1962,25 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 void MainWindow::addAsPredefinedFilter( const QString& selectedText )
 {
     AddPredefinedFilterDialog dialog( selectedText, this );
+    // A Team group the filter goes into is published as the Predefined
+    // Filters dialog publishes it; a colleague's change meanwhile is asked
+    // about as there (askAboutPublishConflicts), and the sync that follows
+    // shows it in every window's Filters panel.
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
+                               teamFolder->filterGroupRevisions() );
+        connect( &dialog, &AddPredefinedFilterDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
+    }
+    // The group chosen last is proposed again (#955).
+    dialog.proposeGroup( Configuration::get().lastFilterGroupId() );
     if ( dialog.exec() != QDialog::Accepted ) {
         return;
     }
+    auto& config = Configuration::getSynced();
+    config.setLastFilterGroupId( dialog.chosenGroupId() );
+    config.save();
     // Saved as the Predefined Filters dialog saves them; only the Filters
     // panel of every window lists them.
     session_.applyChange( Changed::PredefinedFilters );

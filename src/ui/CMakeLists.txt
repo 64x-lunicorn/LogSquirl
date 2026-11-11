@@ -40,6 +40,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/namevaluedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/groupchooser.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
@@ -165,6 +166,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/namevaluedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/grouplist.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/groupchooser.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp

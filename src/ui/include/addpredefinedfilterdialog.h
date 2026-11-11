@@ -20,16 +20,21 @@
 #pragma once
 
 #include <QDialog>
+#include <QHash>
+#include <QList>
 #include <QString>
 #include <QStringList>
 
 #include "predefinedfilter.h"
+#include "predefinedfilters.h"
+#include "teamfolder.h"
+#include "teamgroupedits.h"
 
 class QCheckBox;
-class QComboBox;
 class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
+class GroupChooser;
 
 // What "Add as Predefined Filter..." of the context menu of the Text View and
 // the Filtered View opens (#897): a compact dialog turning the text selected
@@ -38,12 +43,16 @@ class QLineEdit;
 // pattern, as plain text: the filter finds it whether the Search reads regular
 // expressions or not. Regular expression, unchecked by default, turns the
 // pattern into the selection escaped as a regex, to edit into one. The user
-// picks the Filter Group, one of the user's own, the Default Filter Group by
-// default, and whether the Search runs with the filter now.
+// picks the Filter Group with the Group Chooser (#955) -- one of the user's
+// own, a Team group, or a new one of either -- and whether the Search runs
+// with the filter now.
 //
-// OK adds the Predefined Filter at the end of the group and saves
-// PredefinedFiltersCollection, as the Predefined Filters dialog does. Running
-// the Search and refreshing the Filters panel are the caller's.
+// OK adds the Predefined Filter at the end of the group. A group of the
+// user's own is saved in PredefinedFiltersCollection, as the Predefined
+// Filters dialog does; a Team group is published through publishRequested,
+// based on the revision it was given with, so that a change somebody else
+// made meanwhile is asked about. Running the Search, refreshing the Filters
+// panel and remembering the group chosen are the caller's.
 class AddPredefinedFilterDialog : public QDialog {
     Q_OBJECT
 
@@ -57,40 +66,79 @@ public:
 
     explicit AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent = nullptr );
 
+    // Offers the Team groups too, the Team Folder being on: under a heading
+    // of their own, with New Team Filter Group.... Only when editable can
+    // they be chosen. revisions holds the revision of each group's file, by
+    // id. Without a call there is no Team section.
+    void showTeamGroups( const QList<PredefinedFilterSet>& groups, bool editable,
+                         const QHash<QString, QString>& revisions );
+
+    // Proposes the group of the id, the one chosen last; the Default Filter
+    // Group when it is gone.
+    void proposeGroup( const QString& groupId );
+
     // The Predefined Filter OK adds, as edited.
     PredefinedFilter filter() const;
 
-    // The id of the Filter Group chosen.
+    // The id of the Filter Group chosen; empty for a new one until OK made
+    // it, its id after that.
     QString chosenGroupId() const;
+
+    // The Group Chooser.
+    GroupChooser* groupChooser() const
+    {
+        return group_;
+    }
 
     // Whether the Search is to run with the filter once it is added.
     bool applyNow() const;
 
-    // Why OK is disabled: the pattern is empty or no valid regex, or the
-    // Filter Group chosen has a filter of the name. Empty when it is enabled
-    // or the name is empty.
+    // Why OK is disabled: the pattern is empty or no valid regex, the Filter
+    // Group chosen has a filter of the name, or the new group's name will not
+    // do. Empty when it is enabled or the name is empty.
     QString warning() const;
 
 public Q_SLOTS:
     void accept() override;
 
+Q_SIGNALS:
+    // OK changed a Team group or made one: the requests to publish it.
+    void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
+
 private:
     void updateState();
+    // Another group is chosen: a name still as proposed is proposed again,
+    // free in that group.
+    void groupChanged();
     // Regular expression was checked or unchecked: the pattern is turned into
     // a regex, or back into the plain text it was turned from.
     void regexToggled( bool regex );
+    // Hands the Group Chooser the groups, choosing the one of the id.
+    void offerGroups( const QString& chosenId );
 
     // The names of the filters of the Filter Group chosen.
     QStringList chosenGroupNames() const;
 
+    // The selection the dialog was opened for.
+    QString selectedText_;
     // The plain text the pattern was before Regular expression turned it into
     // a regex.
     QString plainPattern_;
+    // The name last proposed: changed by the user once the name is another.
+    QString proposedFilterName_;
+    // The id of the group OK made.
+    QString madeGroupId_;
+
+    // The user's own groups, as read when the dialog opened.
+    QList<PredefinedFilterSet> ownGroups_;
+    // The Team groups, when the dialog is given them.
+    bool showsTeam_ = false;
+    TeamGroupEdits<PredefinedFilterSet> teamEdits_;
 
     QLineEdit* name_ = nullptr;
     QLineEdit* pattern_ = nullptr;
     QCheckBox* regex_ = nullptr;
-    QComboBox* group_ = nullptr;
+    GroupChooser* group_ = nullptr;
     QCheckBox* applyNow_ = nullptr;
     QLabel* warning_ = nullptr;
     QDialogButtonBox* buttons_ = nullptr;

@@ -266,6 +266,7 @@ inline Configuration nonDefaultConfiguration()
 
     config.setCsvSeparator( ';' );
     config.setCsvHeader( false );
+    config.setLastFilterGroupId( QStringLiteral( "{a-filter-group}" ) );
 
     config.addRecentCommand( RecentCommand{ "journalctl -f", "/var/log", false } );
     config.addRecentCommand( RecentCommand{ "docker logs -f web", {}, true } );

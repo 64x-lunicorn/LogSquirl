@@ -645,6 +645,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
            knownCsvSeparator );
     visit( "export.csvHeader", config.csvHeader_, true );
 
+    visit( "groupChooser.lastFilterGroup", config.lastFilterGroupId_, QString{} );
+
     visit( "commandSource.recentCommands", config.recentCommands_, RecentCommands{} );
 
     // Only overrides are stored; the Dark Theme holds the Tokens themselves.

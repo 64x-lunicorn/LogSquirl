@@ -684,6 +684,17 @@ public:
         csvHeader_ = header;
     }
 
+    // The id of the Filter Group Add as Predefined Filter... added to last,
+    // proposed the next time (#955); empty for none yet.
+    QString lastFilterGroupId() const
+    {
+        return lastFilterGroupId_;
+    }
+    void setLastFilterGroupId( const QString& id )
+    {
+        lastFilterGroupId_ = id;
+    }
+
     int defaultEncodingMib() const
     {
         return defaultEncodingMib_;
@@ -948,6 +959,8 @@ private:
     // Stored by name: "comma", "semicolon" or "tab".
     QString csvSeparator_;
     bool csvHeader_{};
+
+    QString lastFilterGroupId_;
 
     bool showSplashScreen_{};
 

@@ -264,6 +264,16 @@ group name or row. The dialog holds the groups and
 hands the list their names; the list says what the user asked for and changes no group itself.
 _Avoid_: set list, group panel
 
+**Group Chooser**:
+Where a dialog that adds one thing from the Log Line to a group, Add as Predefined Filter...
+first, lets the user choose that group: one choice listing the user's own groups and, when the
+Team Folder is on, the Team groups under the Group List's section headings, then New ... and
+New Team .... A new group gets a name field below the choice, filled with the first free name,
+and is made only on OK. A Team group chosen, a line says OK shares it with the team, and OK
+publishes it as the dialogs do. Plugin groups are not offered. The group chosen last is
+proposed the next time, the dialog's default group (the Default Filter Group) when it is gone.
+_Avoid_: group picker, group combo
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its

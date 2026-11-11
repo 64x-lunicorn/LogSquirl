@@ -33,28 +33,37 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
+#include <QHash>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QProcess>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QUrl>
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "abstractlogview.h"
 #include "addpredefinedfilterdialog.h"
 #include "applicationplugins.h"
+#include "configuration.h"
 #include "context_menu_entries.h"
 #include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
+#include "groupchooser.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "modal_answers.h"
 #include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "predefinedfilters.h"
@@ -62,8 +71,13 @@
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
+#include "teamfolder.h"
 #include "test_policies.h"
 #include "test_utils.h"
+
+// The Team Folder helpers of the unit tests, which run it against real Git
+// repositories.
+#include "../unit/teamfoldertesting.h"
 
 struct AddPredefinedFilterTest {};
 
@@ -137,18 +151,24 @@ const auto LookalikeLogLine = QStringLiteral( "modem axb1 WARN done" );
 const auto TwoWords = QStringLiteral( "connection refused" );
 const auto TwoWordsLogLine = QStringLiteral( "peer connection refused by host" );
 const auto TwoWordsLine = 3_lnum;
+const auto NewFilterGroup = QStringLiteral( "New Filter Group..." );
+const auto NewTeamFilterGroup = QStringLiteral( "New Team Filter Group..." );
 
 // The Filter Groups, stored again as they were when this goes.
 class KeptFilterGroups {
 public:
     KeptFilterGroups()
         : sets_( PredefinedFiltersCollection::getSynced().filterSets() )
+        , lastGroupId_( Configuration::getSynced().lastFilterGroupId() )
     {
     }
 
     ~KeptFilterGroups()
     {
         store( sets_ );
+        auto& config = Configuration::getSynced();
+        config.setLastFilterGroupId( lastGroupId_ );
+        config.save();
     }
 
     KeptFilterGroups( const KeptFilterGroups& ) = delete;
@@ -163,6 +183,7 @@ public:
 
 private:
     QList<PredefinedFilterSet> sets_;
+    QString lastGroupId_;
 };
 
 PredefinedFilterSet groupOf( const QString& name, const QString& pattern )
@@ -219,7 +240,9 @@ bool listsFilter( QTreeWidget& tree, const QString& name )
 
 // A window showing the Log File.
 struct AddFilterWindow {
-    AddFilterWindow()
+    // With a Team Folder, the Session sets it up as the policy says.
+    explicit AddFilterWindow( std::shared_ptr<TeamFolder> teamFolder = {},
+                              const TeamFolderPolicy& teamPolicy = {} )
     {
         REQUIRE( dir.isValid() );
         const auto path = dir.filePath( QStringLiteral( "filters.log" ) );
@@ -230,8 +253,10 @@ struct AddFilterWindow {
                         .toUtf8() );
         file.close();
 
-        session = std::make_shared<Session>( testSettingsPolicies(),
-                                             std::make_shared<LogFormatCatalog>() );
+        auto policies = testSettingsPolicies();
+        policies.teamFolder = teamPolicy;
+        session = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>(),
+                                             nullptr, std::move( teamFolder ) );
         window = std::make_unique<MainWindow>(
             WindowSession{ session, QStringLiteral( "Main" ), 0 },
             std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
@@ -408,12 +433,16 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the selection as plain t
             REQUIRE( okButton( dialog )->isEnabled() );
         }
 
-        THEN( "the Default Filter Group is chosen, and every group of the user's is offered" )
+        THEN( "the Default Filter Group is chosen, and every group of the user's is offered; "
+              "without a Team Folder no Team section and no New Team Filter Group..." )
         {
-            auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "filterGroup" ) );
+            auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "groupChoice" ) );
             REQUIRE( dialog.chosenGroupId() == defaultFilterSetId() );
             REQUIRE( groups->findText( QStringLiteral( "Other" ) ) >= 0 );
-            REQUIRE( groups->count() == 2 );
+            REQUIRE( groups->findText( NewFilterGroup ) >= 0 );
+            REQUIRE( groups->findText( QStringLiteral( "Team Filter Groups" ) ) < 0 );
+            REQUIRE( groups->findText( NewTeamFilterGroup ) < 0 );
+            REQUIRE_FALSE( dialog.groupChooser()->hasTeamSection() );
         }
 
         THEN( "it does not apply the filter unless asked to" )
@@ -510,7 +539,7 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the selection as plain t
 
         WHEN( "the other group is chosen, the name changed, and OK is clicked" )
         {
-            auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "filterGroup" ) );
+            auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "groupChoice" ) );
             groups->setCurrentIndex( groups->findText( QStringLiteral( "Other" ) ) );
             childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) )
                 ->setText( QStringLiteral( "Modem index" ) );
@@ -559,7 +588,7 @@ SCENARIO( "The Add as Predefined Filter dialog keeps the names of a Filter Group
         AddPredefinedFilterDialog dialog( SelectedText );
         showUntilExposed( dialog );
         auto* name = childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) );
-        auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "filterGroup" ) );
+        auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "groupChoice" ) );
 
         THEN( "it proposes the name numbered, which no filter of the group has" )
         {
@@ -811,6 +840,490 @@ SCENARIO( "Refreshing the Filters panel with no filter checked leaves the Search
             REQUIRE( CrawlerAccess::searchPattern( *shown.crawler ) == QStringLiteral( "ERROR" ) );
             REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine()
                      == 1_lcount );
+        }
+    }
+}
+
+namespace {
+
+// Chooses the entry of the dialog's Group Chooser with the text.
+void chooseGroup( AddPredefinedFilterDialog& dialog, const QString& text )
+{
+    auto* combo = dialog.groupChooser()->comboBox();
+    const auto row = combo->findText( text );
+    REQUIRE( row >= 0 );
+    combo->setCurrentIndex( row );
+}
+
+QStringList filterNamesOf( const PredefinedFilterSet& group )
+{
+    QStringList names;
+    for ( const auto& filter : group.filters() ) {
+        names.append( filter.name );
+    }
+    return names;
+}
+
+} // namespace
+
+SCENARIO( "The Add as Predefined Filter dialog proposes a name free in the group chosen",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser]" )
+{
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( { groupOf( QStringLiteral( "Other" ), QStringLiteral( "WARN" ) ) } );
+    auto& collection = PredefinedFiltersCollection::getSynced();
+    collection.addFilter( defaultFilterSetId(),
+                          PredefinedFilter{ SelectedText, QStringLiteral( "x" ), false } );
+    collection.save();
+
+    AddPredefinedFilterDialog dialog( SelectedText );
+    auto* name = childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) );
+    REQUIRE( name->text() == SelectedText + QStringLiteral( " (2)" ) );
+
+    WHEN( "a group without a filter of the name is chosen, the name still as proposed" )
+    {
+        chooseGroup( dialog, QStringLiteral( "Other" ) );
+
+        THEN( "the name is proposed again, free in that group" )
+        {
+            REQUIRE( name->text() == SelectedText );
+            REQUIRE( okButton( dialog )->isEnabled() );
+        }
+    }
+
+    WHEN( "the group's tooltip is read" )
+    {
+        auto* combo = dialog.groupChooser()->comboBox();
+        const auto tooltip
+            = combo->itemData( combo->findText( QStringLiteral( "Other" ) ), Qt::ToolTipRole )
+                  .toString();
+
+        THEN( "it lists the filters the group holds" )
+        {
+            REQUIRE( tooltip == QStringLiteral( "Other" ) );
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter puts a filter into a new Filter Group of the user's own",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser]" )
+{
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( {} );
+    const auto groupsBefore = PredefinedFiltersCollection::getSynced().filterSets().size();
+
+    AddPredefinedFilterDialog dialog( SelectedText );
+    showUntilExposed( dialog );
+    auto* newName = childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) );
+    REQUIRE( newName->isHidden() );
+
+    WHEN( "New Filter Group... is chosen" )
+    {
+        chooseGroup( dialog, NewFilterGroup );
+
+        THEN( "the name field shows, with the first free name" )
+        {
+            REQUIRE( newName->isVisible() );
+            REQUIRE( newName->text() == QStringLiteral( "New Filter Group" ) );
+            REQUIRE( okButton( dialog )->isEnabled() );
+        }
+
+        AND_WHEN( "the group is named and OK is clicked" )
+        {
+            newName->setText( QStringLiteral( "Modem" ) );
+            clickOk( dialog );
+
+            THEN( "the group is made with the filter, after the user's other groups" )
+            {
+                const auto groups = PredefinedFiltersCollection::getSynced().filterSets();
+                REQUIRE( groups.size() == groupsBefore + 1 );
+                REQUIRE( groups.back().name() == QStringLiteral( "Modem" ) );
+                REQUIRE( filterNamesOf( groups.back() ) == QStringList{ SelectedText } );
+                REQUIRE( dialog.chosenGroupId() == groups.back().id() );
+            }
+        }
+
+        AND_WHEN( "the name field is emptied" )
+        {
+            newName->setText( QString{} );
+
+            THEN( "OK is disabled, and the dialog says why" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE_FALSE( dialog.warning().isEmpty() );
+            }
+        }
+
+        AND_WHEN( "Cancel is clicked" )
+        {
+            dialog.reject();
+
+            THEN( "no group was made" )
+            {
+                REQUIRE( PredefinedFiltersCollection::getSynced().filterSets().size()
+                         == groupsBefore );
+            }
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter puts a filter into a Team group, which it publishes",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishRequest;
+
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( {} );
+    const auto ownBefore = PredefinedFiltersCollection::getSynced().filterSets();
+
+    auto crashes = PredefinedFilterSet::createNewSet( QStringLiteral( "Crashes" ) );
+    crashes.addFilter(
+        PredefinedFilter{ QStringLiteral( "Fatal" ), QStringLiteral( "FATAL" ), false } );
+    const QHash<QString, QString> revisions{ { crashes.id(), QStringLiteral( "rev-1" ) } };
+
+    AddPredefinedFilterDialog dialog( SelectedText );
+    QSignalSpy published( &dialog, &AddPredefinedFilterDialog::publishRequested );
+
+    GIVEN( "Team groups that can be changed" )
+    {
+        dialog.showTeamGroups( { crashes }, true, revisions );
+        showUntilExposed( dialog );
+        auto* hint = childOf<QLabel>( dialog, QStringLiteral( "teamHint" ) );
+
+        THEN( "they are offered under a heading of their own, with New Team Filter Group..., and "
+              "the Default Filter Group is still chosen" )
+        {
+            auto* combo = dialog.groupChooser()->comboBox();
+            REQUIRE( combo->findText( QStringLiteral( "Team Filter Groups" ) ) >= 0 );
+            REQUIRE( combo->findText( QStringLiteral( "Crashes" ) ) >= 0 );
+            REQUIRE( combo->findText( NewTeamFilterGroup ) >= 0 );
+            REQUIRE( dialog.chosenGroupId() == defaultFilterSetId() );
+            REQUIRE( hint->isHidden() );
+        }
+
+        WHEN( "the Team group is chosen and OK clicked" )
+        {
+            chooseGroup( dialog, QStringLiteral( "Crashes" ) );
+            REQUIRE( hint->isVisible() );
+            clickOk( dialog );
+
+            THEN( "the group with the filter is published, based on the revision it was given "
+                  "with, and none of the user's own changed" )
+            {
+                REQUIRE( published.count() == 1 );
+                const auto requests = published.at( 0 ).at( 0 ).value<QList<PublishRequest>>();
+                REQUIRE( requests.size() == 1 );
+                REQUIRE( requests[ 0 ].action == GroupAction::Change );
+                REQUIRE( requests[ 0 ].id == crashes.id() );
+                REQUIRE( requests[ 0 ].baseRevision == QStringLiteral( "rev-1" ) );
+                const auto* group = logsquirl::teamfolder::groupOfKind<PredefinedFilterSet>(
+                    requests[ 0 ].group );
+                REQUIRE( group != nullptr );
+                REQUIRE( filterNamesOf( *group )
+                         == QStringList{ QStringLiteral( "Fatal" ), SelectedText } );
+                REQUIRE( dialog.chosenGroupId() == crashes.id() );
+                REQUIRE( PredefinedFiltersCollection::getSynced().filterSets().size()
+                         == ownBefore.size() );
+                REQUIRE( storedGroup( defaultFilterSetId() ).filters().isEmpty() );
+            }
+        }
+
+        WHEN( "New Team Filter Group... is chosen, named, and OK clicked" )
+        {
+            chooseGroup( dialog, NewTeamFilterGroup );
+            REQUIRE( hint->isVisible() );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Modem" ) );
+            clickOk( dialog );
+
+            THEN( "the new group with the filter is published as a new Team group" )
+            {
+                REQUIRE( published.count() == 1 );
+                const auto requests = published.at( 0 ).at( 0 ).value<QList<PublishRequest>>();
+                REQUIRE( requests.size() == 1 );
+                REQUIRE( requests[ 0 ].action == GroupAction::Add );
+                REQUIRE( requests[ 0 ].name == QStringLiteral( "Modem" ) );
+                const auto* group = logsquirl::teamfolder::groupOfKind<PredefinedFilterSet>(
+                    requests[ 0 ].group );
+                REQUIRE( group != nullptr );
+                REQUIRE( filterNamesOf( *group ) == QStringList{ SelectedText } );
+                REQUIRE( dialog.chosenGroupId() == requests[ 0 ].id );
+                REQUIRE( PredefinedFiltersCollection::getSynced().filterSets().size()
+                         == ownBefore.size() );
+            }
+        }
+
+        WHEN( "New Team Filter Group... is given a Team group's name" )
+        {
+            chooseGroup( dialog, NewTeamFilterGroup );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Crashes" ) );
+
+            THEN( "OK is disabled, and the dialog says why" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE( dialog.warning().contains( QStringLiteral( "Crashes" ) ) );
+            }
+        }
+
+        WHEN( "a group of the user's own is chosen and OK clicked" )
+        {
+            clickOk( dialog );
+
+            THEN( "nothing is published" )
+            {
+                REQUIRE( published.isEmpty() );
+                REQUIRE( storedGroup( defaultFilterSetId() ).filters().size() == 1 );
+            }
+        }
+
+        WHEN( "the Team group is proposed, as the group chosen last" )
+        {
+            dialog.proposeGroup( crashes.id() );
+
+            THEN( "it is chosen" )
+            {
+                REQUIRE( dialog.chosenGroupId() == crashes.id() );
+            }
+        }
+    }
+
+    GIVEN( "Team groups that cannot be changed" )
+    {
+        dialog.showTeamGroups( { crashes }, false, revisions );
+        dialog.proposeGroup( crashes.id() );
+
+        THEN( "none of them can be chosen, and there is no New Team Filter Group..." )
+        {
+            REQUIRE( dialog.chosenGroupId() == defaultFilterSetId() );
+            REQUIRE( dialog.groupChooser()->comboBox()->findText( NewTeamFilterGroup ) < 0 );
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter proposes the group chosen last, the Default Filter Group "
+          "once it is gone",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser]" )
+{
+    const KeptFilterGroups kept;
+    const auto other = groupOf( QStringLiteral( "Other" ), QStringLiteral( "WARN" ) );
+    KeptFilterGroups::store( { other } );
+
+    const AddFilterWindow shown;
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    // Opens the dialog from the context menu, and reads which group it chose.
+    const auto proposedGroup = [ & ] {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        QString proposed;
+        auto* entry = contextMenuEntry( *menu, AddAsPredefinedFilter );
+        QTimer::singleShot( 0, [ & ] {
+            auto* dialog
+                = qobject_cast<AddPredefinedFilterDialog*>( QApplication::activeModalWidget() );
+            REQUIRE( dialog != nullptr );
+            proposed = dialog->chosenGroupId();
+            dialog->reject();
+        } );
+        entry->trigger();
+        return proposed;
+    };
+
+    WHEN( "a filter is added to the other group" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, QStringLiteral( "Other" ) );
+        } );
+
+        THEN( "it is remembered, and proposed the next time" )
+        {
+            REQUIRE( Configuration::getSynced().lastFilterGroupId() == other.id() );
+            REQUIRE( proposedGroup() == other.id() );
+        }
+
+        AND_WHEN( "the other group is gone" )
+        {
+            KeptFilterGroups::store( {} );
+
+            THEN( "the Default Filter Group is proposed" )
+            {
+                REQUIRE( proposedGroup() == defaultFilterSetId() );
+            }
+        }
+    }
+
+    WHEN( "a filter is added to a new group" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, NewFilterGroup );
+        } );
+
+        THEN( "the new group is proposed the next time" )
+        {
+            const auto groups = PredefinedFiltersCollection::getSynced().filterSets();
+            REQUIRE( groups.back().name() == QStringLiteral( "New Filter Group" ) );
+            REQUIRE( proposedGroup() == groups.back().id() );
+        }
+    }
+}
+
+SCENARIO( "A filter added to a Team group reaches the team and every window; a colleague's "
+          "change meanwhile is asked about",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser][teamfolder]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishOutcome;
+    using logsquirl::teamfolder::PublishRequest;
+    using logsquirl::teamfolder::PublishStatus;
+    using teamfolder_testing::settled;
+    using teamfolder_testing::SyncTimeoutMs;
+
+    const teamfolder_testing::IsolatedGitEnvironment environment;
+    if ( !teamfolder_testing::gitInstalled() ) {
+        SKIP( "Git is not installed" );
+    }
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( {} );
+
+    // The team's server, holding a Filter Group a colleague published.
+    QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto server = root.filePath( "server.git" );
+    QProcess git;
+    git.start( "git", { "init", "--quiet", "--bare", server } );
+    REQUIRE( git.waitForFinished( SyncTimeoutMs ) );
+    REQUIRE( git.exitCode() == 0 );
+    const auto teamPolicy
+        = teamfolder_testing::policyFor( QUrl::fromLocalFile( server ).toString() );
+
+    auto crashes = PredefinedFilterSet::createNewSet( QStringLiteral( "Crashes" ) );
+    crashes.addFilter( { QStringLiteral( "Fatal" ), QStringLiteral( "FATAL" ), false } );
+    TeamFolder colleague( root.filePath( "colleague" ) );
+    colleague.setUp( teamPolicy );
+    REQUIRE( settled( colleague ) );
+    const auto publish = [ & ]( const PublishRequest& request ) {
+        QSignalSpy finished( &colleague, &TeamFolder::publishFinished );
+        colleague.publish( { request } );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        const auto outcome = finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+        REQUIRE( outcome.results.size() == 1 );
+        REQUIRE( outcome.results[ 0 ].status == PublishStatus::Published );
+        REQUIRE( settled( colleague ) );
+    };
+    publish( PublishRequest::forGroup( crashes, GroupAction::Add ) );
+
+    // Two windows of a Session whose Team Folder has synced.
+    const auto member = std::make_shared<TeamFolder>( root.filePath( "member" ) );
+    const AddFilterWindow shown( member, teamPolicy );
+    REQUIRE( settled( *member ) );
+    REQUIRE( member->filterGroups().size() == 1 );
+    const auto second = std::make_unique<MainWindow>(
+        WindowSession{ shown.session, QStringLiteral( "Second" ), 1 },
+        std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
+    showUntilExposed( *second );
+    shown.window->activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( shown.window.get(), 5000 ) );
+    const auto listedEverywhere = [ & ]( const QString& name ) {
+        for ( const auto* window : { shown.window.get(), second.get() } ) {
+            auto* tree = window->findChild<FiltersPanel*>()->findChild<QTreeWidget*>();
+            if ( tree == nullptr || !listsFilter( *tree, name ) ) {
+                return false;
+            }
+        }
+        return true;
+    };
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    WHEN( "the selection is added to the Team group" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, QStringLiteral( "Crashes" ) );
+        } );
+
+        THEN( "the colleague gets it, and the Filters panel of both windows lists it" )
+        {
+            REQUIRE(
+                waitUiState( [ & ] { return listedEverywhere( SelectedText ); }, SyncTimeoutMs ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE( colleague.filterGroups().size() == 1 );
+            REQUIRE( filterNamesOf( colleague.filterGroups().front() )
+                     == QStringList{ QStringLiteral( "Fatal" ), SelectedText } );
+            REQUIRE( PredefinedFiltersCollection::getSynced().filterSets().size() == 1 );
+        }
+    }
+
+    WHEN( "the selection is added to a new Team group" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, NewTeamFilterGroup );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Modem" ) );
+        } );
+
+        THEN( "the colleague gets the group, and both windows list the filter" )
+        {
+            REQUIRE(
+                waitUiState( [ & ] { return listedEverywhere( SelectedText ); }, SyncTimeoutMs ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE( colleague.filterGroups().size() == 2 );
+            REQUIRE( colleague.filterGroups()[ 1 ].name() == QStringLiteral( "Modem" ) );
+        }
+    }
+
+    WHEN( "the colleague changed the Team group since the last sync, and the selection is "
+          "added to it" )
+    {
+        auto theirs = crashes;
+        theirs.addFilter( { QStringLiteral( "Theirs" ), QStringLiteral( "THEIRS" ), false } );
+        auto change = PublishRequest::forGroup( theirs, GroupAction::Change );
+        change.baseRevision = colleague.filterGroupRevision( crashes.id() );
+        publish( change );
+
+        QSignalSpy finished( member.get(), &TeamFolder::publishFinished );
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, QStringLiteral( "Crashes" ) );
+        } );
+        // The publish meets their change. The window system gives the window
+        // the focus back once the dialog is gone (the offscreen platform does
+        // not): then it asks.
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        const auto outcome = finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+        REQUIRE( outcome.results.size() == 1 );
+        REQUIRE( outcome.results[ 0 ].status == PublishStatus::Conflict );
+        shown.window->activateWindow();
+        ModalAnswers modals;
+        modals.clickButton( QStringLiteral( "Keep mine" ) );
+
+        THEN( "the window asks as the Predefined Filters dialog's publish does, and Keep mine "
+              "publishes the filter over their change" )
+        {
+            REQUIRE( waitUiState( [ & ] { return modals.unanswered() == 0; }, SyncTimeoutMs ) );
+            REQUIRE( modals.messages().size() == 1 );
+            REQUIRE( modals.messages()[ 0 ].contains(
+                QStringLiteral( "Somebody else changed the Team group \"Crashes\"" ) ) );
+            REQUIRE( modals.unexpectedMessageBoxes() == 0 );
+            REQUIRE(
+                waitUiState( [ & ] { return listedEverywhere( SelectedText ); }, SyncTimeoutMs ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE( filterNamesOf( colleague.filterGroups().front() )
+                     == QStringList{ QStringLiteral( "Fatal" ), SelectedText } );
         }
     }
 }
