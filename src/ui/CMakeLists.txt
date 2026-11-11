@@ -43,6 +43,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/groupchooser.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/choosergroups.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h

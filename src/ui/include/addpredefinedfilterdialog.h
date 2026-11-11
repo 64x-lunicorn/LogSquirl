@@ -27,12 +27,13 @@
 #include <QString>
 #include <QStringList>
 
+#include "choosergroups.h"
 #include "filterpreviewsearch.h"
 #include "predefinedfilter.h"
 #include "predefinedfilters.h"
 #include "regularexpressionpattern.h"
+#include "searchline.h"
 #include "teamfolder.h"
-#include "teamgroupedits.h"
 
 class AddToGroupLayout;
 class LogData;
@@ -82,9 +83,12 @@ public:
 
     // Previews the filter in the Log File of logData, which the dialog holds
     // on to while it is open: it is searched as the Search of the tab reads
-    // the filter, matching case when matchCase says so. Without a call there
-    // is no Log File to preview in.
-    void previewIn( std::shared_ptr<const LogData> logData, bool matchCase );
+    // the filter, with the buttons of its Search Line, searchFlags, and its
+    // pattern prepared as the tab's Searches prepare theirs (prepare, from
+    // CrawlerWidget::searchPreparation()), so that it finds what the Search
+    // with it finds. Without a call there is no Log File to preview in.
+    void previewIn( std::shared_ptr<const LogData> logData, const SearchLine::Flags& searchFlags,
+                    FilterPreviewSearch::PreparePattern prepare = {} );
 
     // What the preview found last.
     FilterPreviewSearch::Result previewResult() const;
@@ -142,8 +146,6 @@ private:
     // Regular expression was checked or unchecked: the pattern is turned into
     // a regex, or back into the plain text it was turned from.
     void regexToggled( bool regex );
-    // Hands the Group Chooser the groups, choosing the one of the id.
-    void offerGroups( const QString& chosenId );
 
     // The names of the filters of the Filter Group chosen.
     QStringList chosenGroupNames() const;
@@ -162,14 +164,6 @@ private:
     QString plainPattern_;
     // The name last proposed: changed by the user once the name is another.
     QString proposedFilterName_;
-    // The id of the group OK made.
-    QString madeGroupId_;
-
-    // The user's own groups, as read when the dialog opened.
-    QList<PredefinedFilterSet> ownGroups_;
-    // The Team groups, when the dialog is given them.
-    bool showsTeam_ = false;
-    TeamGroupEdits<PredefinedFilterSet> teamEdits_;
 
     std::unique_ptr<AddToGroupLayout> layout_;
     QLineEdit* name_ = nullptr;
@@ -177,8 +171,11 @@ private:
     QCheckBox* regex_ = nullptr;
     GroupChooser* group_ = nullptr;
     QCheckBox* applyNow_ = nullptr;
+    // The user's own groups, as read when the dialog opened, and the Team
+    // groups once it is given them: what group_ offers.
+    std::unique_ptr<ChooserGroups<PredefinedFilterSet>> groups_;
 
     // How the tab's Search reads a pattern.
-    bool matchCase_ = false;
+    SearchLine::Flags searchFlags_;
     std::unique_ptr<FilterPreviewSearch> previewSearch_;
 };

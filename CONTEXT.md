@@ -171,10 +171,14 @@ first load, held by the Session, or running. A Search requested before the Log F
 first loaded waits for that load and then runs over the whole Log File, each with the
 pattern it was requested with; a load that does not succeed drops what waits. A restored
 Session holds the waiting Searches beyond the first load until it releases them; what the
-user asks for after that is never held. It makes every Search of the Log File, and the
-Search Policy reaches each one through it. Each Search keeps its own auto-refresh in it —
-followed, suspended, or truncated under — while the wish for auto-refresh, the Search
-Line's one button, is the Log File's; switching to another Search leaves each as it was.
+user asks for after that is never held. It makes every Search the Kept Searches hold, and
+the Search Policy reaches each one through it; each is requested with its pattern prepared
+for the Log Format's fields. A Search that only previews what a pattern finds, such as Add
+as Predefined Filter's, is none of these: made outside it and not followed, it is
+requested with its pattern prepared the same way. Each Search keeps its own auto-refresh in
+it — followed, suspended, or truncated under — while the wish for auto-refresh, the Search
+Line's one button, is the Log File's; switching to another Search leaves each as it was,
+and a reload follows none of them until it is requested again.
 _Avoid_: search list, pending searches
 
 **Kept Searches**:

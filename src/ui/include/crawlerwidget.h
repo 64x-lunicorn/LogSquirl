@@ -171,6 +171,11 @@ public:
     // would find, as Add as Predefined Filter... previews it (#958): held on
     // to for as long as it is.
     std::shared_ptr<const LogData> logDataToSearch() const;
+    // What a pattern for such a Search is prepared with, as the tab's own
+    // Searches are: the reader of its Log Format's fields, for Field Terms
+    // (OpenLogFile::withFieldReader()). Called on the UI thread; holds on to
+    // the Open Log File for as long as it is held.
+    std::function<RegularExpressionPattern( RegularExpressionPattern )> searchPreparation() const;
     // Where the message of the Log Line lies in it: the body field of the
     // tab's Log Format, a regex one. None without a Log Format, for a Log
     // Line it does not match, and for a format that places no field in the

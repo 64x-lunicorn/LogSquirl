@@ -56,6 +56,7 @@
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "theme.h"
 #include "valuenamescollection.h"
 
 using logsquirl::valuenames::LineRange;
@@ -232,6 +233,14 @@ int linesWith( const QStringList& lines, const QString& text )
                        [ &text ]( const QString& line ) { return line.contains( text ); } ) );
 }
 
+// The buttons of a tab's Search Line that matches case and reads plain text.
+SearchLine::Flags matchingCase()
+{
+    SearchLine::Flags flags;
+    flags.matchCase = true;
+    return flags;
+}
+
 bool previewDone( const AddPredefinedFilterDialog& dialog )
 {
     return dialog.previewResult().state == PreviewState::Done;
@@ -346,6 +355,36 @@ SCENARIO( "A preview shows its line on one line, elided around what it marks", "
     }
 }
 
+SCENARIO( "A preview takes the colors of the Theme switched to", "[ui][addtogroup][theme]" )
+{
+    Theme::apply( Theme::LightKey );
+    LinePreview preview;
+    preview.setFixedWidth( 240 );
+    showUntilExposed( preview );
+    preview.setLine( QStringLiteral( "a VALUE here" ), { LinePreview::Mark{ 2, 5 } },
+                     LinePreview::MarkStyle::Highlight );
+    const auto highlightOf = []( const QWidget& widget ) {
+        return widget.palette().color( QPalette::Highlight ).name();
+    };
+    const auto lightHighlight = highlightOf( preview );
+    REQUIRE( preview.text().contains( lightHighlight ) );
+
+    WHEN( "the Dark Theme is applied" )
+    {
+        Theme::apply( Theme::DarkKey );
+
+        THEN( "the mark shows in the Dark Theme's highlight" )
+        {
+            REQUIRE( highlightOf( preview ) != lightHighlight );
+            REQUIRE( preview.text().contains( highlightOf( preview ) ) );
+            REQUIRE_FALSE( preview.text().contains( lightHighlight ) );
+            REQUIRE( preview.markedTexts() == QStringList{ QStringLiteral( "VALUE" ) } );
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
+}
+
 SCENARIO( "Name This Value shows one row for the value, and More rows... the Name Table",
           "[ui][addtogroup][namevalue]" )
 {
@@ -433,15 +472,90 @@ SCENARIO( "Name This Value shows one row for the value, and More rows... the Nam
         NameValueDialog dialog( EsimLine, rangeOf( EsimLine, QStringLiteral( "9" ) ) );
         showUntilExposed( dialog );
 
-        THEN( "the dialog opens with the table shown, the focus in it" )
+        THEN( "the dialog opens with the one row of the value, the table's row and the value's "
+              "in the table behind it" )
         {
             auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+            auto* name = childOf<QLineEdit>( dialog, QStringLiteral( "valueName" ) );
+            REQUIRE_FALSE( dialog.showsRows() );
+            REQUIRE_FALSE( rows->isVisible() );
+            REQUIRE( rows->rowCount() == 2 );
+            REQUIRE( name->isVisible() );
+            REQUIRE( dialog.focusWidget() == name );
+        }
+    }
+
+    GIVEN( "a group with a Name Table of the name proposed, of two rows already, and a group "
+           "without tables" )
+    {
+        auto modem
+            = logsquirl::valuenames::NamingGroup::createNewGroup( QStringLiteral( "Modem" ) );
+        logsquirl::valuenames::NameTable esim;
+        esim.name = QStringLiteral( "EsimState" );
+        esim.rows
+            = { logsquirl::valuenames::NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) },
+                logsquirl::valuenames::NameRow{ QStringLiteral( "2" ), QStringLiteral( "Busy" ) } };
+        modem.setTables( { esim } );
+        const auto other
+            = logsquirl::valuenames::NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+        const KeptNamingGroups kept( { modem, other } );
+
+        NameValueDialog dialog( EsimLine, rangeOf( EsimLine, QStringLiteral( "9" ) ) );
+        showUntilExposed( dialog );
+        auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+        auto* name = childOf<QLineEdit>( dialog, QStringLiteral( "valueName" ) );
+
+        THEN( "the dialog opens with the table shown, the focus in it" )
+        {
+            REQUIRE( dialog.groupChooser()->choice().id == modem.id() );
             REQUIRE( dialog.showsRows() );
             REQUIRE( rows->isVisible() );
-            REQUIRE( rows->rowCount() == 2 );
+            REQUIRE( rows->rowCount() == 3 );
             REQUIRE( dialog.focusWidget() == rows );
-            REQUIRE_FALSE(
-                childOf<QLineEdit>( dialog, QStringLiteral( "valueName" ) )->isVisible() );
+            REQUIRE_FALSE( name->isVisible() );
+        }
+
+        WHEN( "the group without tables is chosen" )
+        {
+            dialog.groupChooser()->choose( other.id(), {} );
+
+            THEN( "the one row of the value shows again" )
+            {
+                REQUIRE_FALSE( dialog.showsRows() );
+                REQUIRE( rows->rowCount() == 1 );
+                REQUIRE( name->isVisible() );
+                REQUIRE( dialog.focusWidget() == name );
+            }
+
+            AND_WHEN( "the group of the table is chosen again" )
+            {
+                dialog.groupChooser()->choose( modem.id(), {} );
+
+                THEN( "the table shows again" )
+                {
+                    REQUIRE( dialog.showsRows() );
+                    REQUIRE( rows->rowCount() == 3 );
+                }
+            }
+        }
+
+        WHEN( "More rows... is clicked on the group without tables, and the groups are chosen in "
+              "turn" )
+        {
+            dialog.groupChooser()->choose( other.id(), {} );
+            REQUIRE_FALSE( dialog.showsRows() );
+            QTest::mouseClick( childOf<QPushButton>( dialog, QStringLiteral( "moreRows" ) ),
+                               Qt::LeftButton );
+            REQUIRE( dialog.showsRows() );
+            dialog.groupChooser()->choose( modem.id(), {} );
+            dialog.groupChooser()->choose( other.id(), {} );
+
+            THEN( "the table stays shown, as the user asked for it" )
+            {
+                REQUIRE( dialog.showsRows() );
+                REQUIRE( rows->rowCount() == 1 );
+                REQUIRE( rows->isVisible() );
+            }
         }
     }
 }
@@ -674,7 +788,7 @@ SCENARIO( "Add as Predefined Filter previews how many Log Lines the filter finds
 
     WHEN( "it is given the Log File" )
     {
-        dialog.previewIn( logFile.logData, true );
+        dialog.previewIn( logFile.logData, matchingCase() );
 
         THEN( "it counts in the background, the dialog going on meanwhile" )
         {
@@ -775,7 +889,7 @@ SCENARIO( "The preview of a large Log File does not hold the dialog up",
     const LoadedLogFile logFile( lines );
     AddPredefinedFilterDialog dialog( QStringLiteral( "abc" ) );
     showUntilExposed( dialog );
-    dialog.previewIn( logFile.logData, true );
+    dialog.previewIn( logFile.logData, matchingCase() );
 
     WHEN( "the pattern is typed while the Search runs" )
     {

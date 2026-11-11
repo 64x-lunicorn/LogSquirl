@@ -160,6 +160,35 @@ static constexpr auto ClipboardMaxTry = 5;
 // Shows the Team groups of a kind in the dialog that edits that kind, and
 // publishes what OK or Apply change of them. What Apply published has new
 // revisions: the dialog is still open and edits on them.
+// Offers the Team groups of a kind in a dialog that adds one thing to a group
+// -- Add as Predefined Filter..., Name This Value -- the Team Folder being on,
+// and publishes what OK changes of them. A colleague's change meanwhile is
+// asked about as in the dialog that edits that kind (askAboutPublishConflicts),
+// and the sync that follows shows it in every window.
+template <typename Dialog, typename Group>
+void offerTeamGroupsIn( Dialog& dialog, const std::shared_ptr<TeamFolder>& folder,
+                        QList<Group> ( TeamFolder::*groups )() const,
+                        QHash<QString, QString> ( TeamFolder::*revisions )() const )
+{
+    if ( !folder || folder->state() == TeamFolder::State::Off ) {
+        return;
+    }
+    auto* teamFolder = folder.get();
+    dialog.showTeamGroups( ( teamFolder->*groups )(), teamFolder->isWritable(),
+                           ( teamFolder->*revisions )() );
+    QObject::connect( &dialog, &Dialog::publishRequested, teamFolder, &TeamFolder::publish );
+}
+
+// Remembers the id of the group a dialog that adds one thing to a group put
+// it into, once OK did (#955, #956): the dialog proposes it next time.
+static void rememberChosenGroup( void ( Configuration::*remember )( const QString& ),
+                                 const QString& id )
+{
+    auto& config = Configuration::getSynced();
+    ( config.*remember )( id );
+    config.save();
+}
+
 template <typename Dialog, typename Group>
 void showTeamGroupsIn( Dialog& dialog, TeamFolder& folder, const QList<Group>& groups,
                        QHash<QString, QString> ( TeamFolder::*revisions )() const )
@@ -1963,29 +1992,21 @@ void MainWindow::addAsPredefinedFilter( const QString& selectedText )
 {
     AddPredefinedFilterDialog dialog( selectedText, this );
     // A Team group the filter goes into is published as the Predefined
-    // Filters dialog publishes it; a colleague's change meanwhile is asked
-    // about as there (askAboutPublishConflicts), and the sync that follows
-    // shows it in every window's Filters panel.
-    if ( const auto teamFolder = session_.teamFolder();
-         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
-                               teamFolder->filterGroupRevisions() );
-        connect( &dialog, &AddPredefinedFilterDialog::publishRequested, teamFolder.get(),
-                 &TeamFolder::publish );
-    }
+    // Filters dialog publishes it.
+    offerTeamGroupsIn( dialog, session_.teamFolder(), &TeamFolder::filterGroups,
+                       &TeamFolder::filterGroupRevisions );
     // The group chosen last is proposed again (#955).
     dialog.proposeGroup( Configuration::get().lastFilterGroupId() );
     // The preview counts what the filter finds in the tab's Log File, read as
-    // its Search Line would read it (#958).
+    // its Search Line would read it and prepared as its Searches are (#958).
     if ( const auto* crawler = currentCrawlerWidget() ) {
-        dialog.previewIn( crawler->logDataToSearch(), crawler->searchFlags().matchCase );
+        dialog.previewIn( crawler->logDataToSearch(), crawler->searchFlags(),
+                          crawler->searchPreparation() );
     }
     if ( dialog.exec() != QDialog::Accepted ) {
         return;
     }
-    auto& config = Configuration::getSynced();
-    config.setLastFilterGroupId( dialog.chosenGroupId() );
-    config.save();
+    rememberChosenGroup( &Configuration::setLastFilterGroupId, dialog.chosenGroupId() );
     // Saved as the Predefined Filters dialog saves them; only the Filters
     // panel of every window lists them.
     session_.applyChange( Changed::PredefinedFilters );
@@ -2046,26 +2067,17 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
         }
     }
     // Name This Value chooses the group (#956): a Team Naming Group it names
-    // the value in is published as the Value Names dialog publishes it, a
-    // colleague's change meanwhile asked about as there
-    // (askAboutPublishConflicts), and the sync that follows shows it in every
-    // window. The group chosen last is proposed again. A value an existing
-    // rule captures keeps the group of that rule.
+    // the value in is published as the Value Names dialog publishes it. The
+    // group chosen last is proposed again. A value an existing rule captures
+    // keeps the group of that rule.
     if ( !captured ) {
-        if ( const auto teamFolder = session_.teamFolder();
-             teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-            dialog->showTeamGroups( teamFolder->namingGroups(), teamFolder->isWritable(),
-                                    teamFolder->namingGroupRevisions() );
-            connect( dialog.get(), &NameValueDialog::publishRequested, teamFolder.get(),
-                     &TeamFolder::publish );
-        }
+        offerTeamGroupsIn( *dialog, session_.teamFolder(), &TeamFolder::namingGroups,
+                           &TeamFolder::namingGroupRevisions );
         dialog->proposeGroup( Configuration::get().lastNamingGroupId() );
     }
     const auto accepted = dialog->exec() == QDialog::Accepted;
     if ( accepted && !captured ) {
-        auto& config = Configuration::getSynced();
-        config.setLastNamingGroupId( dialog->chosenGroupId() );
-        config.save();
+        rememberChosenGroup( &Configuration::setLastNamingGroupId, dialog->chosenGroupId() );
     }
     if ( collection.generation() != before ) {
         session_.applyChange( Changed::ValueNames );

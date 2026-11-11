@@ -41,6 +41,11 @@ constexpr int SectionRole = Qt::UserRole + 2;
 constexpr int IdRole = Qt::UserRole + 3;
 constexpr int ItemNamesRole = Qt::UserRole + 4;
 
+Entry entryAt( const QComboBox& combo, int row )
+{
+    return static_cast<Entry>( combo.itemData( row, EntryRole ).toInt() );
+}
+
 } // namespace
 
 GroupChooser::GroupChooser( Texts texts, QWidget* parent )
@@ -128,7 +133,7 @@ GroupChooser::Choice GroupChooser::choice() const
         return chosen;
     }
     chosen.section = static_cast<Section>( combo_->itemData( row, SectionRole ).toInt() );
-    if ( static_cast<Entry>( combo_->itemData( row, EntryRole ).toInt() ) == Entry::New ) {
+    if ( entryAt( *combo_, row ) == Entry::New ) {
         chosen.name = name_->text().trimmed();
     }
     else {
@@ -207,7 +212,7 @@ int GroupChooser::rowOf( const QString& id ) const
         return -1;
     }
     for ( int row = 0; row < combo_->count(); ++row ) {
-        if ( static_cast<Entry>( combo_->itemData( row, EntryRole ).toInt() ) != Entry::Group
+        if ( entryAt( *combo_, row ) != Entry::Group
              || combo_->itemData( row, IdRole ).toString() != id ) {
             continue;
         }
@@ -234,9 +239,7 @@ void GroupChooser::currentChanged()
 {
     const auto chosen = choice();
     const auto row = combo_->currentIndex();
-    const bool isNew
-        = row >= 0
-          && static_cast<Entry>( combo_->itemData( row, EntryRole ).toInt() ) == Entry::New;
+    const bool isNew = row >= 0 && entryAt( *combo_, row ) == Entry::New;
     if ( isNew ) {
         // Proposed afresh each time: the names taken differ by section.
         const QSignalBlocker blocker( name_ );

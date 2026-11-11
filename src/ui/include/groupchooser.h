@@ -94,6 +94,13 @@ public:
         {
             return id.isEmpty();
         }
+
+        // Whether other is of the same group, or of a new group of the same
+        // section, whatever its name.
+        bool isSameGroup( const Choice& other ) const
+        {
+            return section == other.section && id == other.id;
+        }
     };
 
     explicit GroupChooser( Texts texts, QWidget* parent = nullptr );

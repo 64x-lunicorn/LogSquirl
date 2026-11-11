@@ -38,6 +38,7 @@
 #include <memory>
 #include <set>
 
+#include "addpredefinedfilterdialog.h"
 #include "crawler_children.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
@@ -485,6 +486,38 @@ SCENARIO( "A Search Line's Field Term reads the field through the tab's Log Form
             THEN( "the colon is text: the Log Line with that time matches" )
             {
                 REQUIRE( open.matchingLines() == std::set<int>{ 5 } );
+            }
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter previews a filter with Field Terms as applying it finds",
+          "[ui][fieldterm][addpredefinedfilter]" )
+{
+    GIVEN( "a tab whose Log File a Log Format with a level field parses" )
+    {
+        OpenCrawler open;
+        AddPredefinedFilterDialog dialog( QStringLiteral( R"(level:"ERROR")" ) );
+        showUntilExposed( dialog );
+
+        WHEN( "the dialog previews the filter in the tab" )
+        {
+            dialog.previewIn( open.crawler->logDataToSearch(), open.crawler->searchFlags(),
+                              open.crawler->searchPreparation() );
+            REQUIRE( waitUiState( [ &dialog ] {
+                return dialog.previewResult().state == FilterPreviewSearch::Result::State::Done;
+            } ) );
+
+            THEN( "it counts the Log Lines the Search with the filter finds" )
+            {
+                const auto errors = linesWhere( []( int i ) { return i % 4 == 0; } );
+                REQUIRE( dialog.previewResult().matchCount.get() == errors.size() );
+                REQUIRE( dialog.previewResult().firstMatch == 0_lnum );
+
+                open.crawler->searchWithPredefinedFilter( dialog.filter() );
+                QTest::qWait( 100 );
+                REQUIRE( waitUiState( [ &open ] { return !open.isSearchRunning(); } ) );
+                REQUIRE( open.matchingLines() == errors );
             }
         }
     }

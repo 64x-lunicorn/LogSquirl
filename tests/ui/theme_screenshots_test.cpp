@@ -861,7 +861,7 @@ SCENARIO( "The dialogs that add from the Log Line to a group are rendered to scr
 
         {
             AddPredefinedFilterDialog dialog( QStringLiteral( "connection refused" ) );
-            dialog.previewIn( logData, false );
+            dialog.previewIn( logData, SearchLine::Flags{} );
             showUntilExposed( dialog );
             REQUIRE( waitUiState( [ & ] {
                 return dialog.previewResult().state == FilterPreviewSearch::Result::State::Done;

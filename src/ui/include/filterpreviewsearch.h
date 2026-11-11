@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -36,13 +37,21 @@ class QTimer;
 // What the preview of Add as Predefined Filter... counts with (#958): a Search
 // of its own over the Log File, run by the Search machinery off the UI thread
 // as the Filtered View's is, so that the dialog stays responsive on a large Log
-// File. A pattern set waits a moment for the next edit (the Search runs once
-// the user pauses typing); a pattern set while a Search runs stops that one.
-// What a Search found is told only for the pattern last set.
+// File. It is none of the Open Log File's Searches -- the Search Set neither
+// makes nor follows it -- but its pattern is prepared as theirs are, with the
+// reader of the Log Format's fields (OpenLogFile::withFieldReader()), so that
+// it finds what the Search with the filter finds. A pattern set waits a moment
+// for the next edit (the Search runs once the user pauses typing); a pattern
+// set while a Search runs stops that one. What a Search found is told only for
+// the pattern last set.
 class FilterPreviewSearch : public QObject {
     Q_OBJECT
 
 public:
+    // The pattern a Search of the Log File is requested with, as set: with
+    // the reader of the Log Format's fields, say (#798).
+    using PreparePattern = std::function<RegularExpressionPattern( RegularExpressionPattern )>;
+
     // How long a pattern set waits for the next before it is searched for.
     static constexpr int SettleMilliseconds = 250;
 
@@ -65,9 +74,10 @@ public:
         QString error;
     };
 
-    // Searches the Log File of logData, which it holds on to.
+    // Searches the Log File of logData, which it holds on to, each pattern
+    // prepared with prepare; none leaves it as it is.
     explicit FilterPreviewSearch( std::shared_ptr<const LogData> logData,
-                                  QObject* parent = nullptr );
+                                  PreparePattern prepare = {}, QObject* parent = nullptr );
     ~FilterPreviewSearch() override;
 
     FilterPreviewSearch( const FilterPreviewSearch& ) = delete;
@@ -93,7 +103,9 @@ private:
     // Declared before the Search built from it, so it outlives it.
     std::shared_ptr<const LogData> logData_;
     std::unique_ptr<LogFilteredData> search_;
+    PreparePattern prepare_;
     QTimer* settle_ = nullptr;
+    // The pattern last set, prepared: what the Search tells is of it.
     RegularExpressionPattern pattern_;
     // The pattern was set and not yet searched for: what the Search tells is
     // of an earlier one.

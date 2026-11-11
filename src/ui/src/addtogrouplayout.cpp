@@ -32,6 +32,8 @@
 #include <algorithm>
 #include <vector>
 
+#include "theme.h"
+
 namespace {
 
 // The most characters of a Log Line measured around the first mark: no
@@ -50,6 +52,9 @@ LinePreview::LinePreview( QWidget* parent )
     setTextInteractionFlags( Qt::NoTextInteraction );
     // As wide as the dialog makes it: the Log Line never widens the dialog.
     setSizePolicy( QSizePolicy::Ignored, QSizePolicy::Fixed );
+    // The marks and the remark are drawn in colors read off the palette:
+    // drawn again once a Theme switch has put the new one in place (ADR 0004).
+    Theme::whenApplied( this, [ this ] { render(); } );
 }
 
 void LinePreview::setLine( const QString& text, const QList<Mark>& marks, MarkStyle style )
@@ -89,7 +94,9 @@ void LinePreview::resizeEvent( QResizeEvent* event )
 void LinePreview::changeEvent( QEvent* event )
 {
     QLabel::changeEvent( event );
-    if ( event->type() == QEvent::PaletteChange || event->type() == QEvent::FontChange ) {
+    // The width of each character changes with the font. The palette is the
+    // Theme's, followed through Theme::whenApplied().
+    if ( event->type() == QEvent::FontChange ) {
         render();
     }
 }

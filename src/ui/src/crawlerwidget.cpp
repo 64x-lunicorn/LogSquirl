@@ -263,6 +263,14 @@ std::shared_ptr<const LogData> CrawlerWidget::logDataToSearch() const
     return openLogFile_->logData();
 }
 
+std::function<RegularExpressionPattern( RegularExpressionPattern )>
+CrawlerWidget::searchPreparation() const
+{
+    return [ openLogFile = openLogFile_ ]( RegularExpressionPattern pattern ) {
+        return openLogFile->withFieldReader( std::move( pattern ) );
+    };
+}
+
 std::optional<logsquirl::valuenames::LineRange>
 CrawlerWidget::messageOf( const QString& logLine ) const
 {

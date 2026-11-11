@@ -21,22 +21,21 @@
 
 #include <memory>
 #include <optional>
-#include <utility>
 
 #include <QDialog>
 #include <QHash>
 #include <QList>
 #include <QString>
 
+#include "choosergroups.h"
+#include "groupchooser.h"
 #include "groupedits.h"
 #include "naminggroup.h"
 #include "teamfolder.h"
-#include "teamgroupedits.h"
 #include "valuenamer.h"
 #include "valueproposal.h"
 
 class AddToGroupLayout;
-class GroupChooser;
 class QComboBox;
 class QLineEdit;
 class QPushButton;
@@ -60,8 +59,8 @@ class QTableWidgetItem;
 // Template), where it goes (the Naming Group, the Name Table), the preview,
 // the warning, the buttons. The value and its name take one row, the focus in
 // the name; More rows... shows the rows of the Name Table instead, to add and
-// remove some, and a Name Table that has more rows than the value's shows
-// them from the start. The preview shows the Log Line in one line -- only its
+// remove some, and a Name Table of more than one row shows them from the
+// start. The preview shows the Log Line in one line -- only its
 // message, when the caller says where that is -- with the value marked.
 //
 // OK adds the rule, and the table unless it is one the group has, to the
@@ -153,11 +152,9 @@ Q_SIGNALS:
     void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private:
-    // The widgets, once proposal_, groups_ and captured_ are set.
-    void build();
-    // Hands the Group Chooser the groups, choosing the one of the id unless
-    // fixedGroupId() names one.
-    void offerGroups( const QString& chosenId );
+    // The widgets, once proposal_ and captured_ are set; own are the user's
+    // own groups, as read when the dialog opened.
+    void build( QList<logsquirl::valuenames::NamingGroup> own );
     // The group chosen whatever was chosen last: that of the value captured,
     // else the first that has a Name Table of the name proposed; empty for
     // none.
@@ -178,8 +175,11 @@ private:
     void tableChosen();
     void addRow();
     void removeRow();
-    // More rows...: the rows of the Name Table show instead of the value's.
+    // More rows...: the rows of the Name Table show instead of the value's,
+    // whatever table is chosen from now on.
     void showRows();
+    // The rows of the Name Table show, or the value's one row does.
+    void setRowsShown( bool shown );
     // The focus goes where the value's name is typed.
     void focusName();
     // A row of the table changed: the value's shows in its one row too.
@@ -195,21 +195,17 @@ private:
 
     QString logLine_;
     logsquirl::valuenames::NamingProposal proposal_;
-    // The user's own groups, as read when the dialog opened.
-    QList<logsquirl::valuenames::NamingGroup> groups_;
-    // The Team groups, when the dialog is given them.
-    bool showsTeam_ = false;
-    TeamGroupEdits<logsquirl::valuenames::NamingGroup> teamEdits_;
-    // The value an existing rule captures, of groups_, when opened on one.
+    // The value an existing rule captures, of the user's own groups, when
+    // opened on one.
     std::optional<logsquirl::valuenames::CapturedValue> captured_;
     QString shownPreview_;
     // What the preview warns of.
     QString previewWarning_;
-    // The group whose tables the Name Table choice offers: its section and id,
-    // an empty id for a new group.
-    std::optional<std::pair<int, QString>> tablesOf_;
-    // The id of the group OK made.
-    QString madeGroupId_;
+    // The group whose tables the Name Table choice offers, as chosen then: a
+    // new group's name may have changed since (GroupChooser::Choice::isSameGroup()).
+    std::optional<GroupChooser::Choice> tablesOf_;
+    // More rows... was clicked: the rows show for every table.
+    bool rowsAskedFor_ = false;
 
     // Where the message lies in the Log Line, when the preview shows only it.
     std::optional<logsquirl::valuenames::LineRange> message_;
@@ -218,6 +214,9 @@ private:
 
     std::unique_ptr<AddToGroupLayout> layout_;
     GroupChooser* group_ = nullptr;
+    // The user's own groups, as read when the dialog opened, and the Team
+    // Naming Groups once it is given them: what group_ offers.
+    std::unique_ptr<ChooserGroups<logsquirl::valuenames::NamingGroup>> groups_;
     QComboBox* table_ = nullptr;
     QLineEdit* newTableName_ = nullptr;
     QLineEdit* pattern_ = nullptr;

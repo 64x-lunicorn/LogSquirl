@@ -27,10 +27,12 @@
 #include "logfiltereddata.h"
 #include "searchresults.h"
 
-FilterPreviewSearch::FilterPreviewSearch( std::shared_ptr<const LogData> logData, QObject* parent )
+FilterPreviewSearch::FilterPreviewSearch( std::shared_ptr<const LogData> logData,
+                                          PreparePattern prepare, QObject* parent )
     : QObject( parent )
     , logData_( std::move( logData ) )
     , search_( logData_->getNewFilteredData() )
+    , prepare_( std::move( prepare ) )
     , settle_( new QTimer( this ) )
 {
     settle_->setSingleShot( true );
@@ -49,7 +51,9 @@ FilterPreviewSearch::~FilterPreviewSearch()
 
 void FilterPreviewSearch::setPattern( const RegularExpressionPattern& pattern )
 {
-    pattern_ = pattern;
+    // Prepared now, not when it is searched for: what the Search tells is
+    // told with the pattern it was requested with.
+    pattern_ = prepare_ && !pattern.pattern.isEmpty() ? prepare_( pattern ) : pattern;
     // What runs is of a pattern no longer wanted.
     waiting_ = true;
     search_->stop();

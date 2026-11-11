@@ -28,11 +28,11 @@
 
 #include <algorithm>
 #include <climits>
-#include <optional>
 
 #include "addtogrouplayout.h"
 #include "groupchooser.h"
 #include "groupedits.h"
+#include "regularexpression.h"
 #include "valueproposal.h"
 
 QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
@@ -46,17 +46,14 @@ QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
 
 namespace {
 
-QList<GroupChooser::Group> choicesOf( const QList<PredefinedFilterSet>& groups )
+// The names of the filters of a group, which the Group Chooser lists.
+QStringList filterNamesOf( const PredefinedFilterSet& group )
 {
-    QList<GroupChooser::Group> choices;
-    for ( const auto& group : groups ) {
-        QStringList names;
-        for ( const auto& filter : group.filters() ) {
-            names.append( filter.name );
-        }
-        choices.append( GroupChooser::Group{ group.id(), group.name(), names } );
+    QStringList names;
+    for ( const auto& filter : group.filters() ) {
+        names.append( filter.name );
     }
-    return choices;
+    return names;
 }
 
 } // namespace
@@ -64,7 +61,6 @@ QList<GroupChooser::Group> choicesOf( const QList<PredefinedFilterSet>& groups )
 AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent )
     : QDialog( parent )
     , selectedText_( selectedText )
-    , ownGroups_( PredefinedFiltersCollection::getSynced().filterSets() )
 {
     setWindowTitle( tr( "Add as Predefined Filter" ) );
 
@@ -118,7 +114,10 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
     connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
     connect( group_, &GroupChooser::choiceChanged, this, &AddPredefinedFilterDialog::groupChanged );
 
-    offerGroups( defaultFilterSetId() );
+    groups_ = std::make_unique<ChooserGroups<PredefinedFilterSet>>(
+        group_, PredefinedFiltersCollection::getSynced().filterSets(), filterNamesOf,
+        [ this ]( const QString& id ) { proposeGroup( id ); } );
+    groups_->offer( defaultFilterSetId() );
 
     name_->setFocus();
     name_->selectAll();
@@ -127,10 +126,13 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
 
 AddPredefinedFilterDialog::~AddPredefinedFilterDialog() = default;
 
-void AddPredefinedFilterDialog::previewIn( std::shared_ptr<const LogData> logData, bool matchCase )
+void AddPredefinedFilterDialog::previewIn( std::shared_ptr<const LogData> logData,
+                                           const SearchLine::Flags& searchFlags,
+                                           FilterPreviewSearch::PreparePattern prepare )
 {
-    matchCase_ = matchCase;
-    previewSearch_ = std::make_unique<FilterPreviewSearch>( std::move( logData ) );
+    searchFlags_ = searchFlags;
+    previewSearch_
+        = std::make_unique<FilterPreviewSearch>( std::move( logData ), std::move( prepare ) );
     connect( previewSearch_.get(), &FilterPreviewSearch::resultChanged, this,
              &AddPredefinedFilterDialog::showPreview );
     searchPreview();
@@ -138,9 +140,17 @@ void AddPredefinedFilterDialog::previewIn( std::shared_ptr<const LogData> logDat
 
 RegularExpressionPattern AddPredefinedFilterDialog::previewPattern() const
 {
+    const auto text = pattern_->text();
+    // A filter with Field Terms is a logical combination of its own, as the
+    // Search Line uses it (SearchLine::useFilters()): as written, its
+    // sub-patterns read as the tab's Search reads them (#798).
+    if ( hasFieldTerms( text ) ) {
+        return RegularExpressionPattern( QChar( '(' ) + text + QChar( ')' ), searchFlags_.matchCase,
+                                         false, true, !searchFlags_.useRegexp );
+    }
     // As the Search Line reads the filter: as a regex or as plain text,
     // matching case as the tab's Search does.
-    return RegularExpressionPattern( pattern_->text(), matchCase_, false, false,
+    return RegularExpressionPattern( text, searchFlags_.matchCase, false, false,
                                      !regex_->isChecked() );
 }
 
@@ -212,26 +222,12 @@ void AddPredefinedFilterDialog::showTeamGroups( const QList<PredefinedFilterSet>
                                                 bool editable,
                                                 const QHash<QString, QString>& revisions )
 {
-    const auto chosen = group_->choice().id;
-    teamEdits_.reset( groups, editable, revisions );
-    showsTeam_ = true;
-    offerGroups( chosen );
+    groups_->showTeam( groups, editable, revisions );
 }
 
 void AddPredefinedFilterDialog::proposeGroup( const QString& groupId )
 {
     group_->choose( groupId, defaultFilterSetId() );
-}
-
-void AddPredefinedFilterDialog::offerGroups( const QString& chosenId )
-{
-    std::optional<GroupChooser::TeamGroups> team;
-    if ( showsTeam_ ) {
-        team
-            = GroupChooser::TeamGroups{ choicesOf( teamEdits_.groups() ), teamEdits_.isEditable() };
-    }
-    group_->setGroups( choicesOf( ownGroups_ ), team );
-    group_->choose( chosenId, defaultFilterSetId() );
 }
 
 PredefinedFilter AddPredefinedFilterDialog::filter() const
@@ -241,8 +237,7 @@ PredefinedFilter AddPredefinedFilterDialog::filter() const
 
 QString AddPredefinedFilterDialog::chosenGroupId() const
 {
-    const auto chosen = group_->choice();
-    return chosen.isNew() ? madeGroupId_ : chosen.id;
+    return groups_->chosenId();
 }
 
 QStringList AddPredefinedFilterDialog::chosenGroupNames() const
@@ -313,25 +308,14 @@ void AddPredefinedFilterDialog::accept()
 {
     const auto chosen = group_->choice();
     const auto added = filter();
-    auto made = PredefinedFilterSet::createNewSet( chosen.name );
-    made.addFilter( added );
+    const auto* before = groups_->chosen();
+    auto group = before != nullptr ? *before : PredefinedFilterSet::createNewSet( chosen.name );
+    group.addFilter( added );
+    const auto requests = groups_->put( group );
 
     if ( chosen.section == GroupChooser::Section::Team ) {
         // Published as the Predefined Filters dialog publishes a Team group:
         // what changed against the group as given, based on its revision.
-        auto& groups = teamEdits_.groups();
-        if ( chosen.isNew() ) {
-            madeGroupId_ = made.id();
-            groups.append( made );
-        }
-        else {
-            for ( auto& group : groups ) {
-                if ( group.id() == chosen.id ) {
-                    group.addFilter( added );
-                }
-            }
-        }
-        const auto requests = teamEdits_.takeRequests();
         if ( !requests.isEmpty() ) {
             Q_EMIT publishRequested( requests );
         }
@@ -339,9 +323,8 @@ void AddPredefinedFilterDialog::accept()
     else {
         auto& collection = PredefinedFiltersCollection::get();
         if ( chosen.isNew() ) {
-            madeGroupId_ = made.id();
             auto groups = collection.filterSets();
-            groups.append( made );
+            groups.append( group );
             collection.setFilterSets( groups );
         }
         else {
