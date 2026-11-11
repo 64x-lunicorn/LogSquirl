@@ -2034,7 +2034,28 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
         = captured ? std::make_unique<NameValueDialog>( logLine, *captured, this )
                    : std::make_unique<NameValueDialog>(
                          logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    // Name This Value chooses the group (#956): a Team Naming Group it names
+    // the value in is published as the Value Names dialog publishes it, a
+    // colleague's change meanwhile asked about as there
+    // (askAboutPublishConflicts), and the sync that follows shows it in every
+    // window. The group chosen last is proposed again. A value an existing
+    // rule captures keeps the group of that rule.
+    if ( !captured ) {
+        if ( const auto teamFolder = session_.teamFolder();
+             teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+            dialog->showTeamGroups( teamFolder->namingGroups(), teamFolder->isWritable(),
+                                    teamFolder->namingGroupRevisions() );
+            connect( dialog.get(), &NameValueDialog::publishRequested, teamFolder.get(),
+                     &TeamFolder::publish );
+        }
+        dialog->proposeGroup( Configuration::get().lastNamingGroupId() );
+    }
     const auto accepted = dialog->exec() == QDialog::Accepted;
+    if ( accepted && !captured ) {
+        auto& config = Configuration::getSynced();
+        config.setLastNamingGroupId( dialog->chosenGroupId() );
+        config.save();
+    }
     if ( collection.generation() != before ) {
         session_.applyChange( Changed::ValueNames );
     }

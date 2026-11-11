@@ -695,6 +695,17 @@ public:
         lastFilterGroupId_ = id;
     }
 
+    // The id of the Naming Group Name This Value named a value in last,
+    // proposed the next time (#956); empty for none yet.
+    QString lastNamingGroupId() const
+    {
+        return lastNamingGroupId_;
+    }
+    void setLastNamingGroupId( const QString& id )
+    {
+        lastNamingGroupId_ = id;
+    }
+
     int defaultEncodingMib() const
     {
         return defaultEncodingMib_;
@@ -961,6 +972,7 @@ private:
     bool csvHeader_{};
 
     QString lastFilterGroupId_;
+    QString lastNamingGroupId_;
 
     bool showSplashScreen_{};
 

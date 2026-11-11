@@ -646,6 +646,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "export.csvHeader", config.csvHeader_, true );
 
     visit( "groupChooser.lastFilterGroup", config.lastFilterGroupId_, QString{} );
+    visit( "groupChooser.lastNamingGroup", config.lastNamingGroupId_, QString{} );
 
     visit( "commandSource.recentCommands", config.recentCommands_, RecentCommands{} );
 

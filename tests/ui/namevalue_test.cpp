@@ -28,35 +28,52 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
+#include <QHash>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSet>
+#include <QSignalSpy>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QUrl>
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "abstractlogview.h"
 #include "applicationplugins.h"
+#include "configuration.h"
 #include "context_menu_entries.h"
 #include "crawler_children.h"
 #include "crawlerwidget.h"
+#include "groupchooser.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "modal_answers.h"
 #include "namevaluedialog.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
+#include "teamfolder.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "valuenamer.h"
 #include "valuenames_fixture.h"
 #include "valuenamescollection.h"
+#include "valuenamespanel.h"
+
+// The Team Folder helpers of the unit tests, which run it against real Git
+// repositories.
+#include "../unit/teamfoldertesting.h"
 
 using logsquirl::valuenames::LineRange;
 using valuenamesfixture::NameRow;
@@ -125,6 +142,8 @@ struct CrawlerAccess {
 };
 
 const auto NameThisValue = QStringLiteral( "Name this value..." );
+const auto NewNamingGroup = QStringLiteral( "New Naming Group..." );
+const auto NewTeamNamingGroup = QStringLiteral( "New Team Naming Group..." );
 const auto EsimLine = QStringLiteral( "modem EsimState=9 done" );
 // A raw Log Line with a tab before the key and one between the key and the
 // value: drawn as "a       EsimState=      9 done".
@@ -135,12 +154,19 @@ class StoredValueNamesGuard {
 public:
     StoredValueNamesGuard()
         : before_( ValueNamesCollection::get().ownGroups() )
+        , unchecked_( ValueNamesCollection::get().uncheckedKeys() )
+        , lastGroupId_( Configuration::getSynced().lastNamingGroupId() )
     {
     }
 
     ~StoredValueNamesGuard()
     {
         storeGroups( before_ );
+        ValueNamesCollection::get().setUncheckedKeys( unchecked_ );
+        ValueNamesCollection::get().save();
+        auto& config = Configuration::getSynced();
+        config.setLastNamingGroupId( lastGroupId_ );
+        config.save();
     }
 
     StoredValueNamesGuard( const StoredValueNamesGuard& ) = delete;
@@ -156,6 +182,8 @@ public:
 
 private:
     QList<NamingGroup> before_;
+    QSet<QString> unchecked_;
+    QString lastGroupId_;
 };
 
 LineRange rangeOf( const QString& line, const QString& text )
@@ -171,6 +199,15 @@ Widget* childOf( QWidget& parent, const QString& name )
     auto* child = parent.findChild<Widget*>( name );
     REQUIRE( child != nullptr );
     return child;
+}
+
+// Chooses the entry of the dialog's Group Chooser with the text.
+void chooseGroup( NameValueDialog& dialog, const QString& text )
+{
+    auto* combo = dialog.groupChooser()->comboBox();
+    const auto row = combo->findText( text );
+    REQUIRE( row >= 0 );
+    combo->setCurrentIndex( row );
 }
 
 void setName( NameValueDialog& dialog, int row, const QString& name )
@@ -189,8 +226,11 @@ void clickOk( QDialog& dialog )
 
 // A window showing the Log File, Value Names off in its tab.
 struct NameValueWindow {
+    // With a Team Folder, the Session sets it up as the policy says.
     explicit NameValueWindow( const QString& text
-                              = EsimLine + QStringLiteral( "\nother line\n" ) + TabLine + u'\n' )
+                              = EsimLine + QStringLiteral( "\nother line\n" ) + TabLine + u'\n',
+                              std::shared_ptr<TeamFolder> teamFolder = {},
+                              const TeamFolderPolicy& teamPolicy = {} )
     {
         REQUIRE( dir.isValid() );
         const auto path = dir.filePath( QStringLiteral( "esim.log" ) );
@@ -201,8 +241,9 @@ struct NameValueWindow {
 
         auto policies = testSettingsPolicies();
         policies.presentation.showValueNames = false;
-        const auto session
-            = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+        policies.teamFolder = teamPolicy;
+        session = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>(),
+                                             nullptr, std::move( teamFolder ) );
         window = std::make_unique<MainWindow>(
             WindowSession{ session, QStringLiteral( "Main" ), 0 },
             std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
@@ -236,6 +277,7 @@ struct NameValueWindow {
     }
 
     QTemporaryDir dir;
+    std::shared_ptr<Session> session;
     std::unique_ptr<MainWindow> window;
     CrawlerWidget* crawler = nullptr;
 };
@@ -523,9 +565,11 @@ SCENARIO( "The Name this value dialog proposes everything from the Log Line, all
                      == QStringLiteral( "EsimState" ) );
             REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "ruleTemplate" ) )->text()
                      == QStringLiteral( "{name} ({value})" ) );
-            REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )->currentText()
-                     == QStringLiteral( "New Naming Group" ) );
-            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )->isEnabled() );
+            REQUIRE( dialog.groupChooser()->choice().isNew() );
+            REQUIRE( dialog.groupChooser()->comboBox()->currentText() == NewNamingGroup );
+            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )->isVisible() );
+            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )->text()
+                     == QStringLiteral( "Value Names" ) );
         }
 
         THEN( "the table's rows hold the value as a key waiting for its name" )
@@ -623,7 +667,7 @@ SCENARIO( "The Name this value dialog proposes everything from the Log Line, all
 
         THEN( "that group and its table are chosen, its rows shown with the value after them" )
         {
-            REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )->currentText()
+            REQUIRE( dialog.groupChooser()->comboBox()->currentText()
                      == QStringLiteral( "Modem" ) );
             REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )->currentText()
                      == QStringLiteral( "EsimState" ) );
@@ -654,7 +698,7 @@ SCENARIO( "The Name this value dialog proposes everything from the Log Line, all
 
         WHEN( "another group is chosen" )
         {
-            childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )->setCurrentIndex( 0 );
+            chooseGroup( dialog, QStringLiteral( "Other" ) );
 
             THEN( "a new table is proposed, as that group has none" )
             {
@@ -848,7 +892,7 @@ SCENARIO( "Name this value... names a new table Name Table N when no text comes 
 
         THEN( "the new table is Name Table 2" )
         {
-            REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )->currentText()
+            REQUIRE( dialog.groupChooser()->comboBox()->currentText()
                      == QStringLiteral( "Modem" ) );
             REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newTableName" ) )->text()
                      == QStringLiteral( "Name Table 2" ) );
@@ -856,8 +900,7 @@ SCENARIO( "Name this value... names a new table Name Table N when no text comes 
 
         WHEN( "a new group is chosen" )
         {
-            auto* group = childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) );
-            group->setCurrentIndex( group->count() - 1 );
+            chooseGroup( dialog, NewNamingGroup );
 
             THEN( "the new table is Name Table 1 again" )
             {
@@ -939,8 +982,9 @@ SCENARIO( "A further value of an existing Naming Rule is named from its Log Line
             nameInDialog(
                 *menu,
                 [ & ]( NameValueDialog& dialog ) {
-                    fixed = !childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )
-                                 ->isEnabled()
+                    fixed = !dialog.groupChooser()->isEnabled()
+                            && dialog.groupChooser()->comboBox()->currentText()
+                                   == QStringLiteral( "Modem" )
                             && childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )
                                        ->currentText()
                                    == QStringLiteral( "EsimState" )
@@ -1119,6 +1163,667 @@ SCENARIO( "A value a Team group's Naming Rule captures is not named from the con
                 *nine, QStringLiteral( "Rename EsimState 9 (Team group, read-only)" ) );
             REQUIRE( renameNine != nullptr );
             REQUIRE_FALSE( renameNine->isEnabled() );
+        }
+    }
+}
+
+namespace {
+
+QPushButton* okButton( QDialog& dialog )
+{
+    return dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok );
+}
+
+// The Team Naming Group "Modem", its Name Table EsimState naming 1.
+NamingGroup teamModem()
+{
+    auto modem = NamingGroup::createNewGroup( QStringLiteral( "Modem" ) );
+    NameTable esim;
+    esim.name = QStringLiteral( "EsimState" );
+    esim.rows = { NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) } };
+    modem.setTables( { esim } );
+    return modem;
+}
+
+} // namespace
+
+SCENARIO( "Name This Value chooses its Naming Group with the Group Chooser",
+          "[ui][valuenames][namevalue][groupchooser]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto other = NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+    StoredValueNamesGuard::storeGroups( { other } );
+
+    NameValueDialog dialog( EsimLine, rangeOf( EsimLine, QStringLiteral( "9" ) ) );
+    showUntilExposed( dialog );
+    auto* combo = dialog.groupChooser()->comboBox();
+    auto* newName = childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) );
+
+    THEN( "the user's own groups are offered under their heading, the first chosen, with New "
+          "Naming Group...; the name field is hidden; without a Team Folder no Team section" )
+    {
+        REQUIRE( combo->findText( QStringLiteral( "My Naming Groups" ) ) >= 0 );
+        REQUIRE( combo->currentText() == QStringLiteral( "Other" ) );
+        REQUIRE( dialog.chosenGroupId() == other.id() );
+        REQUIRE( combo->findText( NewNamingGroup ) >= 0 );
+        REQUIRE( newName->isHidden() );
+        REQUIRE_FALSE( dialog.groupChooser()->hasTeamSection() );
+        REQUIRE( combo->findText( QStringLiteral( "Team Naming Groups" ) ) < 0 );
+        REQUIRE( combo->findText( NewTeamNamingGroup ) < 0 );
+        REQUIRE( okButton( dialog )->isEnabled() );
+    }
+
+    WHEN( "New Naming Group... is chosen" )
+    {
+        chooseGroup( dialog, NewNamingGroup );
+        setName( dialog, 0, QStringLiteral( "Ready" ) );
+
+        THEN( "the name field shows, with the first free name" )
+        {
+            REQUIRE( newName->isVisible() );
+            REQUIRE( newName->text() == QStringLiteral( "Value Names" ) );
+            REQUIRE( okButton( dialog )->isEnabled() );
+        }
+
+        AND_WHEN( "the group is named, which keeps the rows as edited, and OK is clicked" )
+        {
+            newName->setText( QStringLiteral( "Modem" ) );
+            auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+            REQUIRE( rows->item( 0, 1 )->text() == QStringLiteral( "Ready" ) );
+            clickOk( dialog );
+
+            THEN( "the group is made with the rule and the table, after the user's other group" )
+            {
+                const auto& groups = ValueNamesCollection::get().ownGroups();
+                REQUIRE( groups.size() == 2 );
+                REQUIRE( groups[ 0 ].id() == other.id() );
+                REQUIRE( groups[ 0 ].rules().isEmpty() );
+                REQUIRE( groups[ 1 ].name() == QStringLiteral( "Modem" ) );
+                REQUIRE( groups[ 1 ].rules().size() == 1 );
+                REQUIRE( groups[ 1 ].table( QStringLiteral( "EsimState" ) ) != nullptr );
+                REQUIRE( dialog.chosenGroupId() == groups[ 1 ].id() );
+            }
+        }
+
+        AND_WHEN( "the name field is emptied" )
+        {
+            newName->setText( QString{} );
+
+            THEN( "OK is disabled, and the dialog says why" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "previewWarning" ) )->text()
+                         == QStringLiteral( "The new Naming Group has no name." ) );
+            }
+        }
+
+        AND_WHEN( "it is given the name of a group of the user's own" )
+        {
+            newName->setText( QStringLiteral( "Other" ) );
+
+            THEN( "OK is disabled, and the dialog says why" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "previewWarning" ) )
+                             ->text()
+                             .contains( QStringLiteral( "Other" ) ) );
+            }
+        }
+    }
+
+    WHEN( "a group that is gone is proposed, as the one chosen last" )
+    {
+        dialog.proposeGroup( QStringLiteral( "{gone}" ) );
+
+        THEN( "the first of the user's own is chosen" )
+        {
+            REQUIRE( dialog.chosenGroupId() == other.id() );
+        }
+    }
+}
+
+SCENARIO( "Name This Value names a value in a Team Naming Group, which it publishes",
+          "[ui][valuenames][namevalue][groupchooser]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishRequest;
+
+    const StoredValueNamesGuard guard;
+    const auto other = NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+    StoredValueNamesGuard::storeGroups( { other } );
+    const auto modem = teamModem();
+    const auto spare = NamingGroup::createNewGroup( QStringLiteral( "Spare" ) );
+    const QHash<QString, QString> revisions{ { modem.id(), QStringLiteral( "rev-1" ) },
+                                             { spare.id(), QStringLiteral( "rev-2" ) } };
+
+    // A line no table of any group is named after: the remembered group is
+    // the one chosen.
+    const auto line = QStringLiteral( "modem Signal=9 done" );
+    NameValueDialog dialog( line, rangeOf( line, QStringLiteral( "9" ) ) );
+    QSignalSpy published( &dialog, &NameValueDialog::publishRequested );
+
+    GIVEN( "Team Naming Groups that can be changed" )
+    {
+        dialog.showTeamGroups( { modem, spare }, true, revisions );
+        showUntilExposed( dialog );
+        auto* combo = dialog.groupChooser()->comboBox();
+        auto* hint = childOf<QLabel>( dialog, QStringLiteral( "teamHint" ) );
+        auto* tables = childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) );
+
+        THEN( "they are offered under a heading of their own, with New Team Naming Group..., "
+              "and the user's own group is still chosen" )
+        {
+            REQUIRE( combo->findText( QStringLiteral( "Team Naming Groups" ) ) >= 0 );
+            REQUIRE( combo->findText( QStringLiteral( "Modem" ) ) >= 0 );
+            REQUIRE( combo->findText( NewTeamNamingGroup ) >= 0 );
+            REQUIRE( dialog.chosenGroupId() == other.id() );
+            REQUIRE( hint->isHidden() );
+            REQUIRE( tables->count() == 1 );
+        }
+
+        WHEN( "a Team group is chosen" )
+        {
+            chooseGroup( dialog, QStringLiteral( "Modem" ) );
+
+            THEN( "the hint shows, and the Name Table choice offers that group's tables" )
+            {
+                REQUIRE( hint->isVisible() );
+                REQUIRE( tables->count() == 2 );
+                REQUIRE( tables->findText( QStringLiteral( "EsimState" ) ) >= 0 );
+            }
+
+            AND_WHEN( "the value is named in its table, and OK is clicked" )
+            {
+                tables->setCurrentIndex( tables->findText( QStringLiteral( "EsimState" ) ) );
+                auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+                REQUIRE( rows->rowCount() == 2 );
+                setName( dialog, 1, QStringLiteral( "Ready" ) );
+                clickOk( dialog );
+
+                THEN( "the group with the rule is published, based on the revision it was "
+                      "given with, and none of the user's own changed" )
+                {
+                    REQUIRE( published.count() == 1 );
+                    const auto requests = published.at( 0 ).at( 0 ).value<QList<PublishRequest>>();
+                    REQUIRE( requests.size() == 1 );
+                    REQUIRE( requests[ 0 ].action == GroupAction::Change );
+                    REQUIRE( requests[ 0 ].id == modem.id() );
+                    REQUIRE( requests[ 0 ].baseRevision == QStringLiteral( "rev-1" ) );
+                    const auto* group
+                        = logsquirl::teamfolder::groupOfKind<NamingGroup>( requests[ 0 ].group );
+                    REQUIRE( group != nullptr );
+                    REQUIRE( group->rules().size() == 1 );
+                    REQUIRE( group->tables().size() == 1 );
+                    REQUIRE( group->tables().front().rows
+                             == QList<NameRow>{
+                                 NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) },
+                                 NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) } } );
+                    REQUIRE( dialog.chosenGroupId() == modem.id() );
+                    const auto& own = ValueNamesCollection::get().ownGroups();
+                    REQUIRE( own.size() == 1 );
+                    REQUIRE( own.front().rules().isEmpty() );
+                }
+            }
+        }
+
+        WHEN( "the Team group was unchecked, and the value is named in it" )
+        {
+            auto& collection = ValueNamesCollection::get();
+            collection.setUncheckedKeys( { ValueNamesCollection::groupCheckKey( spare.id() ) } );
+            chooseGroup( dialog, QStringLiteral( "Spare" ) );
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+            clickOk( dialog );
+
+            THEN( "it is checked again, so that what is named shows" )
+            {
+                REQUIRE_FALSE( collection.uncheckedKeys().contains(
+                    ValueNamesCollection::groupCheckKey( spare.id() ) ) );
+            }
+        }
+
+        WHEN( "New Team Naming Group... is chosen, named, and OK clicked" )
+        {
+            chooseGroup( dialog, NewTeamNamingGroup );
+            REQUIRE( hint->isVisible() );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Signals" ) );
+            setName( dialog, 0, QStringLiteral( "Strong" ) );
+            clickOk( dialog );
+
+            THEN( "the new group with the rule and the table is published as a new Team group" )
+            {
+                REQUIRE( published.count() == 1 );
+                const auto requests = published.at( 0 ).at( 0 ).value<QList<PublishRequest>>();
+                REQUIRE( requests.size() == 1 );
+                REQUIRE( requests[ 0 ].action == GroupAction::Add );
+                REQUIRE( requests[ 0 ].name == QStringLiteral( "Signals" ) );
+                const auto* group
+                    = logsquirl::teamfolder::groupOfKind<NamingGroup>( requests[ 0 ].group );
+                REQUIRE( group != nullptr );
+                REQUIRE( group->rules().size() == 1 );
+                REQUIRE( group->table( QStringLiteral( "Signal" ) ) != nullptr );
+                REQUIRE( dialog.chosenGroupId() == requests[ 0 ].id );
+                REQUIRE( ValueNamesCollection::get().ownGroups().size() == 1 );
+            }
+        }
+
+        WHEN( "New Team Naming Group... is given a Team group's name" )
+        {
+            chooseGroup( dialog, NewTeamNamingGroup );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Modem" ) );
+
+            THEN( "OK is disabled" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+            }
+        }
+
+        WHEN( "the user's own group is kept and OK clicked" )
+        {
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+            clickOk( dialog );
+
+            THEN( "nothing is published" )
+            {
+                REQUIRE( published.isEmpty() );
+                REQUIRE( ValueNamesCollection::get().ownGroups().front().rules().size() == 1 );
+            }
+        }
+
+        WHEN( "the Team group is proposed, as the group chosen last" )
+        {
+            dialog.proposeGroup( modem.id() );
+
+            THEN( "it is chosen" )
+            {
+                REQUIRE( dialog.chosenGroupId() == modem.id() );
+            }
+        }
+    }
+
+    GIVEN( "Team Naming Groups that cannot be changed" )
+    {
+        dialog.showTeamGroups( { modem }, false, revisions );
+        dialog.proposeGroup( modem.id() );
+
+        THEN( "none of them can be chosen, and there is no New Team Naming Group..." )
+        {
+            REQUIRE( dialog.chosenGroupId() == other.id() );
+            REQUIRE( dialog.groupChooser()->comboBox()->findText( NewTeamNamingGroup ) < 0 );
+        }
+    }
+}
+
+SCENARIO( "Name This Value chooses the Team group that has a Name Table of the name proposed",
+          "[ui][valuenames][namevalue][groupchooser]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto other = NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+    StoredValueNamesGuard::storeGroups( { other } );
+    const auto modem = teamModem();
+
+    NameValueDialog dialog( EsimLine, rangeOf( EsimLine, QStringLiteral( "9" ) ) );
+    dialog.showTeamGroups( { modem }, true, {} );
+    dialog.proposeGroup( other.id() );
+
+    THEN( "that group and its table are chosen, whatever was chosen last" )
+    {
+        REQUIRE( dialog.chosenGroupId() == modem.id() );
+        REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )->currentText()
+                 == QStringLiteral( "EsimState" ) );
+    }
+}
+
+SCENARIO( "Name This Value proposes the Naming Group chosen last, the first of the user's own "
+          "once it is gone",
+          "[ui][valuenames][namevalue][groupchooser]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto first = NamingGroup::createNewGroup( QStringLiteral( "First" ) );
+    const auto other = NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+    StoredValueNamesGuard::storeGroups( { first, other } );
+    const NameValueWindow shown( CapturedLines );
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    // Opens the dialog on a value no rule captures, and reads which group it
+    // chose.
+    const auto proposedGroup = [ & ] {
+        const auto menu = menuOn( textView, 0_lnum, QStringLiteral( "4" ) );
+        QString proposed;
+        QTimer::singleShot( 0, [ & ] {
+            auto* dialog = qobject_cast<NameValueDialog*>( QApplication::activeModalWidget() );
+            REQUIRE( dialog != nullptr );
+            proposed = dialog->chosenGroupId();
+            dialog->reject();
+        } );
+        contextMenuEntry( *menu, NameThisValue )->trigger();
+        return proposed;
+    };
+    REQUIRE( proposedGroup() == first.id() );
+
+    WHEN( "a value is named in the other group" )
+    {
+        const auto menu = menuOn( textView, 2_lnum, QStringLiteral( "4" ) );
+        nameInDialog( *menu, []( NameValueDialog& dialog ) {
+            chooseGroup( dialog, QStringLiteral( "Other" ) );
+            setName( dialog, 0, QStringLiteral( "Four" ) );
+        } );
+
+        THEN( "it is remembered, and proposed the next time" )
+        {
+            REQUIRE( Configuration::getSynced().lastNamingGroupId() == other.id() );
+            REQUIRE( proposedGroup() == other.id() );
+        }
+
+        AND_WHEN( "the other group is gone" )
+        {
+            StoredValueNamesGuard::storeGroups( { first } );
+
+            THEN( "the first of the user's own is proposed" )
+            {
+                REQUIRE( proposedGroup() == first.id() );
+            }
+        }
+    }
+
+    WHEN( "a value is named in a new group" )
+    {
+        const auto menu = menuOn( textView, 2_lnum, QStringLiteral( "4" ) );
+        nameInDialog( *menu, []( NameValueDialog& dialog ) {
+            chooseGroup( dialog, NewNamingGroup );
+            setName( dialog, 0, QStringLiteral( "Four" ) );
+        } );
+
+        THEN( "the new group is proposed the next time" )
+        {
+            const auto& groups = ValueNamesCollection::get().ownGroups();
+            REQUIRE( groups.size() == 3 );
+            REQUIRE( groups.back().name() == QStringLiteral( "Value Names" ) );
+            REQUIRE( proposedGroup() == groups.back().id() );
+        }
+    }
+}
+
+SCENARIO( "Rename and Name ... in ... keep the group and the Name Table of the rule, whatever "
+          "was chosen last",
+          "[ui][valuenames][namevalue][capturedvalue][groupchooser]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto other = NamingGroup::createNewGroup( QStringLiteral( "Other" ) );
+    const auto modem = esimGroup();
+    StoredValueNamesGuard::storeGroups( { other, modem } );
+    {
+        auto& config = Configuration::getSynced();
+        config.setLastNamingGroupId( other.id() );
+        config.save();
+    }
+    const NameValueWindow shown( CapturedLines );
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    // Opens the dialog from the entry of the menu, notes what it shows, and
+    // names the value.
+    QString groupShown;
+    QString tableShown;
+    bool chooserFixed = false;
+    bool nameFieldHidden = false;
+    const auto nameFrom = [ & ]( QMenu& menu, const QString& entry ) {
+        nameInDialog(
+            menu,
+            [ & ]( NameValueDialog& dialog ) {
+                groupShown = dialog.groupChooser()->comboBox()->currentText();
+                tableShown
+                    = childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )->currentText();
+                chooserFixed = !dialog.groupChooser()->isEnabled();
+                nameFieldHidden
+                    = childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )->isHidden();
+                auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+                setName( dialog, rows->currentRow(), QStringLiteral( "Changed" ) );
+            },
+            entry );
+    };
+    const auto keptGroupAndTable = [ & ] {
+        REQUIRE( groupShown == QStringLiteral( "Modem" ) );
+        REQUIRE( tableShown == QStringLiteral( "EsimState" ) );
+        REQUIRE( chooserFixed );
+        REQUIRE( nameFieldHidden );
+        REQUIRE( Configuration::getSynced().lastNamingGroupId() == other.id() );
+        const auto& groups = ValueNamesCollection::get().ownGroups();
+        REQUIRE( groups.size() == 2 );
+        REQUIRE( groups[ 0 ].tables().isEmpty() );
+        REQUIRE( groups[ 1 ].rules() == modem.rules() );
+    };
+
+    WHEN( "a further value is named from Name ... in ..." )
+    {
+        const auto menu = menuOn( textView, 0_lnum, QStringLiteral( "4" ) );
+        nameFrom( *menu, QStringLiteral( "Name 4 in EsimState..." ) );
+
+        THEN( "the dialog showed the rule's group and table, fixed, and the group chosen last is "
+              "still the one remembered" )
+        {
+            keptGroupAndTable();
+        }
+    }
+
+    WHEN( "a Named Value is renamed" )
+    {
+        const auto menu = menuOn( textView, 1_lnum, QStringLiteral( "9" ) );
+        nameFrom( *menu, QStringLiteral( "Rename EsimState 9..." ) );
+
+        THEN( "the dialog showed the rule's group and table, fixed, and the group chosen last is "
+              "still the one remembered" )
+        {
+            keptGroupAndTable();
+        }
+    }
+}
+
+namespace {
+
+// Whether the Value Names tab of the window lists a rule of the name in the
+// Team group of the name.
+bool listsRule( MainWindow& window, const QString& teamGroup, const QString& rule )
+{
+    const auto group = QStringLiteral( "%1 (Team)" ).arg( teamGroup );
+    auto* panel = window.findChild<ValueNamesPanel*>();
+    auto* tree = panel != nullptr ? panel->findChild<QTreeWidget*>() : nullptr;
+    if ( tree == nullptr ) {
+        return false;
+    }
+    for ( int row = 0; row < tree->topLevelItemCount(); ++row ) {
+        const auto* item = tree->topLevelItem( row );
+        if ( item->text( 0 ) != group ) {
+            continue;
+        }
+        for ( int child = 0; child < item->childCount(); ++child ) {
+            if ( item->child( child )->text( 0 ).startsWith( rule ) ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+SCENARIO( "A value named in a Team Naming Group reaches the team and every window; a colleague's "
+          "change meanwhile is asked about",
+          "[ui][valuenames][namevalue][groupchooser][teamfolder]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishOutcome;
+    using logsquirl::teamfolder::PublishRequest;
+    using logsquirl::teamfolder::PublishStatus;
+    using teamfolder_testing::settled;
+    using teamfolder_testing::SyncTimeoutMs;
+
+    const teamfolder_testing::IsolatedGitEnvironment environment;
+    if ( !teamfolder_testing::gitInstalled() ) {
+        SKIP( "Git is not installed" );
+    }
+    const StoredValueNamesGuard guard;
+    StoredValueNamesGuard::storeGroups( {} );
+
+    // The team's server, holding a Naming Group a colleague published.
+    QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto server = root.filePath( "server.git" );
+    QProcess git;
+    git.start( "git", { "init", "--quiet", "--bare", server } );
+    REQUIRE( git.waitForFinished( SyncTimeoutMs ) );
+    REQUIRE( git.exitCode() == 0 );
+    const auto teamPolicy
+        = teamfolder_testing::policyFor( QUrl::fromLocalFile( server ).toString() );
+
+    const auto modem = teamModem();
+    TeamFolder colleague( root.filePath( "colleague" ) );
+    colleague.setUp( teamPolicy );
+    REQUIRE( settled( colleague ) );
+    const auto publish = [ & ]( const PublishRequest& request ) {
+        QSignalSpy finished( &colleague, &TeamFolder::publishFinished );
+        colleague.publish( { request } );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        const auto outcome = finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+        REQUIRE( outcome.results.size() == 1 );
+        REQUIRE( outcome.results[ 0 ].status == PublishStatus::Published );
+        REQUIRE( settled( colleague ) );
+    };
+    publish( PublishRequest::forGroup( modem, GroupAction::Add ) );
+
+    // Two windows of a Session whose Team Folder has synced.
+    const auto member = std::make_shared<TeamFolder>( root.filePath( "member" ) );
+    const NameValueWindow shown( EsimLine + u'\n', member, teamPolicy );
+    REQUIRE( settled( *member ) );
+    REQUIRE( member->namingGroups().size() == 1 );
+    const auto second = std::make_unique<MainWindow>(
+        WindowSession{ shown.session, QStringLiteral( "Second" ), 1 },
+        std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
+    showUntilExposed( *second );
+    shown.window->activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( shown.window.get(), 5000 ) );
+    const auto listedEverywhere = [ & ]( const QString& group ) {
+        return listsRule( *shown.window, group, QStringLiteral( "EsimState" ) )
+               && listsRule( *second, group, QStringLiteral( "EsimState" ) );
+    };
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+    const auto openMenu = [ & ] {
+        textView.selectAndDisplayLine( 0_lnum );
+        return ViewAccess::contextMenu(
+            textView, ViewAccess::pointOn( textView, 0, EsimLine.indexOf( u'9' ) ) );
+    };
+    // The rows of the colleague's copy of the Team group.
+    const auto colleaguesRows = [ & ]( const QString& group ) {
+        for ( const auto& teamGroup : colleague.namingGroups() ) {
+            if ( teamGroup.name() == group && !teamGroup.tables().isEmpty() ) {
+                return teamGroup.tables().front().rows;
+            }
+        }
+        return QList<NameRow>{};
+    };
+
+    WHEN( "the value is named in the Team group" )
+    {
+        const auto menu = openMenu();
+        nameInDialog( *menu, []( NameValueDialog& dialog ) {
+            REQUIRE( dialog.groupChooser()->hasTeamSection() );
+            REQUIRE( dialog.groupChooser()->choice().name == QStringLiteral( "Modem" ) );
+            setName( dialog, 1, QStringLiteral( "Ready" ) );
+        } );
+
+        THEN( "the colleague gets it, both windows list the rule, and the Log Line shows the "
+              "name" )
+        {
+            REQUIRE( waitUiState( [ & ] { return listedEverywhere( QStringLiteral( "Modem" ) ); },
+                                  SyncTimeoutMs ) );
+            REQUIRE( waitUiState( [ & ] {
+                textView.selectAndDisplayLine( 0_lnum );
+                return textView.showsValueNames()
+                       && textView.getSelectedTextAsShown()
+                              == QStringLiteral( "modem EsimState=Ready (9) done" );
+            } ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE(
+                colleaguesRows( QStringLiteral( "Modem" ) )
+                == QList<NameRow>{ NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) },
+                                   NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) } } );
+            REQUIRE( ValueNamesCollection::get().ownGroups().isEmpty() );
+            REQUIRE( Configuration::getSynced().lastNamingGroupId() == modem.id() );
+        }
+    }
+
+    WHEN( "the value is named in a new Team group" )
+    {
+        const auto menu = openMenu();
+        nameInDialog( *menu, []( NameValueDialog& dialog ) {
+            chooseGroup( dialog, NewTeamNamingGroup );
+            childOf<QLineEdit>( dialog, QStringLiteral( "newGroupName" ) )
+                ->setText( QStringLiteral( "Signals" ) );
+            auto* tables = childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) );
+            REQUIRE( tables->count() == 1 );
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+        } );
+
+        THEN( "the colleague gets the group, and both windows list it" )
+        {
+            REQUIRE( waitUiState( [ & ] { return listedEverywhere( QStringLiteral( "Signals" ) ); },
+                                  SyncTimeoutMs ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE( colleague.namingGroups().size() == 2 );
+            REQUIRE(
+                colleaguesRows( QStringLiteral( "Signals" ) )
+                == QList<NameRow>{ NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) } } );
+        }
+    }
+
+    WHEN( "the colleague changed the Team group since the last sync, and the value is named in "
+          "it" )
+    {
+        auto theirs = modem;
+        auto tables = theirs.tables();
+        tables.front().rows.append( NameRow{ QStringLiteral( "2" ), QStringLiteral( "Theirs" ) } );
+        theirs.setTables( tables );
+        auto change = PublishRequest::forGroup( theirs, GroupAction::Change );
+        change.baseRevision = colleague.namingGroupRevision( modem.id() );
+        publish( change );
+
+        QSignalSpy finished( member.get(), &TeamFolder::publishFinished );
+        const auto menu = openMenu();
+        nameInDialog( *menu, []( NameValueDialog& dialog ) {
+            setName( dialog, 1, QStringLiteral( "Ready" ) );
+        } );
+        // The publish meets their change. The window system gives the window
+        // the focus back once the dialog is gone (the offscreen platform does
+        // not): then it asks.
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        const auto outcome = finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+        REQUIRE( outcome.results.size() == 1 );
+        REQUIRE( outcome.results[ 0 ].status == PublishStatus::Conflict );
+        shown.window->activateWindow();
+        ModalAnswers modals;
+        modals.clickButton( QStringLiteral( "Keep mine" ) );
+
+        THEN( "the window asks as the Value Names dialog's publish does, and Keep mine publishes "
+              "the name over their change" )
+        {
+            REQUIRE( waitUiState( [ & ] { return modals.unanswered() == 0; }, SyncTimeoutMs ) );
+            REQUIRE( modals.messages().size() == 1 );
+            REQUIRE( modals.messages()[ 0 ].contains(
+                QStringLiteral( "Somebody else changed the Team group \"Modem\"" ) ) );
+            REQUIRE( modals.unexpectedMessageBoxes() == 0 );
+            REQUIRE( waitUiState( [ & ] { return listedEverywhere( QStringLiteral( "Modem" ) ); },
+                                  SyncTimeoutMs ) );
+            REQUIRE( settled( *member ) );
+            colleague.sync();
+            REQUIRE( settled( colleague ) );
+            REQUIRE(
+                colleaguesRows( QStringLiteral( "Modem" ) )
+                == QList<NameRow>{ NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) },
+                                   NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) } } );
         }
     }
 }
