@@ -321,21 +321,13 @@ std::optional<LineRange> valueTextAt( QStringView line, qsizetype column )
     if ( const auto uuid = uuidAround( line, column ) ) {
         return uuid;
     }
-    if ( const auto word = around( isWordCharacter ) ) {
-        if ( holdingValue( word ) ) {
-            return word;
-        }
-        // A word without a number is a text value (#957), '-' joining it to
-        // the next one: user_id of user_id=5, read-only. Unless what '-'
-        // joins holds a number, which a click on its digits names: req of
-        // req-42.
-        const auto text = around( isTextValueCharacter );
-        return holdingValue( text ) ? word : text;
+    if ( const auto word = holdingValue( around( isWordCharacter ) ) ) {
+        return word;
     }
     if ( const auto run = holdingValue( around( []( QChar c ) { return !c.isSpace(); } ) ) ) {
         return run;
     }
-    // A text value (#957) around a '-': the word, '_' and '-' in it.
+    // A text value (#957): the word, '_' and '-' in it.
     return around( isTextValueCharacter );
 }
 

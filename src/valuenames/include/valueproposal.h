@@ -73,12 +73,9 @@ struct FoundValue {
 std::optional<FoundValue> valueIn( QStringView line, LineRange range );
 
 // What the user points at when nothing is selected: the UUID at the column;
-// else the word at the column if it holds a value; else, on a word without
-// one, that word with the words '-' joins to it, a text value (#957) --
-// user_id of user_id=5, read-only -- or the word alone when what '-' joins
-// holds a number (req of req-42, whose digits a click names). On a separator,
-// the run of non-blank text there if it holds a value, else the text value
-// around it. None on a blank or a separator outside a value.
+// else the word at the column if it holds a value, else the run of non-blank
+// text there if that does; else the word at the column, its letters, digits,
+// '_' and '-', a text value (#957). None on a blank or a separator.
 std::optional<LineRange> valueTextAt( QStringView line, qsizetype column );
 
 // What "Name this value..." proposes for the value in the range of the line.
