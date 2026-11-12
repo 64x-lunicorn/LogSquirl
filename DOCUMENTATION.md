@@ -76,7 +76,8 @@ example wrapped into an `.intunewin` package for Microsoft Intune:
 CI checks all of this, except the elevation prompt itself, on every build of
 the installer.
 
-For Windows there is also a portable package, `logsquirl-win-x64-portable.zip`:
+For Windows there is also a portable package, `logsquirl-<version>-win-x64-portable.zip`
+(for example `logsquirl-26.12.0-win-x64-portable.zip`):
 unpack it anywhere and start `logsquirl_portable.exe`. It keeps everything it
 stores beside the executable instead of in the user profile; any *logsquirl*
 does so when it finds a `logsquirl.conf` beside itself:
