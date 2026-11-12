@@ -123,6 +123,7 @@
   `logsquirl-26.12.0-beta3-arm64.app.tar.gz`, so several downloaded or
   unpacked ones can be told apart. The installer and the DMG keep their
   names, and the website's *Portable ZIP* button opens the release page.
+  (#969)
 
 ## Internal
 
