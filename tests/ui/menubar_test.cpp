@@ -518,11 +518,11 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
         const ShownWindow shown;
         const auto entries = menuBarEntries( *shown.window );
 
-        THEN( "it has File, Edit, View, Tools, Favorites, Sources and Help" )
+        THEN( "it has File, Edit, View, Tools, Favorites, Plugins and Help" )
         {
             CHECK(
                 topLevelTitles( *shown.window )
-                == QStringList{ "File", "Edit", "View", "Tools", "Favorites", "Sources", "Help" } );
+                == QStringList{ "File", "Edit", "View", "Tools", "Favorites", "Plugins", "Help" } );
         }
 
         THEN( "the file actions are in the File menu" )
@@ -561,12 +561,11 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
             CHECK( pathOf( entries, QStringLiteral( "Encoding" ) ) == "View" );
         }
 
-        THEN( "Highlighters, the dialogs, the Plugins and Options are in the Tools menu" )
+        THEN( "Highlighters, the dialogs and Options are in the Tools menu" )
         {
             CHECK( pathOf( entries, QStringLiteral( "Highlighters" ) ) == "Tools" );
             CHECK( pathOf( entries, QStringLiteral( "Configure Highlighters..." ) )
                    == "Tools/Highlighters" );
-            CHECK( pathOf( entries, QStringLiteral( "Plugins" ) ) == "Tools" );
             for ( const auto* text :
                   { "Predefined Filters...", "Value Names...", "Import Chipmunk Filters...",
                     "Regex Lab...", "Manage Tab Groups...", "Command Palette...",
@@ -574,7 +573,16 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "Tools" );
             }
-            CHECK( pathOf( entries, QStringLiteral( "Plugin Management..." ) ) == "Tools/Plugins" );
+        }
+
+        // Plugins are a main feature, so they have a menu of their own again,
+        // and the data sources, which plugins bring, are in it.
+        THEN( "the data sources and Plugin Management are in the Plugins menu" )
+        {
+            CHECK( pathOf( entries, QStringLiteral( "Data Sources" ) ) == "Plugins" );
+            CHECK( pathOf( entries, QStringLiteral( "(no data source plugins)" ) )
+                   == "Plugins/Data Sources" );
+            CHECK( pathOf( entries, QStringLiteral( "Plugin Management..." ) ) == "Plugins" );
         }
     }
 }
@@ -816,7 +824,7 @@ SCENARIO( "The entries of the menu bar are named, cased and spelled one way", "[
         const ShownWindow shown;
         const auto entries = menuBarEntries( *shown.window );
 
-        THEN( "every top-level menu has a mnemonic, and so have Highlighters and Plugins" )
+        THEN( "every top-level menu has a mnemonic, and so have Highlighters and Data Sources" )
         {
             for ( auto* top : shown.window->menuBar()->actions() ) {
                 if ( auto* menu = top->menu() ) {
@@ -824,7 +832,7 @@ SCENARIO( "The entries of the menu bar are named, cased and spelled one way", "[
                     CHECK( menuwording::hasMnemonic( menu->title() ) );
                 }
             }
-            for ( const auto* title : { "Highlighters", "Plugins" } ) {
+            for ( const auto* title : { "Highlighters", "Data Sources" } ) {
                 INFO( title );
                 const auto found = entriesNamed( entries, QString::fromLatin1( title ) );
                 REQUIRE( found.size() == 1 );
@@ -976,8 +984,8 @@ std::vector<ActionWording> actionWordings( MainWindow& window )
 
 } // namespace
 
-// A language change retitles every menu of the menu bar, the Plugins and
-// Sources menus and the Open Recent and Encoding submenus too (#913), and
+// A language change retitles every menu of the menu bar, the Plugins menu
+// and its Data Sources and the Open Recent and Encoding submenus too (#913), and
 // the Encoding families and every action of the menu bar (#915).
 SCENARIO( "A language change retitles every menu and submenu of the menu bar", "[ui][menubar]" )
 {

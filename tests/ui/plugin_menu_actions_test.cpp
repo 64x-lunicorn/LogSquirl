@@ -139,11 +139,10 @@ QMenu* submenuOf( const QList<QAction*>& actions, const QString& title )
     return nullptr;
 }
 
-/// The window's Plugins menu, which sits in Tools as the plugin SDK guide says, or nullptr.
+/// The window's Plugins menu, in the menu bar as the plugin SDK guide says, or nullptr.
 QMenu* pluginsMenuOf( const MainWindow& window )
 {
-    auto* tools = submenuOf( window.menuBar()->actions(), QStringLiteral( "Tools" ) );
-    return tools == nullptr ? nullptr : submenuOf( tools->actions(), QStringLiteral( "Plugins" ) );
+    return submenuOf( window.menuBar()->actions(), QStringLiteral( "Plugins" ) );
 }
 
 /// The action of the menu with the given text, or nullptr.

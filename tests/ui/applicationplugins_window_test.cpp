@@ -835,11 +835,11 @@ void installLifecycleProbe( const QString& root )
                         .toUtf8() );
 }
 
-/// The action of the window's Sources menu with the given text, or nullptr.
+/// The action of the window's Plugins > Data Sources menu with the given text, or nullptr.
 QAction* sourcesMenuAction( const MainWindow& window, const QString& text )
 {
     for ( const auto* menu : window.findChildren<QMenu*>() ) {
-        if ( QString( menu->title() ).remove( u'&' ) != QStringLiteral( "Sources" ) ) {
+        if ( QString( menu->title() ).remove( u'&' ) != QStringLiteral( "Data Sources" ) ) {
             continue;
         }
         for ( auto* action : menu->actions() ) {

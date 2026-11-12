@@ -42,6 +42,11 @@
   Value shows one row for the value and its name, with *More rows...* for the
   whole Name Table, and previews the Log Line's message with the value
   marked. (#958)
+- **Plugins have their menu in the menu bar again**: the *Plugins* menu sits
+  between *Favorites* and *Help* and holds everything plugins bring: the
+  *Data Sources* submenu (the former *Sources* menu), the items plugins add
+  and *Plugin Management...*. In 26.12.0-beta2 it was a submenu of *Tools*.
+  A plugin's `menu_path` works as before. (#970)
 
 ## Bug fixes
 

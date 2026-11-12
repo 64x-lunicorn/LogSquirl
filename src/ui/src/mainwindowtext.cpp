@@ -20,7 +20,7 @@ const char* menu::helpTitle = QT_TR_NOOP( "&Help" );
 const char* menu::encodingTitle = QT_TR_NOOP( "E&ncoding" );
 const char* menu::recentFilesTitle = QT_TR_NOOP( "Open Recent" );
 const char* menu::pluginsTitle = QT_TR_NOOP( "P&lugins" );
-const char* menu::sourcesTitle = QT_TR_NOOP( "&Sources" );
+const char* menu::sourcesTitle = QT_TR_NOOP( "&Data Sources" );
 
 // toolbar
 const char* toolbar::toolbarTitle = QT_TR_NOOP( "&Toolbar" );

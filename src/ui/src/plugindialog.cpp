@@ -496,7 +496,7 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
     statusLabel_->setText( tr( "%1 installed and activated." ).arg( pluginName ) );
     logsquirl::plaintext::information( this, tr( "Plugin Installed" ),
                                        tr( "%1 has been installed and activated.\n\n"
-                                           "You can now use it from Tools > Plugins." )
+                                           "You can now use it from the Plugins menu." )
                                            .arg( pluginName ) );
 
     rebuildMergedList();
