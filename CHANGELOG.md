@@ -46,7 +46,7 @@
   between *Favorites* and *Help* and holds everything plugins bring: the
   *Data Sources* submenu (the former *Sources* menu), the items plugins add
   and *Plugin Management...*. In 26.12.0-beta2 it was a submenu of *Tools*.
-  A plugin's `menu_path` works as before.
+  A plugin's `menu_path` works as before. (#970)
 
 ## Bug fixes
 
