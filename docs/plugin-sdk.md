@@ -32,7 +32,7 @@ plugins. This design decouples plugin licensing from the GPL-licensed host:
 ## Quick Start
 
 The example below is a complete UI extension plugin: it adds a *Say Hello*
-item to `Tools` → `Plugins` that shows a notification and, on a LogSquirl
+item to the `Plugins` menu that shows a notification and, on a LogSquirl
 that offers the Regex Lab to plugins, a *Test Pattern* item that has the user
 test a pattern there (see [A Growing API](#a-growing-api)). It is the plugin in
 [`docs/plugin-sdk/my_plugin/`](plugin-sdk/my_plugin/): LogSquirl's own build
@@ -60,7 +60,7 @@ my_plugin/
     "type": "ui",
     "library": "my_plugin",
     "api_version": 1,
-    "description": "Says hello from the Tools menu, under Plugins.",
+    "description": "Says hello from the Plugins menu.",
     "author": "Your Name",
     "license": "MIT"
 }
@@ -104,7 +104,7 @@ const LogSquirlPluginInfo pluginInfo = {
     .id = "com.example.my-plugin",
     .name = "My Plugin",
     .version = "0.1.0",
-    .description = "Says hello from the Tools menu, under Plugins.",
+    .description = "Says hello from the Plugins menu.",
     .author = "Your Name",
     .license = "MIT",
     .type = LOGSQUIRL_PLUGIN_UI,
@@ -440,7 +440,7 @@ looked for in the usual places only, so load it by its full path.
 
 LogSquirl reads the manifests when it starts. If two directories hold a plugin
 with the same `id`, the one found first is used. Plugins are enabled and
-disabled in `Tools` → `Plugins` → `Plugin Management...`.
+disabled in `Plugins` → `Plugin Management...`.
 
 ---
 
@@ -1175,7 +1175,7 @@ settings.
 
 ### Data Source Streaming
 
-A data source plugin is listed in the `Sources` menu. Choosing it starts a
+A data source plugin is listed in `Plugins` → `Data Sources`. Choosing it starts a
 stream that opens as a new tab; the lines the plugin pushes go into that tab:
 
 ```c
@@ -1196,7 +1196,7 @@ api->signal_error( handle, "Device disconnected" );
 
 Lines pushed while no stream of the plugin is running are dropped. A plugin
 has one stream at a time: while it runs, choosing the plugin again in the
-`Sources` menu does not start another.
+`Data Sources` menu does not start another.
 
 Call `signal_eos`, from any thread, when the source has nothing more to give:
 the process exited, the device went away, the file was read to its end. The
@@ -1206,7 +1206,7 @@ the stream as it ends any other: it calls `logsquirl_datasource_stop`, if the
 plugin exports it, and counts the data source as stopped. Its tab stays open
 and keeps showing what was pushed: the stream's file stays until the plugin is
 disabled or unloaded, or LogSquirl closes. The user can start the data source
-again from the `Sources` menu, which opens a new tab with a stream of its own.
+again from `Plugins` → `Data Sources`, which opens a new tab with a stream of its own.
 
 A plugin learns when its stream starts and stops from two optional exports
 (added in LogSquirl 26.12, see
@@ -1424,7 +1424,7 @@ api->show_notification( handle, "Import complete" );
 /* Ask the host to open a file */
 api->open_file( handle, "/tmp/converted.log", 0 /* follow = false */ );
 
-/* Add an item to Tools > Plugins */
+/* Add an item to the Plugins menu */
 api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
 ```
 
@@ -1433,15 +1433,14 @@ active LogSquirl window on its UI thread, at once when called there, else once
 that window's event loop turns, and the call returns at once. A call queued by
 a plugin that is unloaded before then is dropped.
 
-The items of all plugins go into the `Plugins` submenu of the `Tools` menu
-(`Tools` → `Plugins`; until LogSquirl 26.12 it was a `Plugins` menu of its own
-in the menu bar). `menu_path` names the submenus of `Tools` → `Plugins` the
-item goes into, separated by `/`: `"My Plugin/Sub"` puts `label` into
-`Tools` → `Plugins` → `My Plugin` → `Sub`. An empty path, or `"Plugins"`,
-puts the item directly into `Tools` → `Plugins`; a path starting with
-`Plugins/` is read without that first segment. A path never leaves
-`Tools` → `Plugins`: `"Tools"` is a submenu named `Tools` within it, not the
-`Tools` menu. The last segment is a submenu too, the item's own
+The items of all plugins go into the `Plugins` menu of the menu bar (in
+26.12-beta2 it was a `Plugins` submenu of the `Tools` menu). `menu_path` names
+the submenus of `Plugins` the item goes into, separated by `/`:
+`"My Plugin/Sub"` puts `label` into `Plugins` → `My Plugin` → `Sub`. An empty
+path, or `"Plugins"`, puts the item directly into `Plugins`; a path starting
+with `Plugins/` is read without that first segment. A path never leaves
+`Plugins`: `"Tools"` is a submenu named `Tools` within it, not the `Tools`
+menu. The last segment is a submenu too, the item's own
 text is always `label`. Items and submenus go above `Plugin Management...`,
 and plugins naming the same path share its submenus. When the plugin is
 unloaded, its items go away, and so does every submenu nothing is left in.
@@ -1490,7 +1489,7 @@ Table View and the Filtered View, in every window and every tab, those opened
 later included. The items of all plugins sit below a separator at the end of
 the menu, in the order they were registered; without any, there is no
 separator. `menu_path` makes submenus of that section as it does for
-`Tools` → `Plugins` (`"My Plugin/Decode"`), and an empty path, or `NULL`, puts the
+the `Plugins` menu (`"My Plugin/Decode"`), and an empty path, or `NULL`, puts the
 item directly into the section.
 
 ```c
@@ -1931,7 +1930,7 @@ extern "C" LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_configure( void* parent
 ```
 
 The user opens it with the *Configure...* button of the plugin's card in
-`Tools` → `Plugins` → `Plugin Management...`. The button is enabled only while the plugin
+`Plugins` → `Plugin Management...`. The button is enabled only while the plugin
 is loaded and exports `logsquirl_plugin_configure`; each click calls it once.
 The parent is the LogSquirl main window, not the Plugin Management dialog, so a
 window the plugin keeps open outlives the dialog.
@@ -2008,7 +2007,7 @@ message. Plugin authors then update `api_version` and adapt to the new API.
 
 ## Plugin Repository
 
-LogSquirl includes a built-in plugin manager (Tools → Plugins → Plugin Management...)
+LogSquirl includes a built-in plugin manager (Plugins → Plugin Management...)
 that lists installed and available plugins in a unified card-based dialog.
 
 ### Registry Architecture

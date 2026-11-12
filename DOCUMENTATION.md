@@ -1537,13 +1537,12 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   `Manage Tab Groups...` (see [Tab groups](#tab-groups)) and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
-  The key can be changed in the shortcut settings. Then the `Plugins`
-  submenu, with the items plugins add and `Plugin Management...` (see
-  [Plugins](#plugins)), and `Preferences...` (see [Settings](#settings); on
-  macOS it is in the application menu).
+  The key can be changed in the shortcut settings. Then `Preferences...`
+  (see [Settings](#settings); on macOS it is in the application menu).
 - **Favorites**: `Add to Favorites` and `Remove from Favorites...`, followed by
   the favorite files, which open when chosen.
-- **Sources**: see [Plugins](#plugins).
+- **Plugins**: the `Data Sources` submenu, the items plugins add and
+  `Plugin Management...` (see [Plugins](#plugins)).
 - **Help**: `Documentation...` (this guide), `LogSquirl on GitHub` (opens the
   project's page on GitHub), `What's New in <YY.MM>...`, named with the month
   of the running version, for example `What's New in 26.12...` (opens that
@@ -1577,7 +1576,7 @@ convert at the same time. A cancelled conversion opens no tab, and a failed
 one tells you which plugin could not convert which file. Any plugin that
 offers a converter converts, whatever its kind.
 
-`Tools->Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
+`Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
 *Install* (or *Update*) and *Enable* or *Disable*; an installed plugin also has
@@ -1587,7 +1586,7 @@ plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in `Tools->Plugins`, above `Plugin Management...`. A UI extension plugin can
+in the `Plugins` menu, above `Plugin Management...`. A UI extension plugin can
 also go to a line of the tab in front -- it is selected and scrolled into view
 as with *Go to Line* -- and read the lines you selected there; a selection
 within a line counts as the whole line.
@@ -1621,7 +1620,7 @@ it holds the plugins it came with and is its user plugin directory too, so
 *Install* and *Update* put plugins there, and an update replaces the copy it
 came with.
 
-The `Sources` menu lists the installed data source plugins. Choosing one loads
+`Plugins` → `Data Sources` lists the installed data source plugins. Choosing one loads
 the plugin if needed and starts it; the stream opens as a new tab in the window
 you chose it in. Without a data source plugin the menu says
 "(no data source plugins)".

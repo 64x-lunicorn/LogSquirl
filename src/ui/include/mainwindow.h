@@ -327,7 +327,7 @@ private Q_SLOTS:
     void startPluginDataSource( const QString& pluginId );
     void handleDataSourceStarted( const QString& pluginId, const QString& displayName,
                                   const QString& filePath );
-    // List the data source plugins the catalog knows in the Sources menu.
+    // List the data source plugins the catalog knows in Plugins > Data Sources.
     void updateSourcesMenu();
     // Make this window the one plugins open files in and ask for the active file.
     void servePluginCallbacks();

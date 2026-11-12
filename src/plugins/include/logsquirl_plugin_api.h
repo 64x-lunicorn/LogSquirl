@@ -374,17 +374,17 @@ typedef struct {
     void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
 
     /**
-     * Add a custom action to the host's Tools > Plugins menu.  Each call adds an
+     * Add a custom action to the host's Plugins menu.  Each call adds an
      * item, but for a menu path and label the plugin already has an item of:
      * then it adds nothing.  Paths that name the same submenu, such as
      * "Tools" and "Plugins/Tools/", count as the same; an item of the same
      * label in another submenu is one of its own.  The item goes away when
      * the plugin is unloaded, not before: an item to be removed earlier is
      * registered with register_menu_action_ex.
-     * @param menu_path  Slash-separated path of submenus of Tools > Plugins the
+     * @param menu_path  Slash-separated path of submenus of Plugins the
      *                   item goes into, e.g. "My Plugin/Sub" for
-     *                   Tools > Plugins > My Plugin > Sub. An empty path (or "Plugins")
-     *                   puts the item directly into Tools > Plugins.
+     *                   Plugins > My Plugin > Sub. An empty path (or "Plugins")
+     *                   puts the item directly into Plugins.
      * @param label      Menu item label.
      * @param callback   Function called when the item is triggered.
      * @param user_data  Passed back to callback unchanged.
@@ -561,7 +561,7 @@ typedef struct {
                                           void* user_data );
 
     /**
-     * Add an item to the host's Tools > Plugins menu, as register_menu_action does,
+     * Add an item to the host's Plugins menu, as register_menu_action does,
      * and return an id that removes it again with unregister_menu_action
      * (LogSquirl 26.12).  Each call adds an item of its own; a plugin's items
      * in one submenu have different labels, while items of the same label in

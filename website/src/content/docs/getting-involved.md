@@ -23,7 +23,7 @@ a correction there is a pull request like any other.
 
 ## Plugins
 
-LogSquirl installs plugins from its own catalog (**Tools → Plugins → Plugin Management…**). See
+LogSquirl installs plugins from its own catalog (**Plugins → Plugin Management…**). See
 [Plugins](/docs/plugins/) in the documentation, and the
 [Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md) to write one.
 

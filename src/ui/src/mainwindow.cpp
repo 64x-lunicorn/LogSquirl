@@ -227,7 +227,7 @@ MainWindow::MainWindow( WindowSession session,
     createActions();
 
     // The plugins are not discovered here: they load once for the
-    // application, after the first window shows (#303). The Sources menu and
+    // application, after the first window shows (#303). Data Sources and
     // the dashboard list them once they have.
     createMenus();
     createToolBars();
@@ -1457,21 +1457,21 @@ void MainWindow::createMenus()
     toolsMenu->addAction( commandPaletteAction );
     toolsMenu->addSeparator();
 
-    pluginsMenu = toolsMenu->addMenu( tr( menu::pluginsTitle ) );
-    // Plugin-contributed actions are inserted at the top (before this separator)
-    // by the Plugin UI Port (PluginUiAdapter).  Management actions live below the separator.
-    pluginMenuSeparator_ = pluginsMenu->addSeparator();
-    pluginsMenu->addAction( pluginsAction );
-    toolsMenu->addSeparator();
-
     // On macOS, Qt moves it to the application menu, by its role.
     toolsMenu->addAction( optionsAction );
 
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
     favoritesMenu->setToolTipsVisible( true );
 
-    sourcesMenu = menuBar()->addMenu( tr( menu::sourcesTitle ) );
+    // Everything plugins bring is in one menu of the menu bar: the data
+    // sources, the plugins' own items and Plugin Management.
+    pluginsMenu = menuBar()->addMenu( tr( menu::pluginsTitle ) );
+    sourcesMenu = pluginsMenu->addMenu( tr( menu::sourcesTitle ) );
     updateSourcesMenu();
+    // Plugin-contributed actions are inserted above this separator by the
+    // Plugin UI Port (PluginUiAdapter); Plugin Management is below it.
+    pluginMenuSeparator_ = pluginsMenu->addSeparator();
+    pluginsMenu->addAction( pluginsAction );
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );

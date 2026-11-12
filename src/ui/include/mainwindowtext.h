@@ -16,7 +16,7 @@ extern const char* highlightersTitle;
 extern const char* favoritesTitle;
 extern const char* helpTitle;
 extern const char* encodingTitle;
-// Submenus of the File and Tools menus, and the Sources menu (#913).
+// Submenus of the File and Tools menus, the Plugins menu and its Data Sources (#913).
 extern const char* recentFilesTitle;
 extern const char* pluginsTitle;
 extern const char* sourcesTitle;
