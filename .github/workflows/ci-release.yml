@@ -523,6 +523,23 @@ jobs:
             mv ./logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz ./linux-debug/
           fi
 
+      # A portable package is unpacked and kept, often beside an older one, so
+      # its name carries the release's version (26.12.0-beta3, not the build
+      # version). The installer and the DMG keep their names: the website's
+      # releases/latest/download links and the Homebrew cask depend on them.
+      # Renamed here, after the sentry and sbom jobs, which read the build's
+      # names.
+      - name: Put the version into the portable packages' names
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          mv ./packages-windows-x64/logsquirl-win-x64-portable.zip \
+             "./packages-windows-x64/logsquirl-${version}-win-x64-portable.zip"
+          mv ./packages-mac-arm64/logsquirl-arm64.app.tar.gz \
+             "./packages-mac-arm64/logsquirl-${version}-arm64.app.tar.gz"
+
       - name: Prepare binary artifacts
         run: |
           set -euo pipefail

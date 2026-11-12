@@ -115,6 +115,16 @@
   shown last. They are now disabled and unchecked until a Log File is in
   front. (#946)
 
+## Build and packaging
+
+- **The portable packages name their version**: the Windows portable zip and
+  the macOS app archive of a release are called, for example,
+  `logsquirl-26.12.0-beta3-win-x64-portable.zip` and
+  `logsquirl-26.12.0-beta3-arm64.app.tar.gz`, so several downloaded or
+  unpacked ones can be told apart. The installer and the DMG keep their
+  names, and the website's *Portable ZIP* button opens the release page.
+  (#969)
+
 ## Internal
 
 - **The Filters tab of the sidebar is built on a shared sidebar tab module**:
