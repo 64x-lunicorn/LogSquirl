@@ -1,5 +1,17 @@
 # Unreleased
 
+## Build and packaging
+
+- **The build images no longer install soupsieve**: beautifulsoup4's CSS
+  selector engine came in through aqtinstall, which installs Qt into the
+  Linux build images and never runs a CSS selector. soupsieve 2.9.2 has two
+  denial-of-service advisories (GHSA-4j63-6c4x-wfg4, GHSA-mmhr-3c5m-f64f),
+  whose fix needs a newer Python than Ubuntu 22.04 has; the aqtinstall lock
+  leaves it out and the images install that lock with `--no-deps`. LogSquirl
+  itself never contained it.
+
+# v26.12.0-beta3 (2026-11-13)
+
 ## Changes
 
 - **The Help menu opens LogSquirl on GitHub and the release notes**: after
@@ -59,7 +71,6 @@
   Search, a growing or truncated Log File no longer restarts or continues it
   with the auto-refresh of the Search shown before; each Search keeps its
   own, and a Search you stopped stays stopped. (#954)
-
 - **The group list of the Predefined Filters, Highlighters and Value Names
   dialogs is narrow again**: its buttons wrap onto short rows (New, Delete,
   Move up and Move down; Share with team and Copy to my groups; Export... and
@@ -129,13 +140,6 @@
   unpacked ones can be told apart. The installer and the DMG keep their
   names, and the website's *Portable ZIP* button opens the release page.
   (#969)
-- **The build images no longer install soupsieve**: beautifulsoup4's CSS
-  selector engine came in through aqtinstall, which installs Qt into the
-  Linux build images and never runs a CSS selector. soupsieve 2.9.2 has two
-  denial-of-service advisories (GHSA-4j63-6c4x-wfg4, GHSA-mmhr-3c5m-f64f),
-  whose fix needs a newer Python than Ubuntu 22.04 has; the aqtinstall lock
-  leaves it out and the images install that lock with `--no-deps`. LogSquirl
-  itself never contained it.
 
 ## Internal
 
