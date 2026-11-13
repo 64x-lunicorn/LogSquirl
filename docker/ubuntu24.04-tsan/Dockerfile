@@ -57,7 +57,7 @@ ENV PATH=/opt/bin:$PATH
 # gives TSan's reports Qt's function names and lines.
 ENV QT_VERSION=6.11.3
 COPY shared/aqtinstall-requirements.txt /tmp/
-RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
+RUN pip3 install --no-cache-dir --require-hashes --no-deps --only-binary :all: \
         --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \
     PYTHONPATH=/tmp/aqtinstall python3 -m aqt install-src linux desktop ${QT_VERSION} \
         --archives qtbase qtsvg qttools \

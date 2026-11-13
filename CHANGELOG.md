@@ -129,6 +129,13 @@
   unpacked ones can be told apart. The installer and the DMG keep their
   names, and the website's *Portable ZIP* button opens the release page.
   (#969)
+- **The build images no longer install soupsieve**: beautifulsoup4's CSS
+  selector engine came in through aqtinstall, which installs Qt into the
+  Linux build images and never runs a CSS selector. soupsieve 2.9.2 has two
+  denial-of-service advisories (GHSA-4j63-6c4x-wfg4, GHSA-mmhr-3c5m-f64f),
+  whose fix needs a newer Python than Ubuntu 22.04 has; the aqtinstall lock
+  leaves it out and the images install that lock with `--no-deps`. LogSquirl
+  itself never contained it.
 
 ## Internal
 
