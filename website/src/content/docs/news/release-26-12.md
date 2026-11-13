@@ -1,20 +1,77 @@
 ---
-title: Version 26.12.0-beta2
-description: A menu bar ordered by task, a shorter context menu, Name this value, Highlight this, Add as Predefined Filter and Chart this value from a selection, one Search tab in Preferences, one Group List, 8 bug fixes.
+title: Version 26.12.0-beta3
+description: The Plugins menu back in the menu bar, Help menu links, a Dashboard footer, Team and new groups when adding from a selection, Name this value for text, a narrow Group List again, a Scratchpad splitter, versioned portable packages, 14 bug fixes.
 release:
-  version: 26.12.0-beta2
-  date: 2026-11-06
+  version: 26.12.0-beta3
+  date: 2026-11-13
   channel: beta
 ---
 
-The second beta of 26.12 reworks the menus: the menu bar is ordered by task, the context menu of the Log
-Lines shows what you do with a selection first, and a value or a selection in a Log Line becomes a Named
-Value, a Highlighter, a Predefined Filter or a chart series in one compact dialog. Preferences gathers every
-Search setting on one tab, and the group dialogs share one Group List. 8 bug fixes.
+The third beta of 26.12 refines what beta2 started: the Plugins menu is back in the menu bar, adding a value
+or a selection to a group chooses Team groups and new groups, Name this value works on text too, and the
+group dialogs, the sidebar and the Scratchpad give their space back. The Help menu and the Welcome Dashboard
+link to the project, and 14 bug fixes.
 
 This is a beta. Install it next to a stable version only if you want to try these changes early.
 
-### Menus
+### Menus and the Welcome Dashboard
+
+- **The Plugins menu is back in the menu bar**: Between *Favorites* and *Help*, it holds the *Data Sources*
+  submenu (formerly the *Sources* menu), the items plugins add and *Plugin Management...*. A plugin's
+  `menu_path` works as before.
+- **Help links to the project**: *LogSquirl on GitHub* opens the project's page, and *What's New in 26.12...*
+  opens this page; both can get keys in the Shortcuts list.
+- **A footer on the Welcome Dashboard**: A quiet line links to LogSquirl on GitHub, to reporting an issue and
+  to the documentation. After two weeks and 20 starts, a line above it asks once for a star on GitHub;
+  following the link or closing it hides it for good. Nothing about it leaves your computer.
+- **The Welcome Dashboard follows your language and keys**: It switches language at once, and its shortcut
+  line names your own keys for *Open*, *Close*, *Find* and *Reload* in the platform's notation.
+
+### From a selection
+
+- **Team and new groups**: *Add as Predefined Filter...* and *Name this value...* list your own groups and,
+  with the Team Folder on, the Team groups, plus *New Filter Group...* or *New Naming Group...* and their
+  Team variants. What you add to a Team group is shared with the team, and the group chosen last is
+  proposed next time.
+- **Name this value on text**: Besides numbers, a word, an id such as a UUID or any selection can be named.
+- **One layout**: Both dialogs show what is added, where it goes, a one-line preview and the buttons in the
+  same order. Add as Predefined Filter previews how many Log Lines the filter finds.
+
+### Dialogs and the sidebar
+
+- **The Group List is narrow again**: Its buttons wrap onto short rows, so the selected group gets the rest
+  of the Predefined Filters, Highlighters and Value Names dialogs, and the splitter no longer hides it.
+- **The Value Names tab looks like the Filters tab**: Same row height, search field and buttons; its search
+  matches a Naming Rule's name and regex.
+- **The Scratchpad has a splitter**: Between the text and the conversion fields, kept per tab until
+  LogSquirl closes. The empty bar below is gone, and the Scratchpad is translated.
+
+### Downloads
+
+- **Portable packages name their version**: The Windows portable zip and the macOS app archive are called,
+  for example, `logsquirl-26.12.0-beta3-win-x64-portable.zip`, so several of them can be told apart. The
+  installer and the DMG keep their names.
+
+### Bug fixes
+
+14 fixes, among them: typing in the Filters tab's search no longer restarts the Search, a Highlighter Set or
+Predefined Filter changed in one window shows in every window, a truncated Log File restarts each Search
+with its own pattern and auto-refresh, Stop and Reload are no longer offered on the Welcome Dashboard, the
+Command Palette names its entries without mnemonic leftovers, and on macOS the crash handler ends with
+LogSquirl.
+
+Under the hood, an architecture review gave the Searches of a Log File one Search Set, every read of Log
+Lines one Log Line Reader, and the window's actions one table.
+
+The complete list is in the release notes on GitHub.
+
+### Already in 26.12.0-beta2
+
+A menu bar ordered by task, a shorter context menu of the Log Lines, and a value or a selection in a Log
+Line becomes a Named Value, a Highlighter, a Predefined Filter or a chart series in one compact dialog.
+Preferences gathers every Search setting on one tab, and the group dialogs share one Group List. 8 bug fixes.
+
+#### Menus
 
 - **The menu bar is ordered by task**: Seven menus instead of ten. The file actions are in *File*, the
   Search Limits in *Edit*, the panels, the sidebar and *Encoding* in *View*, and *Highlighters*, the plugins'
@@ -29,7 +86,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
 - **Translated throughout**: The context menu of the Log Lines and every menu follow the chosen language,
   also right after a change of language.
 
-### From a selection
+#### From a selection
 
 - **Name this value...**: Select or right-click a value in the Text View or a Filtered View. A compact dialog
   proposes a Naming Rule that captures it, a Name Table with the value as a key, a template and a Naming
@@ -42,7 +99,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
 - **Chart this value...**: Under *More*, turns a selected number into a chart series that captures the
   number in Log Lines like this one, and shows the Chart Panel.
 
-### Dialogs
+#### Dialogs
 
 - **One Search tab in Preferences**: Every Search and indexing setting is on the new *Search* tab, and the
   dialog fits a 1366 x 768 screen, each tab scrolling when it needs to.
@@ -54,7 +111,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
 - **Show only this** in the Filters and Value Names tabs of the sidebar is in the context menu, with *Restore
   previous selection* to undo it.
 
-### Bug fixes
+#### Bug fixes
 
 8 fixes, among them: OK in Preferences keeps the default shortcuts, searching the Filters tab keeps the
 filters checked, a Highlighter added to a set colors at once, refreshing the Filters panel keeps the Search
@@ -62,7 +119,7 @@ pattern, and closing the Value Names dialog with a name field in focus no longer
 
 LogSquirl also builds with Qt 6.12.
 
-The complete list is in the release notes on GitHub.
+The complete list is in the release notes of 26.12.0-beta2 on GitHub.
 
 ### Already in 26.12.0-beta1
 
