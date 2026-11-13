@@ -101,6 +101,10 @@
     {
       "version": "26.12.0-beta2",
       "description": "Menu bar by task, shorter context menu, Name this value, Highlight this, Add as Predefined Filter, Chart this value, one Search tab in Preferences, one Group List, 8 bug fixes"
+    },
+    {
+      "version": "26.12.0-beta3",
+      "description": "Plugins menu in the menu bar again, Help menu links, Dashboard footer, Team and new groups when adding from a selection, Name this value for text, narrow Group List again, Scratchpad splitter, versioned portable packages, 14 bug fixes"
     }
   ],
   "stable_version": "26.10.0",

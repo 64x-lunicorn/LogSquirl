@@ -1,4 +1,4 @@
-# Unreleased
+# v26.12.0-beta3 (2026-11-13)
 
 ## Changes
 
@@ -59,7 +59,6 @@
   Search, a growing or truncated Log File no longer restarts or continues it
   with the auto-refresh of the Search shown before; each Search keeps its
   own, and a Search you stopped stays stopped. (#954)
-
 - **The group list of the Predefined Filters, Highlighters and Value Names
   dialogs is narrow again**: its buttons wrap onto short rows (New, Delete,
   Move up and Move down; Share with team and Copy to my groups; Export... and
