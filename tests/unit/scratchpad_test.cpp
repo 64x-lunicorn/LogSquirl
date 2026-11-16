@@ -41,6 +41,8 @@
 #include <QToolTip>
 #include <QTranslator>
 
+#include <string>
+
 namespace {
 
 /// Drives a Scratchpad the way a user does: types text, presses a toolbar
@@ -599,6 +601,33 @@ SCENARIO( "The Scratchpad's text and fields share the width by a splitter", "[sc
             {
                 const auto* otherSplitter = other.findChild<QSplitter*>();
                 REQUIRE( otherSplitter->widget( 1 )->width() == fieldsWidth );
+            }
+        }
+    }
+}
+
+// A tall sidebar gives its height to the text and the fields; the bar of
+// transformations keeps the height of its buttons (#974).
+SCENARIO( "The Scratchpad's bar of transformations keeps its height", "[scratchpad][layout]" )
+{
+    ScratchPad pad;
+    auto* toolBar = pad.findChild<QToolBar*>();
+    auto* splitter = pad.findChild<QSplitter*>();
+    REQUIRE( toolBar != nullptr );
+    REQUIRE( splitter != nullptr );
+
+    for ( const auto height : { 500, 900, 1400 } ) {
+        GIVEN( "A Scratchpad " + std::to_string( height ) + " px tall" )
+        {
+            pad.resize( 600, height );
+            pad.show();
+            REQUIRE( QTest::qWaitForWindowExposed( &pad ) );
+            QCoreApplication::processEvents();
+
+            THEN( "The bar is as tall as its buttons and the text takes the rest" )
+            {
+                REQUIRE( toolBar->height() <= toolBar->sizeHint().height() );
+                REQUIRE( splitter->height() > height * 4 / 5 );
             }
         }
     }
