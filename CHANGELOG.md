@@ -1,3 +1,13 @@
+# Unreleased
+
+## Bug fixes
+
+- **The Scratchpad's bar of transformations keeps its height**: in a tall
+  sidebar, the bar with *From base64* to *Format xml* no longer grows into a
+  wide empty band with its buttons in the middle; the text and the fields
+  below take all the height. It came with the splitter of 26.12.0-beta3.
+  (#974)
+
 # v26.12.0-beta3 (2026-11-13)
 
 ## Changes

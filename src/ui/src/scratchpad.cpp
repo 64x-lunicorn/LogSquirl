@@ -128,7 +128,7 @@ ScratchPad::ScratchPad( QWidget* parent )
     addTransformation( tr( "Format json" ), &ScratchPad::formatJson );
     addTransformation( tr( "Format xml" ), &ScratchPad::formatXml );
 
-    toolBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
+    toolBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Fixed );
 
     auto transLayout = std::make_unique<QFormLayout>();
 
@@ -177,9 +177,14 @@ ScratchPad::ScratchPad( QWidget* parent )
     connect( splitter_, &QSplitter::splitterMoved, this,
              [ this ] { sharedSplitterState() = splitter_->saveState(); } );
 
+    // A horizontal splitter does not ask for extra height of its own, so the
+    // layout would share a tall sidebar's height with the bar of
+    // transformations; the text and the fields take all of it (#974).
+    splitter_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+
     auto vLayout = std::make_unique<QVBoxLayout>();
     vLayout->addWidget( toolBar.release() );
-    vLayout->addWidget( splitter.release() );
+    vLayout->addWidget( splitter.release(), 1 );
 
     textEdit_ = textEdit.release();
 
