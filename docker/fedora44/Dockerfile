@@ -25,7 +25,7 @@ RUN fc-list | grep -qi "DejaVu Sans Mono" \
 # bypasses the PEP 668 externally-managed check without overriding it.
 ENV QT_VERSION=6.11.3
 COPY shared/aqtinstall-requirements.txt /tmp/
-RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
+RUN pip3 install --no-cache-dir --require-hashes --no-deps --only-binary :all: \
         --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \
     PYTHONPATH=/tmp/aqtinstall python3 -m aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \

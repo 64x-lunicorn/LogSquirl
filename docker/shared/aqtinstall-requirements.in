@@ -5,3 +5,8 @@ aqtinstall==3.3.0
 # certifi comes in through requests. 2026.10.19 drops the emSign root whose
 # intermediates have compromised keys (GHSA-6q48-6c7w-9gw2).
 certifi>=2026.10.19
+# soupsieve, beautifulsoup4's CSS selector engine, is left out of the lock
+# (--no-emit-package) and the images install with --no-deps: aqtinstall reads
+# Qt's mirror listings with find_all() and never runs a CSS selector, and
+# soupsieve 4.0, which fixes GHSA-mmhr-3c5m-f64f, needs Python 3.11.5 while
+# Ubuntu 22.04 has 3.10.
