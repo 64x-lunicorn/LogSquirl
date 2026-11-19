@@ -55,3 +55,13 @@ ignore:
       gives only a commit range on KArchive's kf5 branch, whose "fix" is a
       translation sync, so it cannot rule out a KF6 release.
     expires: 2027-10-31
+  - id: GHSA-fc5q-39xc-vjpf
+    component: picomatch
+    reason: >-
+      No picomatch release fixes it: 4.0.7 and 2.3.2 (under unstorage's
+      anymatch) are the newest of their lines. picomatch runs only while the
+      website is built or served locally, inside astro, vite, tinyglobby and
+      anymatch, matching the repository's own file paths against globs from
+      its own code and config; the published site is static HTML and contains
+      none of it. Take the release that fixes it.
+    expires: 2026-12-31
