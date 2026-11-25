@@ -7,6 +7,10 @@
   wide empty band with its buttons in the middle; the text and the fields
   below take all the height. It came with the splitter of 26.12.0-beta3.
   (#974)
+- **Scrolling up by a few lines on Windows**: built with the newer Visual
+  Studio compiler, a move up by a few Visual Lines, such as one press of the
+  up arrow at the top row, could land on the wrong line. The size of the move
+  is now worked out in a form that compiler gets right. (#980)
 
 ## Build and packaging
 

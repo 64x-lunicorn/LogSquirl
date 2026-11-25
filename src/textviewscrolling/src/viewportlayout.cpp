@@ -411,7 +411,10 @@ ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, Scr
         }
     }
     else {
-        auto remaining = static_cast<uint64_t>( -( visualLines + 1 ) ) + 1;
+        // The size of the move, INT64_MIN included: unsigned negation wraps
+        // modulo 2^64. MSVC 19.52 with link time optimization got the earlier
+        // static_cast<uint64_t>( -( visualLines + 1 ) ) + 1 wrong for small moves.
+        auto remaining = uint64_t{ 0 } - static_cast<uint64_t>( visualLines );
         while ( remaining > 0 && position > ScrollPosition{} ) {
             if ( remaining <= position.visualLineIndex ) {
                 position.visualLineIndex -= static_cast<size_t>( remaining );
