@@ -564,6 +564,11 @@ def parse_qt_advisories(page: str) -> list[QtAdvisory]:
 # edited advisory becomes unreadable (and reported) instead of silently keeping
 # old ranges (#252). "6.3.x through 6.5.x before 6.5.5" is 6.3.0 before 6.5.5.
 _TRANSCRIBED = {
+    # Fixed in exactly the two versions its "to" names, so "to" stops before
+    # them; 6.9 to 6.11 got no fix. The versions before 4.5.0 are of unknown
+    # status and count as affected (#980).
+    "CVE-2026-116337": ("from Qt 4.5.0 to Qt 6.8.10 or Qt 6.12.1. Affected status unknown before Qt 4.5.0",
+                        "before 6.8.10, 6.9.0 before 6.12.1"),
     # Fixed in 6.5.10, 6.8.4 and 6.9.2: every release from 6.2 up to those,
     # including the unsupported 6.6 and 6.7 branches that got no fix.
     "CVE-2025-6338": ("if it is turned on in Qt 5.15 and from Qt 6.2 when it is the default",
