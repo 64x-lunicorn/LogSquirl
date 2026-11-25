@@ -558,11 +558,11 @@ def parse_qt_advisories(page: str) -> list[QtAdvisory]:
     return advisories
 
 
-# Advisories whose affected versions the page states only in prose, read by a
-# person: the words quoted from the page and the ranges they mean. A
-# transcription applies only while the page still says those words, so an
-# edited advisory becomes unreadable (and reported) instead of silently keeping
-# old ranges (#252). "6.3.x through 6.5.x before 6.5.5" is 6.3.0 before 6.5.5.
+# Advisories whose affected versions the page states only in prose, or in
+# wording the parser cannot read, read by a person: the words quoted from the
+# page and the ranges they mean. A transcription applies only while the page
+# still says those words, so an edited advisory becomes unreadable (and
+# reported) instead of silently keeping old ranges (#252). "6.3.x through 6.5.x before 6.5.5" is 6.3.0 before 6.5.5.
 _TRANSCRIBED = {
     # Fixed in exactly the two versions its "to" names, so "to" stops before
     # them; 6.9 to 6.11 got no fix. The versions before 4.5.0 are of unknown

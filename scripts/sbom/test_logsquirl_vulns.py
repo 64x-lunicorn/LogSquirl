@@ -652,7 +652,7 @@ def test_the_http_response_advisory_affects_qt_before_its_fixes():
     ("6.11.3", {"CVE-2026-15037", "CVE-2026-116337"}),
     ("6.12.1", set()),  # what LogSquirl ships since #980
 ])
-def test_qt_6_12_1_has_no_advisory_of_the_page(version, expected):
+def test_the_advisories_of_the_page_affect_qt_6_11_3_but_not_6_12_1(version, expected):
     findings, warnings = scan_qt(qt_bom(version), page=qt_page_with_116337())
     assert ({f.id for f in findings}, warnings) == (expected, [])
 
@@ -957,8 +957,8 @@ def test_cli_fails_as_a_tooling_error_when_nvd_is_unreachable_while_gating(scan_
 
 
 def test_the_accepted_qt_6_11_2_advisory_passes_the_release_gate(tmp_path, capsys):
-    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and the
-    # ignore file accepts it (#251, #252).
+    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and an ignore
+    # file as the repository's had it until #980 accepts it (#251, #252).
     ignore = tmp_path / "vuln-ignore.yml"
     ignore.write_text(QT_15037_ACCEPTED)
     sbom = tmp_path / "sbom.json"
