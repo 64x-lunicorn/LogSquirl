@@ -1054,14 +1054,14 @@ void ValueNamesDialog::populateCaptureGroups()
     QList<CaptureGroup> captureGroups;
     const auto count = regex.captureCount();
     if ( count == 0 ) {
-        captureGroups.append( { tr( "whole match" ), QStringLiteral( "0" ), {} } );
+        captureGroups.append( CaptureGroup{ tr( "whole match" ), QStringLiteral( "0" ), {} } );
     }
     const auto names = regex.namedCaptureGroups();
     for ( int number = 1; number <= count; ++number ) {
         const auto name = names.value( number );
         const auto numberText = QString::number( number );
         if ( name.isEmpty() ) {
-            captureGroups.append( { numberText, numberText, {} } );
+            captureGroups.append( CaptureGroup{ numberText, numberText, {} } );
         }
         else {
             captureGroups.append(
