@@ -100,8 +100,6 @@ void FrontTabBinding::bind( CrawlerWidget* crawler )
                               &MainWindow::changeMatchesOnly ),
             QObject::connect( crawler, &CrawlerWidget::newSelection, &w,
                               &MainWindow::lineNumberHandler ),
-            QObject::connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, &w,
-                              &MainWindow::newPredefinedFilterHandler ),
             QObject::connect( crawler, &CrawlerWidget::sendToScratchpad, &w,
                               &MainWindow::sendToScratchpad ),
             QObject::connect( crawler, &CrawlerWidget::nameValueRequested, &w,

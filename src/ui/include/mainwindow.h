@@ -292,12 +292,13 @@ private Q_SLOTS:
     // Highlighter, which Highlight this... of the tab in front asked for; OK
     // recolors every open Log File (#896).
     void highlightThis( const QString& selectedText, const QString& logLine );
-    void editPredefinedFilters( const QString& newFilter = {} );
-    // Opens the dialog turning the text selected in a Log Line into a
-    // Predefined Filter, which Add as Predefined Filter... of the tab in
-    // front asked for; OK lists it in the Filters panel and, with apply now,
-    // runs the Search of that tab with it (#897).
-    void addAsPredefinedFilter( const QString& selectedText );
+    void editPredefinedFilters();
+    // Opens the dialog turning the text selected in a Log Line, or the Search
+    // Line's pattern, into a Predefined Filter, which Add as Predefined
+    // Filter... of the tab in front asked for; OK lists it in the Filters
+    // panel and, with apply now, runs the Search of that tab with it (#897).
+    // A regex pattern is taken as it is (#982).
+    void addAsPredefinedFilter( const QString& pattern, bool regex );
     // Opens the Value Names dialog (#647).
     void editValueNames();
     // Opens the dialog naming the value in the range of the Log Line, which
@@ -353,10 +354,6 @@ private Q_SLOTS:
     // Must be passed as the internal (starts at 0) line number.
     void lineNumberHandler( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                             LineLength nSymbols );
-
-    // Save current search in line edit as predefined filter.
-    // Opens dialog with new entry.
-    void newPredefinedFilterHandler( QString newFilter );
 
     // Instructs the widget to update the loading progress gauge
     void updateLoadingProgress( int progress );

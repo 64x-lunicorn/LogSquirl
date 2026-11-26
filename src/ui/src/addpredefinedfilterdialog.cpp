@@ -58,9 +58,10 @@ QStringList filterNamesOf( const PredefinedFilterSet& group )
 
 } // namespace
 
-AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent )
+AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Reading reading,
+                                                      QWidget* parent )
     : QDialog( parent )
-    , selectedText_( selectedText )
+    , openedPattern_( pattern )
 {
     setWindowTitle( tr( "Add as Predefined Filter" ) );
 
@@ -74,16 +75,19 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
     name_->setToolTip( tr( "The name the Filters panel lists the Predefined Filter by" ) );
     layout_->addRow( Section::What, tr( "Name:" ), name_ );
 
-    pattern_ = new QLineEdit( selectedText, this );
+    pattern_ = new QLineEdit( pattern, this );
     pattern_->setObjectName( QStringLiteral( "filterPattern" ) );
-    pattern_->setToolTip( tr( "What the Predefined Filter searches for; proposed from the "
-                              "selection, it finds the selected text as it is" ) );
+    pattern_->setToolTip( tr( "What the Predefined Filter searches for, proposed from the "
+                              "selection or the current search" ) );
     layout_->addRow( Section::What, tr( "Pattern:" ), pattern_ );
 
     regex_ = new QCheckBox( tr( "Regular expression" ), this );
     regex_->setObjectName( QStringLiteral( "filterRegex" ) );
     regex_->setToolTip( tr( "Read the pattern as a regular expression; checking it escapes the "
                             "pattern so that it still finds the same text" ) );
+    // A regex is taken as it is: checked before regexToggled() listens, it
+    // is not escaped again.
+    regex_->setChecked( reading == Reading::Regex );
     layout_->addRow( Section::What, QString{}, regex_ );
 
     // The user's own groups and, once the dialog is given them, the Team's;
@@ -275,7 +279,7 @@ void AddPredefinedFilterDialog::groupChanged()
     // of a group apart by their names.
     if ( name_->text() == proposedFilterName_ ) {
         proposedFilterName_
-            = logsquirl::valuenames::freeName( proposedName( selectedText_ ), chosenGroupNames() );
+            = logsquirl::valuenames::freeName( proposedName( openedPattern_ ), chosenGroupNames() );
         name_->setText( proposedFilterName_ );
     }
     updateState();

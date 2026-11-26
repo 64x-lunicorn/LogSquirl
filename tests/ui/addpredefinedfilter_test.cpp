@@ -304,9 +304,8 @@ void selectTwoWords( AbstractLogView& view )
 
 // Chooses Add as Predefined Filter... of the menu, and in the dialog it opens
 // does what fill does, then clicks OK.
-void addInDialog( QMenu& menu, const std::function<void( AddPredefinedFilterDialog& )>& fill )
+void addWithEntry( QAction* entry, const std::function<void( AddPredefinedFilterDialog& )>& fill )
 {
-    auto* entry = contextMenuEntry( menu, AddAsPredefinedFilter );
     REQUIRE( entry != nullptr );
     REQUIRE( entry->isEnabled() );
     bool opened = false;
@@ -322,7 +321,187 @@ void addInDialog( QMenu& menu, const std::function<void( AddPredefinedFilterDial
     REQUIRE( opened );
 }
 
+void addInDialog( QMenu& menu, const std::function<void( AddPredefinedFilterDialog& )>& fill )
+{
+    addWithEntry( contextMenuEntry( menu, AddAsPredefinedFilter ), fill );
+}
+
+// The Search Line's context menu as the user opens it: its entries and the
+// entry with the text, as they are while it shows.
+struct SearchLineMenu {
+    QStringList entries;
+    QAction* entry = nullptr;
+    bool entryEnabled = false;
+};
+
+SearchLineMenu openSearchLineMenu( CrawlerWidget& crawler, const QString& text )
+{
+    SearchLineMenu shown;
+    bool opened = false;
+    QTimer::singleShot( 0, [ & ] {
+        auto* menu = qobject_cast<QMenu*>( QApplication::activePopupWidget() );
+        REQUIRE( menu != nullptr );
+        opened = true;
+        shown.entries = entriesOf( *menu );
+        shown.entry = contextMenuEntry( *menu, text );
+        shown.entryEnabled = shown.entry != nullptr && shown.entry->isEnabled();
+        menu->close();
+    } );
+    Q_EMIT searchLineOf( crawler ).contextMenuRequested();
+    REQUIRE( opened );
+    return shown;
+}
+
 } // namespace
+
+SCENARIO( "The Search Line's context menu offers Add as Predefined Filter... for its pattern",
+          "[ui][predefinedfilters][addpredefinedfilter][searchline]" )
+{
+    const KeptFilterGroups kept;
+    const AddFilterWindow shown;
+    auto* edit = SearchLineAccess::patternEdit( searchLineOf( *shown.crawler ) );
+
+    WHEN( "the Search Line is empty" )
+    {
+        edit->clearEditText();
+        const auto menu = openSearchLineMenu( *shown.crawler, AddAsPredefinedFilter );
+
+        THEN( "the entry is there where Save as Filter was, disabled, and Save as Filter is "
+              "gone" )
+        {
+            REQUIRE( menu.entry != nullptr );
+            REQUIRE_FALSE( menu.entryEnabled );
+            REQUIRE_FALSE( menu.entries.contains( QStringLiteral( "Save as Filter" ) ) );
+            const auto at = menu.entries.indexOf( AddAsPredefinedFilter );
+            REQUIRE( menu.entries.value( at + 1 ) == QStringLiteral( "Open in Regex Lab..." ) );
+        }
+    }
+
+    WHEN( "the Search Line has a pattern" )
+    {
+        edit->clearEditText();
+        QTest::keyClicks( edit, SelectedText );
+        const auto menu = openSearchLineMenu( *shown.crawler, AddAsPredefinedFilter );
+
+        THEN( "the entry is enabled" )
+        {
+            REQUIRE( menu.entryEnabled );
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter... of the Search Line saves a Predefined Filter that finds "
+          "what the Search found",
+          "[ui][predefinedfilters][addpredefinedfilter][searchline]" )
+{
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( {} );
+    Configuration::getSynced().setLastFilterGroupId( {} );
+
+    // Read as a regex, the pattern finds the lookalike too; read as plain
+    // text, only the Log Line it is in. Each would find something else were
+    // it saved read the other way.
+    const bool regexSearch = GENERATE( true, false );
+    const auto pattern = regexSearch ? QStringLiteral( "modem a.b" ) : SelectedText;
+    const auto found = regexSearch ? 2_lcount : 1_lcount;
+
+    const AddFilterWindow shown;
+    CrawlerAccess::useRegexpButton( *shown.crawler )->setChecked( regexSearch );
+    CrawlerAccess::search( *shown.crawler, pattern );
+    REQUIRE( openLogFileOf( *shown.session, *shown.crawler ).filteredData()->getNbLine() == found );
+
+    WHEN( "the Search Line's pattern is added with apply now, after the Search Line is "
+          "emptied" )
+    {
+        QString dialogPattern;
+        bool dialogRegex = !regexSearch;
+        QString dialogName;
+        FilterPreviewSearch::Result preview;
+        const auto menu = openSearchLineMenu( *shown.crawler, AddAsPredefinedFilter );
+        addWithEntry( menu.entry, [ & ]( AddPredefinedFilterDialog& dialog ) {
+            dialogPattern = childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) )->text();
+            dialogRegex
+                = childOf<QCheckBox>( dialog, QStringLiteral( "filterRegex" ) )->isChecked();
+            dialogName = childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) )->text();
+            REQUIRE( waitUiState( [ & ] {
+                return dialog.previewResult().state == FilterPreviewSearch::Result::State::Done;
+            } ) );
+            preview = dialog.previewResult();
+            childOf<QCheckBox>( dialog, QStringLiteral( "applyNow" ) )->setChecked( true );
+            // The Search runs with the filter, not with what the line held.
+            SearchLineAccess::patternEdit( searchLineOf( *shown.crawler ) )->clearEditText();
+        } );
+
+        THEN( "the dialog proposed the pattern as it stands, read as the regex button read it, "
+              "and a name made from it" )
+        {
+            REQUIRE( dialogPattern == pattern );
+            REQUIRE( dialogRegex == regexSearch );
+            REQUIRE( dialogName == AddPredefinedFilterDialog::proposedName( pattern ) );
+        }
+
+        THEN( "its preview found what the Search found" )
+        {
+            REQUIRE( preview.matchCount == found );
+        }
+
+        THEN( "the Predefined Filter is stored as the pattern, read as the Search read it, and "
+              "the Search with it finds what the Search found" )
+        {
+            const auto filters = storedGroup( defaultFilterSetId() ).filters();
+            REQUIRE( filters.size() == 1 );
+            REQUIRE( filters.front().pattern == pattern );
+            REQUIRE( filters.front().useRegex == regexSearch );
+            REQUIRE( waitUiState( [ & ] {
+                return CrawlerAccess::searchPattern( *shown.crawler ) == pattern
+                       && CrawlerAccess::searchStopped( *shown.crawler )
+                       && openLogFileOf( *shown.session, *shown.crawler )
+                                  .filteredData()
+                                  ->getNbLine()
+                              == found;
+            } ) );
+        }
+    }
+}
+
+SCENARIO( "A regex the Add as Predefined Filter dialog opens with is not escaped again",
+          "[ui][predefinedfilters][addpredefinedfilter][searchline]" )
+{
+    const KeptFilterGroups kept;
+    const auto regex = QStringLiteral( "modem a.b" );
+    AddPredefinedFilterDialog dialog( regex, AddPredefinedFilterDialog::Reading::Regex );
+    auto* pattern = childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) );
+    auto* regexBox = childOf<QCheckBox>( dialog, QStringLiteral( "filterRegex" ) );
+
+    THEN( "Regular expression is checked, the pattern as given, and the filter is the regex" )
+    {
+        REQUIRE( regexBox->isChecked() );
+        REQUIRE( pattern->text() == regex );
+        REQUIRE( dialog.filter().useRegex );
+        REQUIRE( dialog.filter().pattern == regex );
+    }
+
+    WHEN( "Regular expression is unchecked" )
+    {
+        regexBox->setChecked( false );
+
+        THEN( "the pattern stays as it is, now plain text" )
+        {
+            REQUIRE( pattern->text() == regex );
+            REQUIRE_FALSE( dialog.filter().useRegex );
+        }
+
+        AND_WHEN( "it is checked again" )
+        {
+            regexBox->setChecked( true );
+
+            THEN( "the plain text is escaped as a regex, as it is for a selection" )
+            {
+                REQUIRE( pattern->text() == QStringLiteral( "modem a\\.b" ) );
+            }
+        }
+    }
+}
 
 SCENARIO( "The context menu of the Text View and the Filtered View offers Add as Predefined "
           "Filter... for a selection",
@@ -1380,6 +1559,41 @@ SCENARIO( "A filter added to a Team group reaches the team and every window, and
             REQUIRE( settled( colleague ) );
             REQUIRE( filterNamesOf( colleague.filterGroups().front() )
                      == QStringList{ QStringLiteral( "Fatal" ), SelectedText } );
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter... of the Search Line proposes the group chosen last, as "
+          "a selection's does",
+          "[ui][predefinedfilters][addpredefinedfilter][groupchooser][searchline]" )
+{
+    const KeptFilterGroups kept;
+    const auto other = groupOf( QStringLiteral( "Other" ), QStringLiteral( "WARN" ) );
+    KeptFilterGroups::store( { other } );
+
+    const AddFilterWindow shown;
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    WHEN( "a selection is added to the other group, and the Search Line's pattern is added "
+          "next" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            chooseGroup( dialog, QStringLiteral( "Other" ) );
+        } );
+        CrawlerAccess::search( *shown.crawler, QStringLiteral( "ERROR" ) );
+        QString proposed;
+        const auto searchLineMenu = openSearchLineMenu( *shown.crawler, AddAsPredefinedFilter );
+        addWithEntry( searchLineMenu.entry, [ & ]( AddPredefinedFilterDialog& dialog ) {
+            proposed = dialog.chosenGroupId();
+        } );
+
+        THEN( "the Search Line's dialog proposed the other group, and the filter went into it" )
+        {
+            REQUIRE( proposed == other.id() );
+            REQUIRE(
+                filterNamesOf( storedGroup( other.id() ) ).contains( QStringLiteral( "ERROR" ) ) );
         }
     }
 }

@@ -1,5 +1,18 @@
 # Unreleased
 
+## Changes
+
+- **Add as Predefined Filter... of the Search Line**: the Search Line's
+  context menu offers *Add as Predefined Filter...* instead of *Save as
+  Filter*, and it opens the dialog a selection in the Text View opens: a
+  proposed name, the choice of Filter Group, the Team groups among them, a
+  preview in the Log File and *Search with it now*. The pattern is the
+  Search Line's, read as its regex button reads it: a regular expression is
+  saved as one, and the Predefined Filter finds what the Search found.
+  *Save as Filter* put a regular expression into the Default Filter Group as
+  plain text, and the filter found something else. The entry is disabled
+  while the Search Line is empty. (#982)
+
 ## Bug fixes
 
 - **The Scratchpad's bar of transformations keeps its height**: in a tall

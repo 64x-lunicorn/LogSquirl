@@ -63,7 +63,7 @@ SCENARIO( "The Predefined Filters dialog calls a group a Filter Group", "[ui][pr
 {
     GIVEN( "the Predefined Filters dialog" )
     {
-        PredefinedFiltersDialog dialog( QString{} );
+        PredefinedFiltersDialog dialog;
 
         THEN( "the editor's name field is labeled as the Filter Group's" )
         {

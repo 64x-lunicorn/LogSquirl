@@ -1970,9 +1970,9 @@ RegexLabAccess MainWindow::regexLabAccess()
 }
 
 // Opens dialog to configure predefined filters
-void MainWindow::editPredefinedFilters( const QString& newFilter )
+void MainWindow::editPredefinedFilters()
 {
-    PredefinedFiltersDialog dialog( newFilter, this );
+    PredefinedFiltersDialog dialog( this );
     dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
@@ -1988,9 +1988,12 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
     dialog.exec();
 }
 
-void MainWindow::addAsPredefinedFilter( const QString& selectedText )
+void MainWindow::addAsPredefinedFilter( const QString& pattern, bool regex )
 {
-    AddPredefinedFilterDialog dialog( selectedText, this );
+    AddPredefinedFilterDialog dialog( pattern,
+                                      regex ? AddPredefinedFilterDialog::Reading::Regex
+                                            : AddPredefinedFilterDialog::Reading::PlainText,
+                                      this );
     // A Team group the filter goes into is published as the Predefined
     // Filters dialog publishes it.
     offerTeamGroupsIn( dialog, session_.teamFolder(), &TeamFolder::filterGroups,
@@ -2799,11 +2802,6 @@ void MainWindow::lineNumberHandler( LineNumber startLine, LinesCount nLines, Lin
     else {
         lineNbField->clear();
     }
-}
-
-void MainWindow::newPredefinedFilterHandler( QString newFilter )
-{
-    editPredefinedFilters( newFilter );
 }
 
 void MainWindow::updateLoadingProgress( int progress )

@@ -464,7 +464,7 @@ SCENARIO( "The dialogs show a plugin's groups read-only, and copy one into the u
 
     GIVEN( "the Predefined Filters dialog" )
     {
-        PredefinedFiltersDialog dialog( QString{} );
+        PredefinedFiltersDialog dialog;
         auto* list = dialog.groupList();
         REQUIRE( list != nullptr );
         auto* copy = pluginCopyButton( dialog );

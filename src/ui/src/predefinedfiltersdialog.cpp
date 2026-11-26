@@ -94,21 +94,6 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
     }
 }
 
-PredefinedFiltersDialog::PredefinedFiltersDialog( const QString& newFilter, QWidget* parent )
-    : PredefinedFiltersDialog( parent )
-{
-    if ( !newFilter.isEmpty() ) {
-        // Add the filter to the Default set and select that row.
-        for ( int i = 0; i < filterSets_.size(); ++i ) {
-            if ( filterSets_[ i ].id() == defaultFilterSetId() ) {
-                filterSets_[ i ].addFilter( { newFilter, newFilter, false } );
-                groupList_->setCurrent( GroupList::Section::Own, i );
-                break;
-            }
-        }
-    }
-}
-
 // --- The Group List ---
 
 void PredefinedFiltersDialog::listOwnGroups()
