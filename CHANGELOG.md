@@ -8,8 +8,8 @@
   below take all the height. It came with the splitter of 26.12.0-beta3.
   (#974)
 - **Scrolling up by a few lines on Windows**: built with the newer Visual
-  Studio compiler, a move up by a few Visual Lines could leave the view where
-  it was. (#980)
+  Studio compiler, a move up by an odd number of Visual Lines, such as one
+  press of the up arrow, left the view where it was. (#980)
 
 ## Build and packaging
 

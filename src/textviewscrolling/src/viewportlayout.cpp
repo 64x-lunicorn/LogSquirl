@@ -384,6 +384,14 @@ LogFileBottom ViewportLayout::logFileBottom( LinesCount totalLines,
     }
 }
 
+// MSVC 19.52 (Visual Studio 18, toolset 14.52) builds this function wrong:
+// every move up by an odd number of Visual Lines returns the start unchanged,
+// while even ones, -2, -10 and -40, work. Rewriting the arithmetic or the loop
+// condition did not help, so it is built without optimization there. It runs
+// once per scroll step, bounded by the length of the step (#980).
+#if defined( _MSC_VER ) && !defined( __clang__ )
+#pragma optimize( "", off )
+#endif
 ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, ScrollPosition last,
                                    const VisualLineCounter& visualLineCount )
 {
@@ -412,10 +420,7 @@ ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, Scr
     }
     else {
         auto remaining = static_cast<uint64_t>( -( visualLines + 1 ) ) + 1;
-        // != rather than >: no Scroll Position lies before the first. With
-        // >, MSVC 19.52 with link time optimization skipped this loop when the
-        // arguments were constants, so the position did not move (#980).
-        while ( remaining > 0 && position != ScrollPosition{} ) {
+        while ( remaining > 0 && position > ScrollPosition{} ) {
             if ( remaining <= position.visualLineIndex ) {
                 position.visualLineIndex -= static_cast<size_t>( remaining );
                 break;
@@ -432,6 +437,9 @@ ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, Scr
 
     return std::min( position, last );
 }
+#if defined( _MSC_VER ) && !defined( __clang__ )
+#pragma optimize( "", on )
+#endif
 
 PullToFollowGeometry ViewportLayout::pullToFollowGeometry( const PullToFollowState& state ) const
 {
