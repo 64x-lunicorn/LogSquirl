@@ -79,6 +79,7 @@
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
+#include "scroll_position_string.h"
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "theme.h"

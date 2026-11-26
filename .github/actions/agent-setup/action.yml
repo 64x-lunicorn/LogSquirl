@@ -91,9 +91,9 @@ runs:
         archives: qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu
         # The installer is pinned (#199), to a commit rather than a PyPI release:
         # Qt 6.11 split the Windows repository into one folder per compiler, and
-        # aqtinstall 3.3.0 (the latest release) cannot find 6.11.x there. The
-        # fix (miurahr/aqtinstall#1000) is merged but unreleased (#251); go back
-        # to `aqtversion: ==<release>` once a release after 3.3.0 ships it.
+        # aqtinstall 3.3.0 (the latest release) cannot find 6.11 or 6.12 there.
+        # The fix (miurahr/aqtinstall#1000) is merged but unreleased (#251); go
+        # back to `aqtversion: ==<release>` once a release after 3.3.0 ships it.
         # py7zr repeats the action's own pin (a Bad7zFile workaround on
         # Windows) so both installer packages are visible here.
         aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7

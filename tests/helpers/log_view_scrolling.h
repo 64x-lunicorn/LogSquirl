@@ -50,6 +50,7 @@
 #include "abstractlogview.h"
 #include "log_view_log_files.h"
 #include "quickfindpattern.h"
+#include "scroll_position_string.h"
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "viewportlayout.h"

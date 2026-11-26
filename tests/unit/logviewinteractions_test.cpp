@@ -45,6 +45,7 @@
 #include "painting_test_font.h"
 #include "placed_cursor.h"
 #include "quickfindpattern.h"
+#include "scroll_position_string.h"
 #include "shown_widget.h"
 #include "viewportlayout.h"
 

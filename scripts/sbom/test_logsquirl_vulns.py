@@ -27,7 +27,7 @@ V31_HIGH = "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"  # 7.3
 V40_CRITICAL = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"  # 9.3
 V2_TEN = "AV:N/AC:L/Au:N/C:C/I:C/A:C"  # 10.0, CVSS v2
 V31_LOW = "CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"  # 2.9
-# NVD's record of CVE-2026-15037 (accepted in vuln-ignore.yml) scores 2.9.
+# NVD's record of CVE-2026-15037 (accepted in vuln-ignore.yml until #980) scores 2.9.
 V40_LOW_15037 = "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N/E:P"
 
 
@@ -217,6 +217,23 @@ def test_the_same_vulnerability_from_both_scanners_is_one_finding():
 
 def test_the_repository_ignore_file_is_valid():
     vs.parse_ignore_file((REPO / "scripts/sbom/vuln-ignore.yml").read_text())
+
+
+def test_the_repository_ignore_file_accepts_no_qt_advisory():
+    # Qt 6.12.1 fixes every advisory LogSquirl's Qt had (#980); an accepted Qt
+    # risk is a decision to take again, not one to carry over.
+    entries = vs.parse_ignore_file((REPO / "scripts/sbom/vuln-ignore.yml").read_text())
+    assert [e.id for e in entries if e.component.lower() == "qt"] == []
+
+
+# The entry that accepted CVE-2026-15037 until the Qt 6.12 upgrade (#251, #980).
+QT_15037_ACCEPTED = """
+ignore:
+  - id: CVE-2026-15037
+    component: qt
+    reason: Fixed only in Qt 6.12.0, which is not released (#251).
+    expires: 2027-03-31
+"""
 
 
 def test_ignore_entries_are_parsed():
@@ -602,6 +619,44 @@ def test_a_transcription_only_applies_while_the_page_says_what_was_transcribed()
         vs.qt_advisory_ranges(edited)
 
 
+# CVE-2026-116337 as the page gave it on 2026-11-25, after the saved page (#980).
+QT_116337 = """<h3><span class="mw-headline" id="CVE-2026-116337:">CVE-2026-116337:</span></h3>
+<p><b>Uncontrolled resource consumption vulnerability in HTTP response handling of Qt Network impacts Qt Framework</b>
+</p><p><b>Impact:</b> Availability. An application using the affected functionality can run out of memory when it \
+connects to a malicious or compromised server, causing a denial of service.
+</p><p><b>Affected versions:</b> from Qt 4.5.0 to Qt 6.8.10 or Qt 6.12.1. Affected status unknown before Qt 4.5.0
+</p><p><b>Fixed:</b> Qt 6.8.10, Qt 6.12.1
+</p>
+"""
+
+
+def qt_page_with_116337() -> str:
+    framework = '<h2><span class="mw-headline" id="Qt_Framework">Qt Framework</span></h2>\n'
+    assert framework in qt_page()
+    return qt_page().replace(framework, framework + QT_116337)
+
+
+def test_the_http_response_advisory_affects_qt_before_its_fixes():
+    # It reads "from Qt 4.5.0 to Qt 6.8.10 or Qt 6.12.1" and is fixed in
+    # exactly those two releases, so "to" stops before them.
+    advisory = next(a for a in vs.parse_qt_advisories(qt_page_with_116337()) if a.id == "CVE-2026-116337")
+    assert (advisory.module, advisory.fixed) == ("Qt Network", ("6.8.10", "6.12.1"))
+    ranges = vs.qt_advisory_ranges(advisory)
+    inside = ["4.4.0", "4.5.0", "6.8.9", "6.9.0", "6.11.3", "6.12.0"]
+    outside = ["6.8.10", "6.8.11", "6.12.1", "6.12.2", "6.13.0"]
+    assert [v for v in inside if vs.affects(ranges, v)] == inside
+    assert [v for v in outside if vs.affects(ranges, v)] == []
+
+
+@pytest.mark.parametrize("version, expected", [
+    ("6.11.3", {"CVE-2026-15037", "CVE-2026-116337"}),
+    ("6.12.1", set()),  # what LogSquirl ships since #980
+])
+def test_the_advisories_of_the_page_affect_qt_6_11_3_but_not_6_12_1(version, expected):
+    findings, warnings = scan_qt(qt_bom(version), page=qt_page_with_116337())
+    assert ({f.id for f in findings}, warnings) == (expected, [])
+
+
 @pytest.mark.parametrize("edit, message", [
     (lambda page: page.replace('id="Qt_Framework">Qt Framework<', 'id="Qt">Qt<'), "Qt Framework"),
     (lambda page: re.sub(r'(id="Qt_Framework">Qt Framework</span></h2>).*?(</div></div>)', r"\1\2", page,
@@ -902,14 +957,16 @@ def test_cli_fails_as_a_tooling_error_when_nvd_is_unreachable_while_gating(scan_
 
 
 def test_the_accepted_qt_6_11_2_advisory_passes_the_release_gate(tmp_path, capsys):
-    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and the
-    # repository's ignore file accepts it (#251, #252).
+    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and an ignore
+    # file as the repository's had it until #980 accepts it (#251, #252).
+    ignore = tmp_path / "vuln-ignore.yml"
+    ignore.write_text(QT_15037_ACCEPTED)
     sbom = tmp_path / "sbom.json"
     sbom.write_text(json.dumps(qt_bom("6.11.2")))
     grype = tmp_path / "grype.json"
     grype.write_text(json.dumps({"matches": []}))
     nvd = FakeNvd({"CVE-2026-15037": nvd_record("CVE-2026-15037", ("cvssMetricV40", V40_LOW_15037, "LOW"))})
-    code, _ = run_cli(tmp_path, sbom, grype, REPO / "scripts/sbom/vuln-ignore.yml", "critical", nvd=nvd)
+    code, _ = run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=nvd)
     assert code == 0
     assert "| LOW | qt 6.11.2 | CVE-2026-15037 | 2.9 | qt-advisories | Fixed only in Qt 6.12.0" in capsys.readouterr().out
 
@@ -1073,14 +1130,16 @@ def test_an_unreadable_alert_list_is_a_tooling_error():
         vs.reconcile_alerts(wrong_shape, "64x-lunicorn/LogSquirl", ACCEPTED, TODAY)
 
 
-def test_the_repository_ignore_file_dismisses_the_accepted_qt_advisory(tmp_path, capsys):
-    """The accepted Qt advisory (#251) must not sit on the board as an open
+def test_an_accepted_qt_advisory_is_dismissed(tmp_path, capsys):
+    """An accepted Qt advisory (#251) must not sit on the board as an open
     alert, which is what code scanning does with a SARIF suppression (#415)."""
+    ignore = tmp_path / "vuln-ignore.yml"
+    ignore.write_text(QT_15037_ACCEPTED)
     qt = finding(ref="platform:qt@6.11.2", component="qt", version="6.11.2", id="CVE-2026-15037",
                  severity="LOW", score=2.9, sources=frozenset({"qt-advisories"}),
                  affected="4.0.0 before 6.12.0", fixed=("6.12.0",))
     api = FakeAlerts([alert(qt, number=57)])
-    code = vs.main(["dismiss", "--ignore", str(REPO / "scripts/sbom/vuln-ignore.yml"),
+    code = vs.main(["dismiss", "--ignore", str(ignore),
                     "--repo", "64x-lunicorn/LogSquirl"], api=api, today=TODAY)
     assert code == 0
     assert "alert 57: dismissed" in capsys.readouterr().out

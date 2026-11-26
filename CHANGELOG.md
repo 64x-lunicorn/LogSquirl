@@ -7,9 +7,19 @@
   wide empty band with its buttons in the middle; the text and the fields
   below take all the height. It came with the splitter of 26.12.0-beta3.
   (#974)
+- **Scrolling up by a few lines on Windows**: built with the newer Visual
+  Studio compiler, a move up by an odd number of Visual Lines, such as one
+  press of the up arrow, left the view where it was. (#980)
 
 ## Build and packaging
 
+- **Qt 6.12.1**: All packages are built with Qt 6.12.1 instead of 6.11.3, and
+  the Windows, macOS and AppImage packages bundle it; the release SBOM names
+  it. It fixes CVE-2026-116337 in Qt Network, where a malicious or
+  compromised HTTP server could make the downloader or the plugin repository
+  run out of memory, and CVE-2026-15037 in Qt XML, which was accepted until
+  this upgrade. The vulnerability scan reads the wording of CVE-2026-116337's
+  affected versions and no longer reports it as unconfirmed. (#980)
 - **The build images no longer install soupsieve**: beautifulsoup4's CSS
   selector engine came in through aqtinstall, which installs Qt into the
   Linux build images and never runs a CSS selector. soupsieve 2.9.2 has two
