@@ -58,6 +58,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -293,12 +294,16 @@ private Q_SLOTS:
     // recolors every open Log File (#896).
     void highlightThis( const QString& selectedText, const QString& logLine );
     void editPredefinedFilters();
-    // Opens the dialog turning the text selected in a Log Line, or the Search
-    // Line's pattern, into a Predefined Filter, which Add as Predefined
-    // Filter... of the tab in front asked for; OK lists it in the Filters
-    // panel and, with apply now, runs the Search of that tab with it (#897).
-    // A regex pattern is taken as it is (#982).
-    void addAsPredefinedFilter( const QString& pattern, bool regex );
+    // Opens the dialog turning the text selected in a Log Line into a
+    // Predefined Filter, which Add as Predefined Filter... of the tab in
+    // front asked for; OK lists it in the Filters panel and, with apply now,
+    // runs the Search of that tab with it (#897).
+    void addAsPredefinedFilter( const QString& selectedText );
+    // The same for the Search Line's pattern, read as its buttons,
+    // searchLineFlags, say: a regex is taken as it is (#982), and the dialog
+    // tells which buttons the filter does not keep (#983).
+    void addSearchAsPredefinedFilter( const QString& pattern,
+                                      const SearchLine::Flags& searchLineFlags );
     // Opens the Value Names dialog (#647).
     void editValueNames();
     // Opens the dialog naming the value in the range of the Log Line, which
@@ -409,6 +414,10 @@ private:
     RegexLabSampleSource tabInFrontAsRegexLabSample();
     // What the editors open the Regex Lab with (#660).
     RegexLabAccess regexLabAccess();
+    // The Add as Predefined Filter dialog for the pattern: a selection's,
+    // without searchLineFlags, or the Search Line's, with its buttons.
+    void openAddPredefinedFilter( const QString& pattern,
+                                  const std::optional<SearchLine::Flags>& searchLineFlags );
 
     void createActions();
     // Gives every action of actionTable() its text and status tip in the

@@ -12,6 +12,15 @@
   *Save as Filter* put a regular expression into the Default Filter Group as
   plain text, and the filter found something else. The entry is disabled
   while the Search Line is empty. (#982)
+- **Add as Predefined Filter... tells what the filter does not keep**: a
+  Predefined Filter keeps a name, a pattern and whether it is a regular
+  expression, nothing more. Opened from the Search Line, the dialog says so
+  below *Regular expression* when *Match case* or *Inverse match* is on: the
+  filter matches as the Search it is used in says, and finds the matching
+  Log Lines. With *Boolean combining* on and a pattern without Field Terms,
+  it says the filter searches for the pattern as one string and will not
+  find what the Search Line found; OK stays enabled. Opened for a selection,
+  it says nothing of the sort. (#983)
 
 ## Bug fixes
 

@@ -393,10 +393,15 @@ Q_SIGNALS:
     // Filtered View (#896), as AbstractLogView::highlightThisRequested.
     void highlightThisRequested( const QString& selectedText, const QString& logLine );
     // Sent up when Add as Predefined Filter... was chosen in the Text View or
-    // a Filtered View (#897), as AbstractLogView::addAsPredefinedFilterRequested,
-    // the selection read as plain text; or in the Search Line's context menu
-    // (#982), its pattern read as a regex when its regex button is on.
-    void addAsPredefinedFilterRequested( const QString& pattern, bool regex );
+    // a Filtered View (#897), as AbstractLogView::addAsPredefinedFilterRequested:
+    // the selection, read as plain text.
+    void addAsPredefinedFilterRequested( const QString& selectedText );
+    // Sent up when Add as Predefined Filter... was chosen in the Search Line's
+    // context menu (#982): its pattern, read as its buttons, searchLineFlags,
+    // say -- a regex when its regex button is on -- and the dialog tells which
+    // of them the filter does not keep (#983).
+    void addSearchAsPredefinedFilterRequested( const QString& pattern,
+                                               const SearchLine::Flags& searchLineFlags );
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
@@ -499,9 +504,6 @@ private Q_SLOTS:
     void clearSearchHistory();
     void editSearchHistory();
 
-    // Add as Predefined Filter... of the Text View or a Filtered View (#897):
-    // the selection, read as plain text.
-    void addSelectionAsPredefinedFilter( const QString& selectedText );
     // Add as Predefined Filter... of the Search Line (#982): its pattern as
     // it stands, read as the regex button says.
     void addSearchAsPredefinedFilter();

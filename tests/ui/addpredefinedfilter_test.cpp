@@ -503,6 +503,187 @@ SCENARIO( "A regex the Add as Predefined Filter dialog opens with is not escaped
     }
 }
 
+namespace {
+
+// The note on the Search Line's settings the filter does not keep (#983):
+// empty while it is hidden.
+QString unkeptNoteOf( QWidget& dialog )
+{
+    auto* note = childOf<QLabel>( dialog, QStringLiteral( "unkeptSettings" ) );
+    return note->isHidden() ? QString{} : note->text();
+}
+
+// The Search Line's buttons, the ones given on. Written out, not with
+// designated initializers: GCC warns of the fields they leave out.
+SearchLine::Flags searchLineFlags( bool matchCase, bool inverse, bool booleanCombination )
+{
+    SearchLine::Flags flags;
+    flags.matchCase = matchCase;
+    flags.inverse = inverse;
+    flags.booleanCombination = booleanCombination;
+    return flags;
+}
+
+} // namespace
+
+SCENARIO( "The Add as Predefined Filter dialog tells which Search Line settings the filter does "
+          "not keep",
+          "[ui][predefinedfilters][addpredefinedfilter][searchline]" )
+{
+    const KeptFilterGroups kept;
+
+    GIVEN( "the dialog opened for the Search Line's pattern" )
+    {
+        const auto combination = QStringLiteral( "\"ERROR\" or \"WARN\"" );
+
+        WHEN( "the Search Line has none of the settings on" )
+        {
+            AddPredefinedFilterDialog dialog( SelectedText );
+            dialog.noteSearchLineSettings( {} );
+
+            THEN( "no note shows" )
+            {
+                REQUIRE( unkeptNoteOf( dialog ).isEmpty() );
+            }
+        }
+
+        WHEN( "Match case is on" )
+        {
+            AddPredefinedFilterDialog dialog( SelectedText );
+            dialog.noteSearchLineSettings( searchLineFlags( true, false, false ) );
+
+            THEN( "the note says the filter does not keep it" )
+            {
+                const auto note = unkeptNoteOf( dialog );
+                REQUIRE( note.contains( QStringLiteral( "Match case" ) ) );
+                REQUIRE_FALSE( note.contains( QStringLiteral( "Inverse match" ) ) );
+                REQUIRE_FALSE( note.contains( QStringLiteral( "Boolean combining" ) ) );
+            }
+        }
+
+        WHEN( "Inverse match is on" )
+        {
+            AddPredefinedFilterDialog dialog( SelectedText );
+            dialog.noteSearchLineSettings( searchLineFlags( false, true, false ) );
+
+            THEN( "the note says the filter does not keep it" )
+            {
+                const auto note = unkeptNoteOf( dialog );
+                REQUIRE( note.contains( QStringLiteral( "Inverse match" ) ) );
+                REQUIRE_FALSE( note.contains( QStringLiteral( "Match case" ) ) );
+            }
+        }
+
+        WHEN( "Boolean combining is on, the pattern quoted sub-patterns without Field Terms" )
+        {
+            AddPredefinedFilterDialog dialog( combination );
+            dialog.noteSearchLineSettings( searchLineFlags( false, false, true ) );
+
+            THEN( "the note says the filter will not find what the Search Line found, and OK "
+                  "stays enabled" )
+            {
+                const auto note = unkeptNoteOf( dialog );
+                REQUIRE( note.contains( QStringLiteral( "Boolean combining" ) ) );
+                REQUIRE( note.contains( QStringLiteral( "will not find" ) ) );
+                REQUIRE( okButton( dialog )->isEnabled() );
+            }
+        }
+
+        WHEN( "Boolean combining is on, the pattern with a Field Term" )
+        {
+            AddPredefinedFilterDialog dialog( QStringLiteral( "level:\"ERROR\"" ) );
+            dialog.noteSearchLineSettings( searchLineFlags( false, false, true ) );
+
+            THEN( "no note shows: the filter is used as the combination it is" )
+            {
+                REQUIRE( unkeptNoteOf( dialog ).isEmpty() );
+            }
+
+            AND_WHEN( "the open dialog's pattern is edited to have none" )
+            {
+                showUntilExposed( dialog );
+                auto* pattern = childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) );
+                pattern->setText( combination );
+
+                THEN( "the note shows, and the dialog grew to show it whole" )
+                {
+                    REQUIRE(
+                        unkeptNoteOf( dialog ).contains( QStringLiteral( "Boolean combining" ) ) );
+                    REQUIRE( dialog.height() >= dialog.sizeHint().height() );
+                }
+            }
+        }
+
+        WHEN( "all three are on" )
+        {
+            AddPredefinedFilterDialog dialog( combination );
+            dialog.noteSearchLineSettings( searchLineFlags( true, true, true ) );
+
+            THEN( "the note tells each" )
+            {
+                const auto note = unkeptNoteOf( dialog );
+                REQUIRE( note.contains( QStringLiteral( "Match case" ) ) );
+                REQUIRE( note.contains( QStringLiteral( "Inverse match" ) ) );
+                REQUIRE( note.contains( QStringLiteral( "Boolean combining" ) ) );
+            }
+        }
+    }
+
+    GIVEN( "the dialog opened for a selection" )
+    {
+        AddPredefinedFilterDialog dialog( SelectedText );
+
+        THEN( "no note shows" )
+        {
+            REQUIRE( unkeptNoteOf( dialog ).isEmpty() );
+        }
+    }
+}
+
+SCENARIO( "Add as Predefined Filter... tells the Search Line's settings the filter does not keep, "
+          "and a selection's tells none",
+          "[ui][predefinedfilters][addpredefinedfilter][searchline]" )
+{
+    const KeptFilterGroups kept;
+    const AddFilterWindow shown;
+    auto& searchLine = searchLineOf( *shown.crawler );
+    SearchLineAccess::matchCaseButton( searchLine )->setChecked( true );
+    SearchLineAccess::inverseButton( searchLine )->setChecked( true );
+
+    WHEN( "the Search Line's pattern is added" )
+    {
+        auto* edit = SearchLineAccess::patternEdit( searchLine );
+        edit->clearEditText();
+        QTest::keyClicks( edit, SelectedText );
+        QString note;
+        const auto menu = openSearchLineMenu( *shown.crawler, AddAsPredefinedFilter );
+        addWithEntry( menu.entry, [ & ]( AddPredefinedFilterDialog& dialog ) {
+            note = unkeptNoteOf( dialog );
+        } );
+
+        THEN( "the dialog told Match case and Inverse match are not kept" )
+        {
+            REQUIRE( note.contains( QStringLiteral( "Match case" ) ) );
+            REQUIRE( note.contains( QStringLiteral( "Inverse match" ) ) );
+        }
+    }
+
+    WHEN( "a selection is added, the same buttons on" )
+    {
+        auto& textView = CrawlerAccess::textView( *shown.crawler );
+        selectText( textView );
+        QString note = QStringLiteral( "not read" );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog(
+            *menu, [ & ]( AddPredefinedFilterDialog& dialog ) { note = unkeptNoteOf( dialog ); } );
+
+        THEN( "the dialog told nothing" )
+        {
+            REQUIRE( note.isEmpty() );
+        }
+    }
+}
+
 SCENARIO( "The context menu of the Text View and the Filtered View offers Add as Predefined "
           "Filter... for a selection",
           "[ui][predefinedfilters][addpredefinedfilter]" )

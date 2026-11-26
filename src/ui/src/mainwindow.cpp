@@ -1988,12 +1988,28 @@ void MainWindow::editPredefinedFilters()
     dialog.exec();
 }
 
-void MainWindow::addAsPredefinedFilter( const QString& pattern, bool regex )
+void MainWindow::addAsPredefinedFilter( const QString& selectedText )
 {
+    openAddPredefinedFilter( selectedText, std::nullopt );
+}
+
+void MainWindow::addSearchAsPredefinedFilter( const QString& pattern,
+                                              const SearchLine::Flags& searchLineFlags )
+{
+    openAddPredefinedFilter( pattern, searchLineFlags );
+}
+
+void MainWindow::openAddPredefinedFilter( const QString& pattern,
+                                          const std::optional<SearchLine::Flags>& searchLineFlags )
+{
+    const bool regex = searchLineFlags && searchLineFlags->useRegexp;
     AddPredefinedFilterDialog dialog( pattern,
                                       regex ? AddPredefinedFilterDialog::Reading::Regex
                                             : AddPredefinedFilterDialog::Reading::PlainText,
                                       this );
+    if ( searchLineFlags ) {
+        dialog.noteSearchLineSettings( *searchLineFlags );
+    }
     // A Team group the filter goes into is published as the Predefined
     // Filters dialog publishes it.
     offerTeamGroupsIn( dialog, session_.teamFolder(), &TeamFolder::filterGroups,

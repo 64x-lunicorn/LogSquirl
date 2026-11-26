@@ -21,6 +21,7 @@
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -90,6 +91,14 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Re
     regex_->setChecked( reading == Reading::Regex );
     layout_->addRow( Section::What, QString{}, regex_ );
 
+    // Shown only once noteSearchLineSettings() finds a setting not kept.
+    unkeptNote_ = new QLabel( this );
+    unkeptNote_->setObjectName( QStringLiteral( "unkeptSettings" ) );
+    unkeptNote_->setWordWrap( true );
+    unkeptNote_->setTextFormat( Qt::PlainText );
+    layout_->addRow( Section::What, QString{}, unkeptNote_ );
+    layout_->form()->setRowVisible( unkeptNote_, false );
+
     // The user's own groups and, once the dialog is given them, the Team's;
     // the Default Filter Group chosen. The plugins' groups are read-only.
     GroupChooser::Texts texts;
@@ -115,6 +124,8 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Re
     connect( name_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::searchPreview );
+    connect( pattern_, &QLineEdit::textChanged, this,
+             &AddPredefinedFilterDialog::updateUnkeptNote );
     connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
     connect( group_, &GroupChooser::choiceChanged, this, &AddPredefinedFilterDialog::groupChanged );
 
@@ -283,6 +294,41 @@ void AddPredefinedFilterDialog::groupChanged()
         name_->setText( proposedFilterName_ );
     }
     updateState();
+}
+
+void AddPredefinedFilterDialog::noteSearchLineSettings( const SearchLine::Flags& searchLineFlags )
+{
+    searchLineFlags_ = searchLineFlags;
+    updateUnkeptNote();
+}
+
+void AddPredefinedFilterDialog::updateUnkeptNote()
+{
+    if ( !searchLineFlags_ ) {
+        return;
+    }
+    QStringList notes;
+    if ( searchLineFlags_->matchCase ) {
+        notes.append( tr( "Match case is not kept: the filter matches as the Search it is used "
+                          "in says." ) );
+    }
+    if ( searchLineFlags_->inverse ) {
+        notes.append( tr( "Inverse match is not kept: the filter finds the matching Log Lines, "
+                          "not the others." ) );
+    }
+    // A combination with Field Terms is used as written (#798); any other is
+    // escaped as one string.
+    if ( searchLineFlags_->booleanCombination && !hasFieldTerms( pattern_->text() ) ) {
+        notes.append( tr( "Boolean combining is not kept: the filter searches for the pattern "
+                          "as one string and will not find what the Search Line found." ) );
+    }
+    unkeptNote_->setText( notes.join( u'\n' ) );
+    layout_->form()->setRowVisible( unkeptNote_, !notes.isEmpty() );
+    // Editing the pattern may show the note while the dialog is open: it
+    // grows to show it whole.
+    if ( isVisible() && height() < sizeHint().height() ) {
+        resize( width(), sizeHint().height() );
+    }
 }
 
 void AddPredefinedFilterDialog::updateState()

@@ -116,6 +116,8 @@ void FrontTabBinding::bind( CrawlerWidget* crawler )
                               &MainWindow::highlightThis ),
             QObject::connect( crawler, &CrawlerWidget::addAsPredefinedFilterRequested, &w,
                               &MainWindow::addAsPredefinedFilter ),
+            QObject::connect( crawler, &CrawlerWidget::addSearchAsPredefinedFilterRequested, &w,
+                              &MainWindow::addSearchAsPredefinedFilter ),
             // QuickFind searches the Filtered View now in front.
             QObject::connect(
                 crawler, &CrawlerWidget::filteredViewChanged, &w,
