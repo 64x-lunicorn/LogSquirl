@@ -26,6 +26,7 @@
 // and tells scrolling whenever its value changes, also when scrolling moved it.
 
 #include "log_view_log_files.h"
+#include "scroll_position_string.h"
 #include "textviewscrolling.h"
 
 #include <QString>

@@ -21,6 +21,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 
+#include "scroll_position_string.h"
 #include "textencoding.h"
 #include <QHeaderView>
 #include <QImage>

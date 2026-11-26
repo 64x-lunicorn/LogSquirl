@@ -24,21 +24,11 @@
 
 #include <limits>
 #include <map>
-#include <string>
 #include <utility>
 #include <vector>
 
+#include "scroll_position_string.h"
 #include "viewportlayout.h"
-
-// A failed comparison of two Scroll Positions shows both, not "{?} == {?}".
-template <>
-struct Catch::StringMaker<ScrollPosition> {
-    static std::string convert( const ScrollPosition& position )
-    {
-        return "{ line " + std::to_string( position.lineNumber.get() ) + ", visual line "
-               + std::to_string( position.visualLineIndex ) + " }";
-    }
-};
 
 namespace {
 
