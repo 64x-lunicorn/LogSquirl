@@ -412,7 +412,10 @@ ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, Scr
     }
     else {
         auto remaining = static_cast<uint64_t>( -( visualLines + 1 ) ) + 1;
-        while ( remaining > 0 && position > ScrollPosition{} ) {
+        // != rather than >: no Scroll Position lies before the first. With
+        // >, MSVC 19.52 with link time optimization skipped this loop when the
+        // arguments were constants, so the position did not move (#980).
+        while ( remaining > 0 && position != ScrollPosition{} ) {
             if ( remaining <= position.visualLineIndex ) {
                 position.visualLineIndex -= static_cast<size_t>( remaining );
                 break;

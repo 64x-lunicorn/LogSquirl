@@ -7,6 +7,9 @@
   wide empty band with its buttons in the middle; the text and the fields
   below take all the height. It came with the splitter of 26.12.0-beta3.
   (#974)
+- **Scrolling up by a few lines on Windows**: built with the newer Visual
+  Studio compiler, a move up by a few Visual Lines could leave the view where
+  it was. (#980)
 
 ## Build and packaging
 

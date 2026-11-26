@@ -682,6 +682,8 @@ SCENARIO( "Scroll Positions are ordered by Log Line, then by Visual Line",
     REQUIRE( ScrollPosition{ 4_lnum, 1 } > ScrollPosition{ 4_lnum, 0 } );
     REQUIRE( ScrollPosition{ 4_lnum, 1 } == ScrollPosition{ 4_lnum, 1 } );
     REQUIRE( ScrollPosition{} == ScrollPosition{ 0_lnum, 0 } );
+    REQUIRE( ScrollPosition{ 4_lnum, 5 } > ScrollPosition{} );
+    REQUIRE( ScrollPosition{ 3_lnum, 0 } > ScrollPosition{} );
 }
 
 SCENARIO( "A page is one Viewport height of Visual Lines", "[viewportlayout][scrollposition]" )
