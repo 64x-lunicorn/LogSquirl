@@ -840,9 +840,17 @@ void CrawlerWidget::editSearchHistory()
     updateSearchCombo();
 }
 
-void CrawlerWidget::saveAsPredefinedFilter()
+void CrawlerWidget::addSelectionAsPredefinedFilter( const QString& selectedText )
 {
-    Q_EMIT saveCurrentSearchAsPredefinedFilter( searchLine_->pattern() );
+    Q_EMIT addAsPredefinedFilterRequested( selectedText, false );
+}
+
+void CrawlerWidget::addSearchAsPredefinedFilter()
+{
+    const auto pattern = searchLine_->pattern();
+    if ( !pattern.isEmpty() ) {
+        Q_EMIT addAsPredefinedFilterRequested( pattern, searchLine_->flags().useRegexp );
+    }
 }
 
 void CrawlerWidget::openSearchInRegexLab()
@@ -896,6 +904,9 @@ void CrawlerWidget::showSearchContextMenu()
 {
     if ( countValuesMenu_ ) {
         fillCountValuesMenu();
+    }
+    if ( addSearchAsPredefinedFilterAction_ ) {
+        addSearchAsPredefinedFilterAction_->setEnabled( !searchLine_->pattern().isEmpty() );
     }
     if ( searchLineContextMenu_ )
         searchLineContextMenu_->exec( QCursor::pos( activeScreen( this ) ) );
@@ -1541,14 +1552,17 @@ void CrawlerWidget::setup()
     // Its context menu: the pattern edit's own entries, then this widget's.
     QAction* clearSearchHistoryAction = new QAction( tr( "Clear search history" ), this );
     QAction* editSearchHistoryAction = new QAction( tr( "Edit search history" ), this );
-    QAction* saveAsPredefinedFilterAction = new QAction( tr( "Save as Filter" ), this );
+    // The dialog a selection's Add as Predefined Filter... opens (#982).
+    addSearchAsPredefinedFilterAction_ = new QAction( tr( "Add as Predefined Filter..." ), this );
+    addSearchAsPredefinedFilterAction_->setStatusTip(
+        tr( "Add the pattern to a Filter Group, read as the Search reads it" ) );
     QAction* openInRegexLabAction = new QAction( tr( "Open in Regex Lab..." ), this );
     openInRegexLabAction->setStatusTip(
         tr( "Try out the pattern and its options on Log Lines in the Regex Lab" ) );
 
     searchLineContextMenu_ = searchLine_->createStandardContextMenu();
     searchLineContextMenu_->addSeparator();
-    searchLineContextMenu_->addAction( saveAsPredefinedFilterAction );
+    searchLineContextMenu_->addAction( addSearchAsPredefinedFilterAction_ );
     searchLineContextMenu_->addAction( openInRegexLabAction );
     countValuesMenu_ = searchLineContextMenu_->addMenu( tr( "Count values of capture group" ) );
     searchLineContextMenu_->addSeparator();
@@ -1635,8 +1649,8 @@ void CrawlerWidget::setup()
              &CrawlerWidget::resetStateOnSearchPatternChanges );
     connect( searchLine_, &SearchLineWidget::contextMenuRequested, this,
              &CrawlerWidget::showSearchContextMenu );
-    connect( saveAsPredefinedFilterAction, &QAction::triggered, this,
-             &CrawlerWidget::saveAsPredefinedFilter );
+    connect( addSearchAsPredefinedFilterAction_, &QAction::triggered, this,
+             &CrawlerWidget::addSearchAsPredefinedFilter );
     connect( openInRegexLabAction, &QAction::triggered, this,
              &CrawlerWidget::openSearchInRegexLab );
     connect( clearSearchHistoryAction, &QAction::triggered, this,
@@ -1656,7 +1670,7 @@ void CrawlerWidget::setup()
              &CrawlerWidget::highlightThisRequested );
     // Add as Predefined Filter..., as Highlight this... (#897).
     connect( logMainView_, &LogMainView::addAsPredefinedFilterRequested, this,
-             &CrawlerWidget::addAsPredefinedFilterRequested );
+             &CrawlerWidget::addSelectionAsPredefinedFilter );
     // Chart this value... charts in this tab's chart panel (#898).
     connect( logMainView_, &LogMainView::chartThisValueRequested, this,
              &CrawlerWidget::chartValue );
@@ -2094,7 +2108,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &FilteredView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
     connect( view, &FilteredView::addAsPredefinedFilterRequested, this,
-             &CrawlerWidget::addAsPredefinedFilterRequested );
+             &CrawlerWidget::addSelectionAsPredefinedFilter );
     connect( view, &FilteredView::chartThisValueRequested, this, &CrawlerWidget::chartValue );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,

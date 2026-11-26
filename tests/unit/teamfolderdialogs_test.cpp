@@ -201,7 +201,7 @@ TEST_CASE( "A group published by Apply is edited on its new revision", "[teamfol
     SECTION( "Filter groups" )
     {
         const auto original = makeGroup( "Theirs" );
-        PredefinedFiltersDialog dialog( QString{} );
+        PredefinedFiltersDialog dialog;
         dialog.showTeamGroups( { original }, true, { { original.id(), "R1" } } );
         QList<PublishRequest> requests;
         QObject::connect( &dialog, &PredefinedFiltersDialog::publishRequested, &dialog,

@@ -47,10 +47,16 @@ class GroupChooser;
 // selection, one no filter of the Filter Group has, and the selection as the
 // pattern, as plain text: the filter finds it whether the Search reads regular
 // expressions or not. Regular expression, unchecked by default, turns the
-// pattern into the selection escaped as a regex, to edit into one. The user
-// picks the Filter Group with the Group Chooser (#955) -- one of the user's
-// own, a Team group, or a new one of either -- and whether the Search runs
-// with the filter now.
+// pattern into the selection escaped as a regex, to edit into one.
+//
+// The Search Line's Add as Predefined Filter... opens it too (#982), with the
+// Search Line's pattern read as its regex button reads it: a regex is taken
+// as it is, Regular expression checked; unchecking it leaves the pattern as it
+// is, now plain text, which checking it again escapes as for a selection.
+//
+// The user picks the Filter Group with the Group Chooser (#955) -- one of the
+// user's own, a Team group, or a new one of either -- and whether the Search
+// runs with the filter now.
 //
 // It is laid out as Name This Value is, with AddToGroupLayout (#958): what is
 // added, where it goes, the preview, the warning, the buttons. Given the Log
@@ -78,7 +84,15 @@ public:
     // The most matches of the first Log Line found the preview marks.
     static constexpr qsizetype MaxPreviewMarks = 50;
 
-    explicit AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent = nullptr );
+    // How the pattern the dialog opens with is read.
+    enum class Reading { PlainText, Regex };
+
+    // For the pattern read as reading says: text selected in a Log Line as
+    // plain text (#897), the Search Line's pattern as its regex button reads
+    // it (#982).
+    explicit AddPredefinedFilterDialog( const QString& pattern,
+                                        Reading reading = Reading::PlainText,
+                                        QWidget* parent = nullptr );
     ~AddPredefinedFilterDialog() override;
 
     // Previews the filter in the Log File of logData, which the dialog holds
@@ -157,8 +171,8 @@ private:
     // The preview's Search told what it found.
     void showPreview();
 
-    // The selection the dialog was opened for.
-    QString selectedText_;
+    // The pattern the dialog was opened for, which names are proposed from.
+    QString openedPattern_;
     // The plain text the pattern was before Regular expression turned it into
     // a regex.
     QString plainPattern_;

@@ -58,7 +58,6 @@ class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDial
 
 public:
     explicit PredefinedFiltersDialog( QWidget* parent = nullptr );
-    PredefinedFiltersDialog( const QString& newFilter, QWidget* parent = nullptr );
 
     // Shows the Team groups in a section of their own below the user's own
     // groups, in the order given (alphabetical, as the Team Folder hands them

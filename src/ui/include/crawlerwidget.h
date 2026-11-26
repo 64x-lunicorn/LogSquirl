@@ -389,14 +389,14 @@ Q_SIGNALS:
     // Sent up when the current line number is updated
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                        LineLength nSymbols );
-    // Sent up when user wants to save new predefined filter from current search
-    void saveCurrentSearchAsPredefinedFilter( QString newFilter );
     // Sent up when Highlight this... was chosen in the Text View or a
     // Filtered View (#896), as AbstractLogView::highlightThisRequested.
     void highlightThisRequested( const QString& selectedText, const QString& logLine );
     // Sent up when Add as Predefined Filter... was chosen in the Text View or
-    // a Filtered View (#897), as AbstractLogView::addAsPredefinedFilterRequested.
-    void addAsPredefinedFilterRequested( const QString& selectedText );
+    // a Filtered View (#897), as AbstractLogView::addAsPredefinedFilterRequested,
+    // the selection read as plain text; or in the Search Line's context menu
+    // (#982), its pattern read as a regex when its regex button is on.
+    void addAsPredefinedFilterRequested( const QString& pattern, bool regex );
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
@@ -499,8 +499,12 @@ private Q_SLOTS:
     void clearSearchHistory();
     void editSearchHistory();
 
-    // Save current search as predefined filter
-    void saveAsPredefinedFilter();
+    // Add as Predefined Filter... of the Text View or a Filtered View (#897):
+    // the selection, read as plain text.
+    void addSelectionAsPredefinedFilter( const QString& selectedText );
+    // Add as Predefined Filter... of the Search Line (#982): its pattern as
+    // it stands, read as the regex button says.
+    void addSearchAsPredefinedFilter();
 
     // Search Context Menu
     void showSearchContextMenu();
@@ -693,6 +697,8 @@ private:
     // Its entries, one per capture group of the current Search, are made when
     // the menu is shown.
     QMenu* countValuesMenu_ = nullptr;
+    // Add as Predefined Filter... of it, enabled while there is a pattern.
+    QAction* addSearchAsPredefinedFilterAction_ = nullptr;
     // The Regex Lab the Search Line's pattern is open in, if any.
     QPointer<RegexLabWindow> searchRegexLab_;
     // The pattern the Lab was last given from the Search Line: while the Lab
