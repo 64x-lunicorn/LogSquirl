@@ -52,8 +52,9 @@ set(ALLOWED_FILES
     # plugin auto-load settings are handed to the Plugin Host by the
     # application, which loads the plugins once for every window (#236, #303).
     # It remembers the Filter Group Add as Predefined Filter... chose last, and
-    # the Naming Group of Name This Value, and proposes them again; the dialogs
-    # themselves do not reach the store (#955, #956).
+    # the Naming Group of Name This Value, and proposes them again; likewise
+    # whether Also highlight it was checked and the Highlighter Set it chose
+    # (#986). The dialogs themselves do not reach the store (#955, #956).
     # Beside the chrome it reads three Axes decided to stay, below: the shortcuts,
     # logging and followFileOnLoad.
     src/mainwindow.cpp

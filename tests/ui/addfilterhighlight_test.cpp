@@ -553,6 +553,9 @@ SCENARIO( "OK of Add as Predefined Filter adds a Highlighter too while Also high
             REQUIRE( added.pattern()
                      == AddPredefinedFilterDialog::highlighterPattern( filters.front() ) );
             REQUIRE( added.highlightOnlyMatch() );
+            // It matches case as the tab's Search does, which reads the
+            // filter.
+            REQUIRE( added.ignoreCase() == !shown.crawler->searchFlags().matchCase );
             REQUIRE( added.foreColor() == violet.foreColor );
             REQUIRE( added.backColor() == violet.backColor );
         }

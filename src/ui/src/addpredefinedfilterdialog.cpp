@@ -502,8 +502,9 @@ void AddPredefinedFilterDialog::accept()
     auto group = before != nullptr ? *before : PredefinedFilterSet::createNewSet( chosen.name );
     group.addFilter( added );
     auto requests = groups_->put( group );
-    // The Highlighter is added as Highlight This adds one; a Team set goes to
-    // the team with the filter's Team group.
+    // The Highlighter is added as Highlight This adds one; a Team
+    // Highlighter Set is published in the same requests as the filter's Team
+    // group, whichever of them is the Team's.
     if ( alsoHighlights() ) {
         requests.append( addHighlighter() );
     }

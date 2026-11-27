@@ -84,7 +84,8 @@ class GroupChooser;
 // of either. The preview colors its Log Line as the Highlighter will. The
 // Highlighter is a copy: changing the filter later does not change it. OK puts
 // it at the end of the set and activates the set, as Highlight This does; a
-// Team set is published with the filter's group, if that is the Team's too.
+// Team Highlighter Set is published through publishRequested, together with
+// the Team group the filter went into, if it did.
 // Recoloring the views and remembering the set chosen are the caller's.
 class AddPredefinedFilterDialog : public QDialog {
     Q_OBJECT
