@@ -335,12 +335,14 @@ MainWindow::MainWindow( WindowSession session,
         }
     } );
 
-    // Route filter panel selections to the active crawler widget. Its Search
+    // Route filter panel selections to the active crawler widget, which keeps
+    // the checks for when its tab comes to the front again (#984). Its Search
     // line decides whether the Search runs now, as for adding a word to it:
     // starting it here as well ran every Search twice (#538).
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
                  if ( auto crawler = currentCrawlerWidget() ) {
+                     crawler->setFilterChecks( filtersPanel_.checkedKeys() );
                      crawler->setSearchPatternFromPredefinedFilters( filters );
                  }
              } );
@@ -3034,6 +3036,12 @@ void MainWindow::currentTabChanged( int index )
 
         frontTab_.bind( crawler_widget );
 
+        // The Filters panel shows the checks made in this tab, and runs no
+        // Search for them: the tab's Search already is what they built (#984).
+        // The checks of filters gone meanwhile are dropped from the tab.
+        filtersPanel_.showChecks( crawler_widget->filterChecks() );
+        crawler_widget->setFilterChecks( filtersPanel_.checkedKeys() );
+
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).
         const auto loadState = crawler_widget->state();
@@ -3068,6 +3076,7 @@ void MainWindow::currentTabChanged( int index )
         // No tab, or one that holds no Log File, such as the dashboard -- clear
         // the document state
         frontTab_.bind( nullptr );
+        filtersPanel_.showChecks( {} );
 
         infoLine->hideGauge();
         infoLine->clear();

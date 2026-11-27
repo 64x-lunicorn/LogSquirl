@@ -81,6 +81,12 @@ void SoloSelection::showOnly( QTreeWidgetItem* item )
     Q_EMIT checksChanged();
 }
 
+void SoloSelection::forget()
+{
+    checksBefore_.clear();
+    canRestore_ = false;
+}
+
 bool SoloSelection::canRestore() const
 {
     return canRestore_;

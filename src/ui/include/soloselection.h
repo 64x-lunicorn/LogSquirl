@@ -68,6 +68,10 @@ public:
     // Brings back the checks from before the last showOnly(), once.
     void restore();
 
+    // Forgets the checks from before the last showOnly(): the tree shows
+    // checks of something else now, such as another tab (#984).
+    void forget();
+
     // The context menu for `item`, which is nullptr off the items: "Show only
     // this" for an item, and "Restore previous selection", enabled while
     // canRestore().

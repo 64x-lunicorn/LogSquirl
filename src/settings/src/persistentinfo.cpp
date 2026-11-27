@@ -141,6 +141,10 @@ void PersistentInfo::updateSettings( QSettings& appSettings, QSettings& sessionS
         appSettings.remove( "SavedSearches" );
     }
 
+    // The Filters panel's checks of the whole window: each tab keeps its own
+    // now (#984). Removed at every start: a no-op once it is gone.
+    appSettings.remove( "PinnedFilters" );
+
     std::pair<QString, QString> keysToMoveAround[] = {
         { "DefaultConfigurationView.searchAutoRefresh", "defaultView.searchAutoRefresh" },
         { "DefaultConfigurationView.searchIgnoreCase", "defaultView.searchIgnoreCase" },

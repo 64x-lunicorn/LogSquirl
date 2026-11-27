@@ -59,6 +59,7 @@
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QStringList>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -321,6 +322,18 @@ public Q_SLOTS:
     // data. No configuration: that reaches every open Log File when it
     // changes, whichever tab is in front (#245).
     void broughtToFront();
+
+    // The checks of the Filters panel made in this tab, as the panel's
+    // checkedKeys() gave them: the panel shows them while the tab is in
+    // front (#984). None in a new tab.
+    const QStringList& filterChecks() const
+    {
+        return filterChecks_;
+    }
+    void setFilterChecks( const QStringList& keys )
+    {
+        filterChecks_ = keys;
+    }
 
     // QuickFind is being entered: remember which view had the focus, the
     // Filtered View or a Presentation, so QuickFind searches it while the
@@ -701,6 +714,8 @@ private:
     QMenu* countValuesMenu_ = nullptr;
     // Add as Predefined Filter... of it, enabled while there is a pattern.
     QAction* addSearchAsPredefinedFilterAction_ = nullptr;
+    // See filterChecks().
+    QStringList filterChecks_;
     // The Regex Lab the Search Line's pattern is open in, if any.
     QPointer<RegexLabWindow> searchRegexLab_;
     // The pattern the Lab was last given from the Search Line: while the Lab

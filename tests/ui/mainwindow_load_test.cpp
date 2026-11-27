@@ -41,6 +41,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QToolBar>
+#include <QTreeWidget>
 
 #include <kcompressiondevice.h>
 
@@ -59,6 +60,7 @@
 #include "open_log_file_of.h"
 #include "openlogfile.h"
 #include "pathline.h"
+#include "predefinedfilters.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "sessionfile.h"
@@ -313,6 +315,197 @@ SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
                     REQUIRE( historyShown.isEmpty() );
                 }
             }
+        }
+    }
+
+    mainWindow.reset();
+}
+
+// The restorer of the Predefined Filters Collection a test replaced.
+struct KeepsPredefinedFilters {
+    KeepsPredefinedFilters()
+        : sets( PredefinedFiltersCollection::getSynced().filterSets() )
+    {
+    }
+    ~KeepsPredefinedFilters()
+    {
+        auto& collection = PredefinedFiltersCollection::getSynced();
+        collection.setFilterSets( sets );
+        collection.save();
+    }
+    KeepsPredefinedFilters( const KeepsPredefinedFilters& ) = delete;
+    KeepsPredefinedFilters& operator=( const KeepsPredefinedFilters& ) = delete;
+
+    QList<PredefinedFilterSet> sets;
+};
+
+// The checks of the Filters panel belong to the tab they were made in: the
+// panel shows those of the tab in front, and a switch of tabs runs no Search
+// (#984).
+SCENARIO( "Each tab keeps its own checks of the Filters panel", "[ui][search][filterspanel]" )
+{
+    const KeepsPredefinedFilters keepsFilters;
+    {
+        auto group = PredefinedFilterSet::createNewSet( "PerTab" );
+        group.setFilters( { { "X", "alpha", false }, { "Y", "beta", false } } );
+        auto& collection = PredefinedFiltersCollection::getSynced();
+        collection.setFilterSets( { group } );
+        collection.save();
+    }
+
+    auto policies = testSettingsPolicies();
+    policies.quickFind.autoRunSearchOnPatternChange = true;
+    auto appSession = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    QTemporaryFile files[ 3 ]
+        = { QTemporaryFile{ QDir::temp().filePath( "mainwindow_pertab_a_XXXXXX" ) },
+            QTemporaryFile{ QDir::temp().filePath( "mainwindow_pertab_b_XXXXXX" ) },
+            QTemporaryFile{ QDir::temp().filePath( "mainwindow_pertab_c_XXXXXX" ) } };
+    for ( auto& file : files ) {
+        REQUIRE( file.open() );
+        file.write( "alpha Log Line\nbeta Log Line\n" );
+        file.flush();
+    }
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    showUntilExposed( *mainWindow );
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* filtersPanel = mainWindow->findChild<FiltersPanel*>();
+    REQUIRE( filtersPanel != nullptr );
+
+    const auto open = [ & ]( QTemporaryFile& file ) {
+        const auto* before = tabArea->currentWidget();
+        mainWindow->loadFileNonInteractive( file.fileName() );
+        CrawlerWidget* crawler = nullptr;
+        REQUIRE( waitUiState(
+            [ & ] {
+                crawler = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+                return crawler != nullptr && crawler != before
+                       && crawler->state().lineCount.get() == 2;
+            },
+            10000 ) );
+        return crawler;
+    };
+    auto* tabA = open( files[ 0 ] );
+    auto* tabB = open( files[ 1 ] );
+    QTest::qWait( 100 );
+
+    int searchesStarted = 0;
+    QObject context;
+    for ( auto* crawler : { tabA, tabB } ) {
+        QObject::connect( openLogFileOf( *appSession, *crawler ).filteredData().get(),
+                          &LogFilteredData::searchStateChanged, &context,
+                          [ &searchesStarted ]( const SearchSession::State& state ) {
+                              if ( state.phase == SearchSession::Phase::Idle ) {
+                                  ++searchesStarted;
+                              }
+                          } );
+    }
+
+    const auto filterItem = [ & ]( int index ) {
+        auto* tree = filtersPanel->findChild<QTreeWidget*>();
+        REQUIRE( tree != nullptr );
+        for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
+            if ( tree->topLevelItem( group )->text( 0 ) == QStringLiteral( "PerTab" ) ) {
+                return tree->topLevelItem( group )->child( index );
+            }
+        }
+        FAIL( "no group PerTab" );
+        return static_cast<QTreeWidgetItem*>( nullptr );
+    };
+    const auto checkedCount = [ & ] { return filtersPanel->checkedKeys().size(); };
+    const auto bringToFront = [ & ]( CrawlerWidget* crawler ) {
+        tabArea->setCurrentWidget( crawler );
+        QTest::qWait( 300 );
+    };
+
+    bringToFront( tabA );
+    filterItem( 0 )->setCheckState( 0, Qt::Checked );
+    REQUIRE( waitUiState(
+        [ & ] { return LoadAccess::searchLine( *tabA ).currentText() == "alpha"; }, 5000 ) );
+    QTest::qWait( 300 );
+    searchesStarted = 0;
+    const auto patternOfB = LoadAccess::searchLine( *tabB ).currentText();
+
+    WHEN( "the other tab comes to the front" )
+    {
+        bringToFront( tabB );
+
+        THEN( "no filter is checked, its Search is unchanged and no Search runs" )
+        {
+            REQUIRE( checkedCount() == 0 );
+            REQUIRE( LoadAccess::searchLine( *tabB ).currentText() == patternOfB );
+            REQUIRE( LoadAccess::searchLine( *tabA ).currentText() == "alpha" );
+            REQUIRE( searchesStarted == 0 );
+        }
+
+        AND_WHEN( "the first tab comes back to the front" )
+        {
+            bringToFront( tabA );
+
+            THEN( "X is checked again, its Search unchanged, and no Search runs" )
+            {
+                REQUIRE( checkedCount() == 1 );
+                REQUIRE( filterItem( 0 )->checkState( 0 ) == Qt::Checked );
+                REQUIRE( LoadAccess::searchLine( *tabA ).currentText() == "alpha" );
+                REQUIRE( searchesStarted == 0 );
+            }
+        }
+
+        AND_WHEN( "Y is checked in it" )
+        {
+            filterItem( 1 )->setCheckState( 0, Qt::Checked );
+            QTest::qWait( 300 );
+
+            THEN( "it searches with Y only, and the first tab keeps its Search" )
+            {
+                REQUIRE( LoadAccess::searchLine( *tabB ).currentText() == "beta" );
+                REQUIRE( LoadAccess::searchLine( *tabA ).currentText() == "alpha" );
+            }
+
+            AND_WHEN( "the filter list is refreshed" )
+            {
+                searchesStarted = 0;
+                QObject tabAContext;
+                int searchesOfA = 0;
+                QObject::connect( openLogFileOf( *appSession, *tabA ).filteredData().get(),
+                                  &LogFilteredData::searchStateChanged, &tabAContext,
+                                  [ &searchesOfA ]( const SearchSession::State& state ) {
+                                      if ( state.phase == SearchSession::Phase::Idle ) {
+                                          ++searchesOfA;
+                                      }
+                                  } );
+                filtersPanel->refreshFilters();
+                QTest::qWait( 300 );
+
+                THEN( "the tab in front keeps Y, and the other tab runs no Search" )
+                {
+                    REQUIRE( checkedCount() == 1 );
+                    REQUIRE( filterItem( 1 )->checkState( 0 ) == Qt::Checked );
+                    REQUIRE( searchesOfA == 0 );
+                    REQUIRE( LoadAccess::searchLine( *tabA ).currentText() == "alpha" );
+                }
+            }
+        }
+    }
+
+    WHEN( "another Log File is opened" )
+    {
+        auto* tabC = open( files[ 2 ] );
+        QTest::qWait( 100 );
+
+        THEN( "its tab shows no checks" )
+        {
+            REQUIRE( tabArea->currentWidget() == tabC );
+            REQUIRE( checkedCount() == 0 );
         }
     }
 
