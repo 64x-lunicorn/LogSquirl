@@ -28,4 +28,11 @@ struct PredefinedFilter {
     QString name;
     QString pattern;
     bool useRegex;
+
+    // Whether a Search with it finds what one with the other does: the same
+    // pattern, read the same way. The name does not count.
+    bool searchesAs( const PredefinedFilter& other ) const
+    {
+        return pattern == other.pattern && useRegex == other.useRegex;
+    }
 };

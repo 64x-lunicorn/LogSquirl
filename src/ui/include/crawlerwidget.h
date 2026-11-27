@@ -325,7 +325,8 @@ public Q_SLOTS:
 
     // The checks of the Filters panel made in this tab, as the panel's
     // checkedKeys() gave them: the panel shows them while the tab is in
-    // front (#984). None in a new tab.
+    // front (#984). None in a new tab; those saved with the Session in a
+    // restored one (#985).
     const QStringList& filterChecks() const
     {
         return filterChecks_;

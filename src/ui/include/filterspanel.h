@@ -50,7 +50,8 @@ public:
     // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
     // The Filter Groups the enabled plugins ship, as the collection holds
     // them, are listed after the user's own, each with its Source, and are
-    // usable like the user's own (#865).
+    // usable like the user's own (#865). The Search of the tab in front is
+    // told only when one of its checked filters has changed or gone (#985).
     void refreshFilters();
 
     // The Team groups to list after the user's own groups and the plugins'
@@ -64,6 +65,11 @@ public:
     // built. Keys of filters that are gone check nothing (#984).
     void showChecks( const QStringList& keys );
 
+    // The checks of the tab in front: those checkedKeys() gives, and those of
+    // filters the panel has not, whose Plugin group or Team group may come
+    // later (#985). Those of a filter gone in a refresh are among them too.
+    QStringList keptChecks() const;
+
 Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
@@ -76,6 +82,8 @@ private:
     // checks of the tab in front.
     QList<SidebarTab::Group> shownGroups() const;
     void rebuildFilterIndex();
+    // The checks of the tab in front whose filters the panel has, by key.
+    QHash<QString, PredefinedFilter> checkedFilters() const;
     void emitCurrentSelection();
 
     QList<PredefinedFilterSet> allFilterSets_;
@@ -83,7 +91,7 @@ private:
     // The plugins' groups, between the user's own and the Team groups in
     // allFilterSets_: the Predefined Filters Collection holds them (#865).
     QList<PluginGroup<PredefinedFilterSet>> pluginFilterGroups_;
-    // The checks of the tab in front.
+    // See keptChecks(): they are checked once their filter comes (#985).
     QSet<QString> checkedFilterKeys_;
 
     // Fast lookup: checkKey(groupId, filterName) → PredefinedFilter.

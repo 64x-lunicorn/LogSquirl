@@ -41,6 +41,8 @@ constexpr auto SearchIgnoreCaseKey = "IC";
 constexpr auto SearchRegexpKey = "RE";
 constexpr auto SearchInverseKey = "IR";
 constexpr auto SearchBooleanKey = "BC";
+// The key of the tab's checks of the Filters panel (#985).
+constexpr auto FilterChecksKey = "FC";
 
 // The Searches of a tab, as encodeViewState() writes them: a list of objects,
 // one per Search. An entry that is not an object holding a pattern is left
@@ -83,6 +85,26 @@ void decodeSearches( const QVariantMap& properties, ViewState& state )
         state.searches = std::move( searches );
         state.currentSearch = current;
     }
+}
+
+// The checks of the Filters panel, as encodeViewState() writes them: a list
+// of keys. An entry that is no text, or empty, is left out; anything but a
+// list holds none.
+QStringList decodeFilterChecks( const QVariantMap& properties )
+{
+    QStringList checks;
+    const auto saved = properties.value( FilterChecksKey );
+    if ( saved.typeId() != QMetaType::QVariantList ) {
+        return checks;
+    }
+    for ( const auto& entry : saved.toList() ) {
+        if ( entry.typeId() != QMetaType::QString || entry.toString().isEmpty() ) {
+            LOG_WARNING << "A saved filter check that is not one is left out";
+            continue;
+        }
+        checks.append( entry.toString() );
+    }
+    return checks;
 }
 
 // The format glogg wrote: "S<main>:<filtered>:IC<0|1>:AR<0|1>:FF<0|1>". It
@@ -182,6 +204,10 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
     // empty Search.
     decodeSearches( properties, state );
 
+    // Absent from a view state saved before the Session kept them (#985):
+    // none.
+    state.filterChecks = decodeFilterChecks( properties );
+
     return state;
 }
 
@@ -246,6 +272,11 @@ QString encodeViewState( const ViewState& state )
         }
         properties[ KeptSearchesKey ] = searches;
         properties[ CurrentSearchKey ] = static_cast<qlonglong>( state.currentSearch );
+    }
+
+    // Left out without any, what a view state without them restores to.
+    if ( !state.filterChecks.isEmpty() ) {
+        properties[ FilterChecksKey ] = QVariant( state.filterChecks ).toList();
     }
 
     return QJsonDocument::fromVariant( properties ).toJson( QJsonDocument::Compact );

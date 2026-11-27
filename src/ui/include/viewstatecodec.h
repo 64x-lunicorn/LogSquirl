@@ -26,6 +26,7 @@
 #include <QJsonArray>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 #include <utility>
 
@@ -80,6 +81,12 @@ struct ViewState {
     QList<KeptSearchState> searches{ KeptSearchState{} };
     qsizetype currentSearch = 0;
 
+    // The checks of the Filters panel made in the tab, as the panel's
+    // checkedKeys() gave them; none in a view state saved before the Session
+    // kept them (#985). A check whose filter is gone by the next start checks
+    // nothing then.
+    QStringList filterChecks;
+
     bool operator==( const ViewState& ) const = default;
 };
 
@@ -92,7 +99,8 @@ QString encodeViewState( const ViewState& state );
 // as a regexp: a view state saved before that was part of one falls back to
 // what the QuickFind Policy says. Text that holds nothing readable gives
 // defaults; decoding never fails. A saved Search it cannot read is left out;
-// when none is left, the tab has one empty Search.
+// when none is left, the tab has one empty Search. A saved filter check that
+// is no text is left out.
 ViewState decodeViewState( const QString& encoded, const QuickFindPolicy& quickFindPolicy );
 
 // A view state as the Session asks the views for it.

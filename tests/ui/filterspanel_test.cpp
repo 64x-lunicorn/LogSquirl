@@ -91,6 +91,19 @@ static void setCheckedSilently( QTreeWidgetItem* group, Qt::CheckState state )
     tree->blockSignals( false );
 }
 
+// The index of a group in the Predefined Filters Collection, by name: the
+// Collection puts its Default group before the others.
+static qsizetype groupIndex( const QList<PredefinedFilterSet>& sets, const QString& name )
+{
+    for ( qsizetype i = 0; i < sets.size(); ++i ) {
+        if ( sets[ i ].name() == name ) {
+            return i;
+        }
+    }
+    FAIL( "no group " << name.toStdString() );
+    return -1;
+}
+
 class FiltersPanelTestStateGuard {
 public:
     FiltersPanelTestStateGuard()
@@ -631,17 +644,90 @@ SCENARIO( "Refreshing the Filters tab tells the Search of the checked filters on
         invokeDoubleClick( &panel, groupA->child( 0 ) ); // "Error"
         QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
 
-        WHEN( "the panel is refreshed" )
+        WHEN( "the panel is refreshed with the filter unchanged" )
         {
             panel.refreshFilters();
 
-            THEN( "filtersChanged is emitted with it" )
+            THEN( "the Search is not told: it already is what the check built (#985)" )
+            {
+                REQUIRE( spy.isEmpty() );
+                REQUIRE( countChecked( findTree( &panel ) ) == 1 );
+            }
+        }
+
+        WHEN( "its pattern was changed" )
+        {
+            auto& collection = PredefinedFiltersCollection::getSynced();
+            auto sets = collection.filterSets();
+            sets[ groupIndex( sets, "GroupA" ) ].setFilters(
+                { { "Error", "FATAL|ERROR", true }, { "Warning", "WARN", true } } );
+            collection.setFilterSets( sets );
+            collection.save();
+            panel.refreshFilters();
+
+            THEN( "filtersChanged is emitted with the new pattern" )
             {
                 REQUIRE( spy.count() == 1 );
                 const auto filters = spy.at( 0 ).at( 0 ).value<QList<PredefinedFilter>>();
                 REQUIRE( filters.size() == 1 );
-                REQUIRE( filters[ 0 ].name == "Error" );
+                REQUIRE( filters[ 0 ].pattern == "FATAL|ERROR" );
             }
+        }
+
+        WHEN( "it was deleted" )
+        {
+            auto& collection = PredefinedFiltersCollection::getSynced();
+            auto sets = collection.filterSets();
+            sets[ groupIndex( sets, "GroupA" ) ].setFilters( { { "Warning", "WARN", true } } );
+            collection.setFilterSets( sets );
+            collection.save();
+            panel.refreshFilters();
+
+            THEN( "filtersChanged is emitted without it" )
+            {
+                REQUIRE( spy.count() == 1 );
+                REQUIRE( spy.at( 0 ).at( 0 ).value<QList<PredefinedFilter>>().isEmpty() );
+                REQUIRE( panel.checkedKeys().isEmpty() );
+            }
+        }
+    }
+}
+
+// A restored tab's checks may be of a Plugin's or a Team group, which the
+// panel gets only after the restore: they check nothing until it comes, and
+// then are checked without a Search, which the restore already ran (#985).
+SCENARIO( "Checks of a group that comes after them are checked when it comes, without a Search",
+          "[filterspanel][refresh][session]" )
+{
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+
+    auto lateGroup = PredefinedFilterSet::createNewSet( "Late" );
+    lateGroup.setFilters( { { "Late", "LATE", false } } );
+    const auto lateKey = lateGroup.id() + QStringLiteral( "/Late" );
+
+    FiltersPanel panel;
+    const auto sets = PredefinedFiltersCollection::getSynced().filterSets();
+    const auto errorKey = sets[ groupIndex( sets, "GroupA" ) ].id() + QStringLiteral( "/Error" );
+    panel.showChecks( { errorKey, lateKey } );
+    QCoreApplication::processEvents();
+    REQUIRE( panel.checkedKeys() == QStringList{ errorKey } );
+
+    QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+
+    WHEN( "the group comes" )
+    {
+        panel.setTeamGroups( { lateGroup } );
+        QCoreApplication::processEvents();
+
+        THEN( "both are checked, and the Search is not told" )
+        {
+            REQUIRE( spy.isEmpty() );
+            auto checked = panel.checkedKeys();
+            checked.sort();
+            auto expected = QStringList{ errorKey, lateKey };
+            expected.sort();
+            REQUIRE( checked == expected );
         }
     }
 }
