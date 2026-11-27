@@ -65,6 +65,11 @@ public:
     // built. Keys of filters that are gone check nothing (#984).
     void showChecks( const QStringList& keys );
 
+    // The checks of the tab in front: those checkedKeys() gives, and those of
+    // filters the panel has not, whose Plugin group or Team group may come
+    // later (#985). Those of a filter gone in a refresh are among them too.
+    QStringList keptChecks() const;
+
 Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
@@ -86,8 +91,7 @@ private:
     // The plugins' groups, between the user's own and the Team groups in
     // allFilterSets_: the Predefined Filters Collection holds them (#865).
     QList<PluginGroup<PredefinedFilterSet>> pluginFilterGroups_;
-    // The checks of the tab in front, those of filters the panel has not
-    // (yet) included: they are checked once their group comes (#985).
+    // See keptChecks(): they are checked once their filter comes (#985).
     QSet<QString> checkedFilterKeys_;
 
     // Fast lookup: checkKey(groupId, filterName) → PredefinedFilter.

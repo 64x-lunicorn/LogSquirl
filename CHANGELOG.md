@@ -35,9 +35,9 @@
   panel shows them again once the restored tab is in front, a tab whose Log
   File loads later included. Restoring them runs no Search: the restored
   Search already is what they built. A check whose filter is gone is
-  dropped, and one of a plugin's Filter Group is checked once the plugins
-  have loaded. A Session saved by an older release restores without checks.
-  A refresh of the filter list, after a filter was added or the plugins
+  dropped, and one of a Plugin group or Team group is kept until the
+  plugins have loaded and the Team Folder has synced, and checked then. A
+  Session saved by an older release restores without checks. A refresh of the filter list, after a filter was added or the plugins
   loaded, no longer runs the Search of the tab in front again when none of
   its checked filters changed. (#985)
 

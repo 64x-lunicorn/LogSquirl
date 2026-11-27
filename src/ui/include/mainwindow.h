@@ -410,10 +410,10 @@ Q_SIGNALS:
     void exitRequested();
 
 private:
-    // The tab in front keeps the checks the Filters panel shows of it: those
-    // of filters gone are dropped, those of a group that came late, a
-    // Plugin's or a Team group, are kept (#985).
-    void keepFilterChecksShown();
+    // Stores the checks of the Filters panel in the tab in front: those of
+    // filters gone are dropped once every filter is known, those of a Plugin
+    // group or Team group yet to come are kept (#985).
+    void storeShownFilterChecks();
     // The tab in front as the Regex Lab's sample source; none without a tab.
     RegexLabSampleSource tabInFrontAsRegexLabSample();
     // What the editors open the Regex Lab with (#660).
@@ -563,6 +563,9 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
+    // Whether the Team groups are there: no Team Folder, or its first sync
+    // has finished (#985).
+    bool teamGroupsKnown_ = true;
     // The window's ties to the Log File in front, and to it alone (#635).
     FrontTabBinding frontTab_{ *this };
 

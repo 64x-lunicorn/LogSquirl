@@ -341,8 +341,8 @@ MainWindow::MainWindow( WindowSession session,
     // starting it here as well ran every Search twice (#538).
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
+                 storeShownFilterChecks();
                  if ( auto crawler = currentCrawlerWidget() ) {
-                     crawler->setFilterChecks( filtersPanel_.checkedKeys() );
                      crawler->setSearchPatternFromPredefinedFilters( filters );
                  }
              } );
@@ -2122,22 +2122,29 @@ void MainWindow::applyHighlighterSetChange()
 void MainWindow::applyPredefinedFiltersChange()
 {
     filtersPanel_.refreshFilters();
-    keepFilterChecksShown();
+    storeShownFilterChecks();
 }
 
 void MainWindow::applyTeamFilterGroupsChange()
 {
     if ( const auto teamFolder = session_.teamFolder() ) {
         filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
-        keepFilterChecksShown();
+        storeShownFilterChecks();
     }
 }
 
-void MainWindow::keepFilterChecksShown()
+void MainWindow::storeShownFilterChecks()
 {
-    if ( auto* crawler = currentCrawlerWidget() ) {
-        crawler->setFilterChecks( filtersPanel_.checkedKeys() );
+    auto* crawler = currentCrawlerWidget();
+    if ( crawler == nullptr ) {
+        return;
     }
+    // The plugins load after the window restored its Session, and the Team
+    // groups come with the first sync of the Team Folder: until both are
+    // there, a check of a filter not shown may be of one of their groups.
+    const auto everyFilterKnown = plugins_->isLoaded() && teamGroupsKnown_;
+    crawler->setFilterChecks( everyFilterKnown ? filtersPanel_.checkedKeys()
+                                               : filtersPanel_.keptChecks() );
 }
 
 // Opens the 'Options' modal dialog box
@@ -2245,6 +2252,14 @@ void MainWindow::connectTeamFolder()
     connect( teamFolder.get(), &TeamFolder::publishFinished, this,
              &MainWindow::askAboutPublishConflicts );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
+    // Until its first sync, the Team groups may not be there yet (#985). The
+    // Team Folder tells the windows of the groups before it says the sync
+    // finished.
+    teamGroupsKnown_ = teamFolder->state() != TeamFolder::State::NotSynced;
+    connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
+        teamGroupsKnown_ = true;
+        storeShownFilterChecks();
+    } );
 
     // The Team Filter Groups only this window's Filters panel holds. Set
     // directly: this runs while the window is built, so not through the
@@ -3047,13 +3062,10 @@ void MainWindow::currentTabChanged( int index )
 
         // The Filters panel shows the checks made in this tab, and runs no
         // Search for them: the tab's Search already is what they built (#984).
-        // The checks of filters gone meanwhile are dropped from the tab, but
-        // not while a restore adds its tabs: a Plugin's groups come only
-        // after it, and the tab keeps the checks of their filters (#985).
+        // The checks of filters gone meanwhile are dropped from the tab once
+        // the window knows every filter (#985).
         filtersPanel_.showChecks( crawler_widget->filterChecks() );
-        if ( !restoringSession_ ) {
-            keepFilterChecksShown();
-        }
+        storeShownFilterChecks();
 
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).

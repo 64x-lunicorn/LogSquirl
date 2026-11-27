@@ -516,8 +516,6 @@ SCENARIO( "Each tab keeps its own checks of the Filters panel", "[ui][search][fi
     mainWindow.reset();
 }
 
-// A window restored from the Session shows the tab that was in front when the
-// Session was saved, not the last one (#542).
 // The checks of the Filters panel are saved with their tab in the Session and
 // come back with it: the panel shows them once the tab is in front, without
 // a Search of their own, as the restored Search already is what they built.
@@ -613,6 +611,14 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
     REQUIRE( crawlers.size() == 3 );
     REQUIRE( tabArea->currentWidget() == crawlers[ 0 ] );
 
+    const auto savedChecks = []( const CrawlerWidget& crawler ) {
+        return decodeViewState( crawler.context()->toString(), QuickFindPolicy{} ).filterChecks;
+    };
+    const auto bringToFront = [ & ]( CrawlerWidget* crawler ) {
+        tabArea->setCurrentWidget( crawler );
+        QTest::qWait( 300 );
+    };
+
     // How many Searches each tab started.
     std::array<int, 3> searches{};
     for ( std::size_t tab = 0; tab < crawlers.size(); ++tab ) {
@@ -627,6 +633,24 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
                 idle = nowIdle;
             } );
     }
+
+    WHEN( "a tab whose Log File has not loaded yet comes to the front at once" )
+    {
+        // Neither the Log File nor the plugins have loaded yet.
+        REQUIRE_FALSE( crawlers[ 1 ]->state().loadStatus.has_value() );
+        REQUIRE_FALSE( plugins->isLoaded() );
+        tabArea->setCurrentWidget( crawlers[ 1 ] );
+        const auto checksOfSecond = filtersPanel->checkedKeys();
+        tabArea->setCurrentWidget( crawlers[ 0 ] );
+
+        THEN( "it shows its checks, and the first keeps the Plugin's check for when it comes" )
+        {
+            REQUIRE( checksOfSecond == QStringList{ keyY } );
+            REQUIRE( filtersPanel->checkedKeys() == QStringList{ keyX } );
+            REQUIRE( savedChecks( *crawlers[ 0 ] ).contains( keyP ) );
+        }
+    }
+
     // Every restored Search has run once, and nothing else follows.
     REQUIRE( waitUiState(
         [ & ] { return std::ranges::all_of( searches, []( int n ) { return n == 1; } ); },
@@ -635,12 +659,10 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
     const auto restoredSearches = searches;
     REQUIRE( restoredSearches == std::array<int, 3>{ 1, 1, 1 } );
 
-    const auto savedChecks = []( const CrawlerWidget& crawler ) {
-        return decodeViewState( crawler.context()->toString(), QuickFindPolicy{} ).filterChecks;
-    };
-    const auto bringToFront = [ & ]( CrawlerWidget* crawler ) {
-        tabArea->setCurrentWidget( crawler );
-        QTest::qWait( 300 );
+    const auto loadPlugins = [ & ] {
+        plugins->loadSoon();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); } ) );
+        QTest::qWait( 100 );
     };
 
     THEN( "the tab in front shows its check of a filter there, and keeps the Plugin's" )
@@ -649,8 +671,9 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
         REQUIRE( savedChecks( *crawlers[ 0 ] ).contains( keyP ) );
     }
 
-    WHEN( "the Plugin's group comes" )
+    WHEN( "the plugins load with the Plugin's group" )
     {
+        loadPlugins();
         PredefinedFiltersCollection::get().setPluginFilterGroups( { { shipped, "Some Plugin" } } );
         appSession->applyChange( Changed::PredefinedFilters );
         QTest::qWait( 300 );
@@ -689,10 +712,12 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
         {
             bringToFront( crawlers[ 0 ] );
 
-            THEN( "it shows its check again, and drops that of the deleted filter" )
+            THEN( "it shows its check again, and, the plugins loaded without the Plugin's "
+                  "group, drops the checks of the filters that are not there" )
             {
+                REQUIRE( plugins->isLoaded() );
                 REQUIRE( filtersPanel->checkedKeys() == QStringList{ keyX } );
-                REQUIRE_FALSE( savedChecks( *crawlers[ 0 ] ).contains( keyGone ) );
+                REQUIRE( savedChecks( *crawlers[ 0 ] ) == QStringList{ keyX } );
                 REQUIRE( searches == restoredSearches );
             }
         }
@@ -722,6 +747,8 @@ SCENARIO( "A restored window shows each tab's own filter checks without a Search
     mainWindow.reset();
 }
 
+// A window restored from the Session shows the tab that was in front when the
+// Session was saved, not the last one (#542).
 SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
 {
     const auto windowId = QStringLiteral( "mainwindow_load_test_window_542" );

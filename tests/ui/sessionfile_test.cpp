@@ -226,6 +226,37 @@ SCENARIO( "A Session File keeps every Kept Search of a tab", "[ui][session][file
     }
 }
 
+SCENARIO( "A Session File keeps the filter checks of a tab", "[ui][session][file]" )
+{
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto appLog = writeLogFile( folder.filePath( "app.log" ) );
+
+    // #985: the checks of the Filters panel made in the tab.
+    ViewState state;
+    state.sizes = { 400, 100 };
+    state.searches = { KeptSearchState{ .pattern = "ERROR|WARN", .useRegexp = true } };
+    state.filterChecks = { "group-a/Error", "team-b/Warning" };
+
+    WindowSnapshot window;
+    window.files = { { appLog, encodeViewState( state ) } };
+    window.currentFile = 0;
+
+    WHEN( "it is written and read again" )
+    {
+        const auto read = readSessionFile( writeSessionFile( window, QDir( folder.path() ) ),
+                                           QDir( folder.path() ) );
+        REQUIRE( read.has_value() );
+        REQUIRE( read->window.files.size() == 1 );
+
+        THEN( "the tab has the same checks" )
+        {
+            REQUIRE( decoded( read->window.files[ 0 ].viewContext ).filterChecks
+                     == state.filterChecks );
+        }
+    }
+}
+
 SCENARIO( "A folder of logs and its Session File opens once moved", "[ui][session][file]" )
 {
     QTemporaryDir parent;

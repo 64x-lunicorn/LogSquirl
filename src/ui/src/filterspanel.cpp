@@ -42,8 +42,8 @@ FiltersPanel::FiltersPanel( QWidget* parent )
 
 void FiltersPanel::refreshFilters()
 {
-    // The checked filters as the Search of the tab in front was told of them.
-    const auto toldBefore = checkedFilters();
+    // The checked filters the Search of the tab in front was built with.
+    const auto checkedBefore = checkedFilters();
 
     auto& collection = PredefinedFiltersCollection::getSynced();
     allFilterSets_ = collection.filterSets();
@@ -55,20 +55,14 @@ void FiltersPanel::refreshFilters()
     rebuildFilterIndex();
     setGroups( shownGroups() );
 
-    // Tell the Search of the tab in front of its checked filters only when
-    // one of them has changed or gone: otherwise the Search already is what
-    // they build. With none checked before or now, the Search is left as it
-    // is: refilling the tree after a filter was added replaced it with an
-    // empty one (#897). A check whose group came only now, a Plugin's or a
-    // Team group after a restore, is shown without a Search: the restored
-    // Search was built with it (#985). The other tabs hear nothing (#984).
-    const auto toldNow = checkedFilters();
-    const auto unchanged = []( const PredefinedFilter& a, const PredefinedFilter& b ) {
-        return a.pattern == b.pattern && a.useRegex == b.useRegex;
-    };
-    for ( auto it = toldBefore.cbegin(); it != toldBefore.cend(); ++it ) {
-        const auto now = toldNow.constFind( it.key() );
-        if ( now == toldNow.cend() || !unchanged( *now, *it ) ) {
+    // The Search of the tab in front hears of its checked filters only when
+    // one of them has changed or gone, never with none checked (#897). A
+    // check whose Plugin group or Team group came only now was in the
+    // restored Search already (#985). The other tabs hear nothing (#984).
+    const auto checkedAfter = checkedFilters();
+    for ( auto it = checkedBefore.cbegin(); it != checkedBefore.cend(); ++it ) {
+        const auto after = checkedAfter.constFind( it.key() );
+        if ( after == checkedAfter.cend() || !after->searchesAs( *it ) ) {
             emitCurrentSelection();
             return;
         }
@@ -93,6 +87,13 @@ void FiltersPanel::showChecks( const QStringList& keys )
     setGroups( shownGroups() );
     // What Restore previous selection brought back was of the tab shown before.
     forgetPreviousSelection();
+}
+
+QStringList FiltersPanel::keptChecks() const
+{
+    QStringList keys( checkedFilterKeys_.cbegin(), checkedFilterKeys_.cend() );
+    keys.sort();
+    return keys;
 }
 
 void FiltersPanel::setTeamGroups( const QList<PredefinedFilterSet>& groups )
@@ -149,6 +150,13 @@ void FiltersPanel::emitCurrentSelection()
     QList<PredefinedFilter> selected;
     QSet<QString> checkedKeys;
 
+    // The checks of filters the panel has not are kept: their Plugin group or
+    // Team group may come later (#985).
+    for ( const auto& key : logsquirl::as_const( checkedFilterKeys_ ) ) {
+        if ( !filterIndex_.contains( key ) ) {
+            checkedKeys.insert( key );
+        }
+    }
     for ( const auto& key : SidebarTab::checkedKeys() ) {
         checkedKeys.insert( key );
 
