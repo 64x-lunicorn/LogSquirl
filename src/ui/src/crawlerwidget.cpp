@@ -840,16 +840,11 @@ void CrawlerWidget::editSearchHistory()
     updateSearchCombo();
 }
 
-void CrawlerWidget::addSelectionAsPredefinedFilter( const QString& selectedText )
-{
-    Q_EMIT addAsPredefinedFilterRequested( selectedText, false );
-}
-
 void CrawlerWidget::addSearchAsPredefinedFilter()
 {
     const auto pattern = searchLine_->pattern();
     if ( !pattern.isEmpty() ) {
-        Q_EMIT addAsPredefinedFilterRequested( pattern, searchLine_->flags().useRegexp );
+        Q_EMIT addSearchAsPredefinedFilterRequested( pattern, searchLine_->flags() );
     }
 }
 
@@ -1670,7 +1665,7 @@ void CrawlerWidget::setup()
              &CrawlerWidget::highlightThisRequested );
     // Add as Predefined Filter..., as Highlight this... (#897).
     connect( logMainView_, &LogMainView::addAsPredefinedFilterRequested, this,
-             &CrawlerWidget::addSelectionAsPredefinedFilter );
+             &CrawlerWidget::addAsPredefinedFilterRequested );
     // Chart this value... charts in this tab's chart panel (#898).
     connect( logMainView_, &LogMainView::chartThisValueRequested, this,
              &CrawlerWidget::chartValue );
@@ -2108,7 +2103,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &FilteredView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
     connect( view, &FilteredView::addAsPredefinedFilterRequested, this,
-             &CrawlerWidget::addSelectionAsPredefinedFilter );
+             &CrawlerWidget::addAsPredefinedFilterRequested );
     connect( view, &FilteredView::chartThisValueRequested, this, &CrawlerWidget::chartValue );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,

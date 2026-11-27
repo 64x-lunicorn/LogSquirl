@@ -20,6 +20,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include <QDialog>
 #include <QHash>
@@ -38,6 +39,7 @@
 class AddToGroupLayout;
 class LogData;
 class QCheckBox;
+class QLabel;
 class QLineEdit;
 class GroupChooser;
 
@@ -107,6 +109,16 @@ public:
     // What the preview found last.
     FilterPreviewSearch::Result previewResult() const;
 
+    // Opened from the Search Line (#983): notes which of its settings,
+    // searchLineFlags, the filter does not keep, for a Predefined Filter
+    // keeps a name, a pattern and whether it is a regex, nothing more. Match
+    // case and Inverse match are the Search's the filter is used in. A
+    // pattern of quoted sub-patterns read with Boolean combining, and without
+    // Field Terms, is used as one string: the filter will not find what the
+    // Search Line found. The note follows the pattern as edited; OK stays as
+    // it is. Without a call, as for a selection, no note shows.
+    void noteSearchLineSettings( const SearchLine::Flags& searchLineFlags );
+
     // The layout shared with Name This Value.
     const AddToGroupLayout& addToGroupLayout() const
     {
@@ -154,6 +166,8 @@ Q_SIGNALS:
 
 private:
     void updateState();
+    // The pattern changed: the note on the Search Line's settings follows it.
+    void updateUnkeptNote();
     // Another group is chosen: a name still as proposed is proposed again,
     // free in that group.
     void groupChanged();
@@ -183,6 +197,11 @@ private:
     QLineEdit* name_ = nullptr;
     QLineEdit* pattern_ = nullptr;
     QCheckBox* regex_ = nullptr;
+    // The note on the Search Line's settings the filter does not keep, below
+    // Regular expression; its row hidden while there is none.
+    QLabel* unkeptNote_ = nullptr;
+    // The Search Line's settings, once the dialog is opened from it.
+    std::optional<SearchLine::Flags> searchLineFlags_;
     GroupChooser* group_ = nullptr;
     QCheckBox* applyNow_ = nullptr;
     // The user's own groups, as read when the dialog opened, and the Team
