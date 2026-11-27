@@ -62,6 +62,17 @@ void LinePreview::setLine( const QString& text, const QList<Mark>& marks, MarkSt
     line_ = text;
     marks_ = marks;
     style_ = style;
+    coloring_.reset();
+    remark_.clear();
+    render();
+}
+
+void LinePreview::setColoredLine( const QString& text, const QList<Mark>& marks,
+                                  const Coloring& coloring )
+{
+    line_ = text;
+    marks_ = marks;
+    coloring_ = coloring;
     remark_.clear();
     render();
 }
@@ -70,6 +81,7 @@ void LinePreview::setRemark( const QString& remark )
 {
     line_.clear();
     marks_.clear();
+    coloring_.reset();
     remark_ = remark;
     render();
 }
@@ -190,7 +202,26 @@ void LinePreview::render()
 
     QString markOpen;
     QString markClose;
-    if ( style_ == MarkStyle::Underline ) {
+    // The span of a Highlighter's colors, empty for the colors of the view.
+    QString colorOpen;
+    if ( coloring_ ) {
+        QString style;
+        if ( coloring_->foreColor.isValid() ) {
+            style += QStringLiteral( "color: %1;" ).arg( coloring_->foreColor.name() );
+        }
+        if ( coloring_->backColor.isValid() ) {
+            style += QStringLiteral( "background-color: %1;" ).arg( coloring_->backColor.name() );
+        }
+        if ( !style.isEmpty() ) {
+            colorOpen = QStringLiteral( "<span style=\"%1\">" ).arg( style );
+        }
+        // A whole line colored marks nothing in it apart.
+        if ( !coloring_->wholeLine && !colorOpen.isEmpty() ) {
+            markOpen = colorOpen;
+            markClose = QStringLiteral( "</span>" );
+        }
+    }
+    else if ( style_ == MarkStyle::Underline ) {
         markOpen = QStringLiteral( "<u>" );
         markClose = QStringLiteral( "</u>" );
     }
@@ -203,6 +234,10 @@ void LinePreview::render()
 
     shownText_.clear();
     QString html = QStringLiteral( "<span style=\"white-space: pre\">" );
+    const auto colorsWholeLine = coloring_ && coloring_->wholeLine && !colorOpen.isEmpty();
+    if ( colorsWholeLine ) {
+        html += colorOpen;
+    }
     if ( first > 0 ) {
         shownText_ += Ellipsis;
         html += Ellipsis;
@@ -227,6 +262,9 @@ void LinePreview::render()
     if ( last < size ) {
         shownText_ += Ellipsis;
         html += Ellipsis;
+    }
+    if ( colorsWholeLine ) {
+        html += QStringLiteral( "</span>" );
     }
     html += QStringLiteral( "</span>" );
     setText( html );

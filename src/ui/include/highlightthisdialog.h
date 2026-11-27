@@ -19,19 +19,17 @@
 
 #pragma once
 
-#include <QColor>
 #include <QDialog>
 #include <QList>
 #include <QString>
 
 #include "highlighter.h"
 
+class HighlighterColoring;
 class QComboBox;
 class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
-class QPushButton;
-class QRadioButton;
 
 // What "Highlight this..." of the context menu of the Text View and the
 // Filtered View opens (#896): a compact dialog turning the text selected in a
@@ -70,24 +68,15 @@ public Q_SLOTS:
     void accept() override;
 
 private:
-    void setColors( const QColor& foreColor, const QColor& backColor );
     void setChosen();
     void updatePreview();
 
     QString logLine_;
     // The user's own sets, as read when the dialog opened.
     QList<HighlighterSet> sets_;
-    QColor foreColor_;
-    QColor backColor_;
-    // Whether the user picked the colors: until then they follow the set
-    // chosen, as a new Highlighter of the Highlighters dialog does.
-    bool colorsPicked_ = false;
 
     QLineEdit* pattern_ = nullptr;
-    QPushButton* foreColorButton_ = nullptr;
-    QPushButton* backColorButton_ = nullptr;
-    QRadioButton* wholeLine_ = nullptr;
-    QRadioButton* onlyMatch_ = nullptr;
+    HighlighterColoring* coloring_ = nullptr;
     QComboBox* set_ = nullptr;
     QLineEdit* newSetName_ = nullptr;
     QLabel* preview_ = nullptr;

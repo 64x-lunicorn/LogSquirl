@@ -2018,6 +2018,15 @@ void MainWindow::openAddPredefinedFilter( const QString& pattern,
                        &TeamFolder::filterGroupRevisions );
     // The group chosen last is proposed again (#955).
     dialog.proposeGroup( Configuration::get().lastFilterGroupId() );
+    // Also highlight it opens as it was last, with the Highlighter Set chosen
+    // last; a Team set is published with the requests above (#986).
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamHighlighterSets( teamFolder->highlighterGroups(), teamFolder->isWritable(),
+                                        teamFolder->highlighterGroupRevisions() );
+    }
+    dialog.proposeHighlighterSet( Configuration::get().lastHighlighterSetId() );
+    dialog.setAlsoHighlight( Configuration::get().addFilterAlsoHighlights() );
     // The preview counts what the filter finds in the tab's Log File, read as
     // its Search Line would read it and prepared as its Searches are (#958).
     if ( const auto* crawler = currentCrawlerWidget() ) {
@@ -2028,9 +2037,22 @@ void MainWindow::openAddPredefinedFilter( const QString& pattern,
         return;
     }
     rememberChosenGroup( &Configuration::setLastFilterGroupId, dialog.chosenGroupId() );
+    {
+        auto& config = Configuration::getSynced();
+        config.setAddFilterAlsoHighlights( dialog.alsoHighlights() );
+        if ( dialog.alsoHighlights() ) {
+            config.setLastHighlighterSetId( dialog.chosenHighlighterSetId() );
+        }
+        config.save();
+    }
     // Saved as the Predefined Filters dialog saves them; only the Filters
     // panel of every window lists them.
     session_.applyChange( Changed::PredefinedFilters );
+    // The Highlighter colors every open Log File at once, as one of Highlight
+    // This does.
+    if ( dialog.alsoHighlights() ) {
+        session_.applyChange( Changed::HighlighterSets );
+    }
     if ( dialog.applyNow() ) {
         if ( auto* crawler = currentCrawlerWidget() ) {
             crawler->searchWithPredefinedFilter( dialog.filter() );

@@ -30,6 +30,8 @@
 
 #include "choosergroups.h"
 #include "filterpreviewsearch.h"
+#include "highlighter.h"
+#include "highlighterset.h"
 #include "predefinedfilter.h"
 #include "predefinedfilters.h"
 #include "regularexpressionpattern.h"
@@ -37,6 +39,7 @@
 #include "teamfolder.h"
 
 class AddToGroupLayout;
+class HighlighterColoring;
 class LogData;
 class QCheckBox;
 class QLabel;
@@ -72,6 +75,18 @@ class GroupChooser;
 // based on the revision it was given with, so that a change somebody else
 // made meanwhile is asked about. Running the Search, refreshing the Filters
 // panel and remembering the group chosen are the caller's.
+//
+// Also highlight it (#986), between the group and the preview, makes OK add a
+// Highlighter with the same pattern too, so that what the filter finds is
+// colored while the filter is not searched with. Checked, it shows the rows of
+// Highlight This -- the colors, the whole Log Line or only the match -- and a
+// Group Chooser of the Highlighter Sets: the user's own, the Team's, a new one
+// of either. The preview colors its Log Line as the Highlighter will. The
+// Highlighter is a copy: changing the filter later does not change it. OK puts
+// it at the end of the set and activates the set, as Highlight This does; a
+// Team Highlighter Set is published through publishRequested, together with
+// the Team group the filter went into, if it did.
+// Recoloring the views and remembering the set chosen are the caller's.
 class AddPredefinedFilterDialog : public QDialog {
     Q_OBJECT
 
@@ -152,6 +167,37 @@ public:
     // Whether the Search is to run with the filter once it is added.
     bool applyNow() const;
 
+    // The pattern of the Highlighter of filter: a regex as it is, plain text
+    // escaped, for a Highlighter always reads a regex (#986).
+    static QString highlighterPattern( const PredefinedFilter& filter );
+
+    // Checks or unchecks Also highlight it, as the user does.
+    void setAlsoHighlight( bool alsoHighlight );
+    // Whether OK adds a Highlighter too.
+    bool alsoHighlights() const;
+
+    // Offers the Team Highlighter Sets too, as showTeamGroups() the Team
+    // groups; publishing them goes through publishRequested as well.
+    void showTeamHighlighterSets( const QList<HighlighterSet>& sets, bool editable,
+                                  const QHash<QString, QString>& revisions );
+    // Proposes the Highlighter Set of the id, the one chosen last; the first
+    // of the user's own when it is gone.
+    void proposeHighlighterSet( const QString& setId );
+
+    // The Highlighter OK adds with Also highlight it, as edited: matching
+    // case as the tab's Search does, so that it colors what the filter finds.
+    Highlighter highlighter() const;
+
+    // The id of the Highlighter Set chosen; empty for a new one until OK made
+    // it, its id after that.
+    QString chosenHighlighterSetId() const;
+
+    // The Group Chooser of the Highlighter Sets.
+    GroupChooser* highlighterSetChooser() const
+    {
+        return highlighterSet_;
+    }
+
     // Why OK is disabled: the pattern is empty or no valid regex, the Filter
     // Group chosen has a filter of the name, or the new group's name will not
     // do. Empty when it is enabled or the name is empty.
@@ -182,8 +228,20 @@ private:
     RegularExpressionPattern previewPattern() const;
     // The pattern or Regular expression changed: the preview searches again.
     void searchPreview();
-    // The preview's Search told what it found.
+    // The preview's Search told what it found, or Also highlight it or how
+    // the Highlighter colors changed.
     void showPreview();
+
+    // Also highlight it was checked or unchecked: its rows show or hide.
+    void alsoHighlightToggled( bool alsoHighlight );
+    // Another Highlighter Set is chosen: the colors follow it, unless picked.
+    void highlighterSetChanged();
+    // Why the Highlighter cannot be added; empty when it can or when Also
+    // highlight it is unchecked.
+    QString highlighterWarning() const;
+    // Adds the Highlighter to the set chosen and activates it; the requests
+    // that publish a Team set.
+    QList<logsquirl::teamfolder::PublishRequest> addHighlighter();
 
     // The pattern the dialog was opened for, which names are proposed from.
     QString openedPattern_;
@@ -207,6 +265,13 @@ private:
     // The user's own groups, as read when the dialog opened, and the Team
     // groups once it is given them: what group_ offers.
     std::unique_ptr<ChooserGroups<PredefinedFilterSet>> groups_;
+
+    QCheckBox* alsoHighlight_ = nullptr;
+    HighlighterColoring* coloring_ = nullptr;
+    GroupChooser* highlighterSet_ = nullptr;
+    // The user's own Highlighter Sets, as read when the dialog opened, and the
+    // Team's once it is given them.
+    std::unique_ptr<ChooserGroups<HighlighterSet>> highlighterSets_;
 
     // How the tab's Search reads a pattern.
     SearchLine::Flags searchFlags_;

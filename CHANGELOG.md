@@ -21,6 +21,21 @@
   it says the filter searches for the pattern as one string and will not
   find what the Search Line found; OK stays enabled. Opened for a selection,
   it says nothing of the sort. (#983)
+- **Add as Predefined Filter... can also highlight what the filter finds**:
+  *Also highlight it*, between the Filter Group and the preview, makes OK
+  add a Highlighter with the same pattern too, so that what the filter finds
+  is colored while the filter is not searched with. Checked, it shows the
+  colors and the choice between the whole Log Line and only the matched text,
+  as *Highlight this...* has them, and the Highlighter Set: one of your own, a
+  Team Highlighter Set, or a new one of either. A pattern of plain text is escaped for
+  the Highlighter, which always reads a regular expression, so that both find
+  the same text; the Highlighter is a copy that changing the filter later
+  does not change. The preview colors its Log Line as the Highlighter will.
+  OK is disabled while the new set has no name or one that is taken, or while
+  the pattern has Field Terms, which a Highlighter cannot read. The set is
+  activated and colors the Log File at once; a Team Highlighter Set is
+  shared with the team. The dialog opens with the check as it was last, and proposes the set
+  used last. (#986)
 - **Each tab keeps its own checks in the Filters panel**: the Predefined
   Filters checked in the sidebar's Filters panel belong to the tab they were
   checked in, as its Search Line does. A tab brought to the front shows its

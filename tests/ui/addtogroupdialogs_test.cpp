@@ -259,15 +259,20 @@ SCENARIO( "Add as Predefined Filter and Name This Value share one layout",
     THEN( "Add as Predefined Filter shows what, where, the preview, the warning and the buttons" )
     {
         // Below Regular expression, the note on the Search Line's settings
-        // the filter does not keep (#983), hidden here.
+        // the filter does not keep (#983), hidden here. Between the group
+        // and the preview Also highlight it and its rows (#986), hidden
+        // while it is unchecked.
         const auto& layout = filterDialog.addToGroupLayout();
         REQUIRE( rowLabels( layout )
                  == QStringList{ QStringLiteral( "Name:" ), QStringLiteral( "Pattern:" ), QString{},
-                                 QString{}, QStringLiteral( "Filter Group:" ), QString{},
+                                 QString{}, QStringLiteral( "Filter Group:" ), QString{}, QString{},
+                                 QStringLiteral( "Colors:" ), QStringLiteral( "Highlight:" ),
+                                 QStringLiteral( "Highlighter Set:" ),
                                  QStringLiteral( "Preview:" ) } );
         REQUIRE( layout.rowSections()
                  == QList<Section>{ Section::What, Section::What, Section::What, Section::What,
-                                    Section::Where, Section::Where, Section::Preview } );
+                                    Section::Where, Section::Where, Section::Also, Section::Also,
+                                    Section::Also, Section::Also, Section::Preview } );
         checkSharedLayout( filterDialog, layout, filterDialog.groupChooser() );
     }
 
