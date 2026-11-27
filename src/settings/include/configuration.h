@@ -706,6 +706,28 @@ public:
         lastNamingGroupId_ = id;
     }
 
+    // The id of the Highlighter Set Add as Predefined Filter's Also highlight
+    // it added to last, proposed the next time (#986); empty for none yet.
+    QString lastHighlighterSetId() const
+    {
+        return lastHighlighterSetId_;
+    }
+    void setLastHighlighterSetId( const QString& id )
+    {
+        lastHighlighterSetId_ = id;
+    }
+
+    // Whether Also highlight it of Add as Predefined Filter was checked when
+    // OK was clicked last: it opens so the next time (#986).
+    bool addFilterAlsoHighlights() const
+    {
+        return addFilterAlsoHighlights_;
+    }
+    void setAddFilterAlsoHighlights( bool alsoHighlights )
+    {
+        addFilterAlsoHighlights_ = alsoHighlights;
+    }
+
     int defaultEncodingMib() const
     {
         return defaultEncodingMib_;
@@ -973,6 +995,8 @@ private:
 
     QString lastFilterGroupId_;
     QString lastNamingGroupId_;
+    QString lastHighlighterSetId_;
+    bool addFilterAlsoHighlights_ = false;
 
     bool showSplashScreen_{};
 

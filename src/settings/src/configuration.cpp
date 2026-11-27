@@ -647,6 +647,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "groupChooser.lastFilterGroup", config.lastFilterGroupId_, QString{} );
     visit( "groupChooser.lastNamingGroup", config.lastNamingGroupId_, QString{} );
+    visit( "groupChooser.lastHighlighterSet", config.lastHighlighterSetId_, QString{} );
+    visit( "addPredefinedFilter.alsoHighlight", config.addFilterAlsoHighlights_, false );
 
     visit( "commandSource.recentCommands", config.recentCommands_, RecentCommands{} );
 

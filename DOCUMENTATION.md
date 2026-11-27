@@ -566,6 +566,17 @@ is disabled, with the reason below the fields, while the group has a filter of
 the name. With *Search with it now* checked, OK also makes the filter the
 search pattern of the tab and runs the search at once.
 
+With *Also highlight it* checked, OK also adds a highlighter with the same
+pattern, so that what the filter finds is colored while you search for
+something else. The dialog then shows the colors, whether the whole line or
+only the matched text is colored, and the highlighter set it goes into: one of
+your own, a Team set, or a new one of either. A pattern of plain text is
+escaped for the highlighter, which always reads a regular expression; the
+highlighter is a copy that later changes to the filter leave as it is. The
+preview shows its line in the chosen colors, and the set is activated at once.
+The dialog opens with the check as you left it, and proposes the set you used
+last.
+
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move
 Filter Group Down*); the Default group always exists and cannot be deleted.

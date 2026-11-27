@@ -19,11 +19,14 @@
 
 #pragma once
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QLabel>
 #include <QList>
 #include <QString>
 #include <QStringList>
+
+#include <optional>
 
 class QDialog;
 class QDialogButtonBox;
@@ -47,11 +50,23 @@ public:
         qsizetype length = 0;
     };
 
+    // The colors a Highlighter paints with (#986): an invalid color is the
+    // view's own. With wholeLine it colors the whole line, else the marks.
+    struct Coloring {
+        QColor foreColor;
+        QColor backColor;
+        bool wholeLine = false;
+    };
+
     explicit LinePreview( QWidget* parent = nullptr );
 
     // Shows text, with the marks: in order, not overlapping, within it. Tabs
     // and line breaks show as blanks.
     void setLine( const QString& text, const QList<Mark>& marks, MarkStyle style );
+    // Shows text as a Highlighter matching the marks colors it: the marks, or
+    // with coloring.wholeLine the whole line, in its colors. The line is cut
+    // as setLine() cuts it.
+    void setColoredLine( const QString& text, const QList<Mark>& marks, const Coloring& coloring );
     // Shows a remark instead of a line, greyed: why there is none.
     void setRemark( const QString& remark );
 
@@ -65,6 +80,11 @@ public:
     QStringList markedTexts() const
     {
         return markedTexts_;
+    }
+    // The colors of a Highlighter the line shows in; none for setLine().
+    std::optional<Coloring> coloring() const
+    {
+        return coloring_;
     }
 
     QSize minimumSizeHint() const override;
@@ -80,6 +100,7 @@ private:
     QString line_;
     QList<Mark> marks_;
     MarkStyle style_ = MarkStyle::Underline;
+    std::optional<Coloring> coloring_;
     QString remark_;
     QString shownText_;
     QStringList markedTexts_;
@@ -98,8 +119,9 @@ class AddToGroupLayout {
     Q_DECLARE_TR_FUNCTIONS( AddToGroupLayout )
 
 public:
-    // The sections of the form, top to bottom.
-    enum class Section { What, Where, Preview };
+    // The sections of the form, top to bottom: Also holds what OK does
+    // besides adding, as Add as Predefined Filter's Also highlight it (#986).
+    enum class Section { What, Where, Also, Preview };
 
     // The width the dialogs open with.
     static constexpr int DialogWidth = 600;

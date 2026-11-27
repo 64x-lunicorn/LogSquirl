@@ -10,6 +10,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightercoloring.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/addpredefinedfilterdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/addtogrouplayout.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterpreviewsearch.h
@@ -145,6 +146,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightercoloring.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/addpredefinedfilterdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/addtogrouplayout.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterpreviewsearch.cpp

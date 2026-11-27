@@ -24,30 +24,18 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
-#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QRadioButton>
 #include <QRegularExpression>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include "groupedits.h"
-#include "highlighteredit.h"
-#include "highlighterpresets.h"
+#include "highlightercoloring.h"
 #include "highlighterset.h"
 
 namespace {
-
-// The soft preset a new Highlighter of a set takes, as one added in the
-// Highlighters dialog does: the one after the preset of the one before.
-const HighlighterColorPreset& presetForNewHighlighter( qsizetype existingHighlighters )
-{
-    return highlighterColorPresets()[ static_cast<size_t>( existingHighlighters
-                                                           % SoftHighlighterColorPresetCount ) ];
-}
 
 // A name for a new set none of the sets has, made unique as every group name
 // is.
@@ -90,51 +78,11 @@ HighlightThisDialog::HighlightThisDialog( const QString& selectedText, const QSt
                               "matches the selected text as it is" ) );
     form->addRow( tr( "Pattern:" ), pattern_ );
 
-    // The presets as swatches, one row of the soft and one of the strong, and
-    // the buttons picking a color freely: those of the Highlighter editor.
-    auto* presets = new QGridLayout;
-    presets->setSpacing( 4 );
-    const auto& colorPresets = highlighterColorPresets();
-    for ( int i = 0; i < HighlighterColorPresetCount; ++i ) {
-        const auto& preset = colorPresets[ static_cast<size_t>( i ) ];
-        auto* button = new QToolButton( this );
-        button->setObjectName( QStringLiteral( "colorPresetButton%1" ).arg( i ) );
-        button->setIcon( colorPresetIcon( preset, devicePixelRatioF() ) );
-        button->setIconSize( QSize( 30, 18 ) );
-        button->setToolTip( preset.displayName() );
-        button->setAccessibleName( preset.displayName() );
-        connect( button, &QToolButton::clicked, this, [ this, &preset ] {
-            colorsPicked_ = true;
-            setColors( preset.foreColor, preset.backColor );
-        } );
-        const bool soft = i < SoftHighlighterColorPresetCount;
-        presets->addWidget( button, soft ? 0 : 1, soft ? i : i - SoftHighlighterColorPresetCount );
-    }
-    presets->setColumnStretch( SoftHighlighterColorPresetCount, 1 );
-
-    foreColorButton_ = new QPushButton( tr( "Text..." ), this );
-    foreColorButton_->setObjectName( QStringLiteral( "foreColorButton" ) );
-    backColorButton_ = new QPushButton( tr( "Background..." ), this );
-    backColorButton_->setObjectName( QStringLiteral( "backColorButton" ) );
-    auto* pickers = new QHBoxLayout;
-    pickers->addWidget( foreColorButton_ );
-    pickers->addWidget( backColorButton_ );
-    pickers->addStretch( 1 );
-    auto* colors = new QVBoxLayout;
-    colors->addLayout( presets );
-    colors->addLayout( pickers );
-    form->addRow( tr( "Colors:" ), colors );
-
-    wholeLine_ = new QRadioButton( tr( "The whole Log Line" ), this );
-    wholeLine_->setObjectName( QStringLiteral( "colorWholeLine" ) );
-    onlyMatch_ = new QRadioButton( tr( "Only the matched text" ), this );
-    onlyMatch_->setObjectName( QStringLiteral( "colorOnlyMatch" ) );
-    wholeLine_->setChecked( true );
-    auto* colored = new QHBoxLayout;
-    colored->addWidget( wholeLine_ );
-    colored->addWidget( onlyMatch_ );
-    colored->addStretch( 1 );
-    form->addRow( tr( "Highlight:" ), colored );
+    // How it colors: the rows the Highlighter editor's presets and pickers
+    // make, as Add as Predefined Filter's Also highlight it has them (#986).
+    coloring_ = new HighlighterColoring( this );
+    form->addRow( tr( "Colors:" ), coloring_->colorsField() );
+    form->addRow( tr( "Highlight:" ), coloring_->highlightField() );
 
     // The set: one of the user's own, the first active one if there is one,
     // else a new one named here. The Team's and the plugins' sets are not the
@@ -180,21 +128,7 @@ HighlightThisDialog::HighlightThisDialog( const QString& selectedText, const QSt
 
     connect( set_, &QComboBox::currentIndexChanged, this, &HighlightThisDialog::setChosen );
     connect( pattern_, &QLineEdit::textChanged, this, &HighlightThisDialog::updatePreview );
-    connect( wholeLine_, &QRadioButton::toggled, this, &HighlightThisDialog::updatePreview );
-    connect( foreColorButton_, &QPushButton::clicked, this, [ this ] {
-        QColor color;
-        if ( HighlighterEdit::showColorPicker( foreColor_, color ) ) {
-            colorsPicked_ = true;
-            setColors( color, backColor_ );
-        }
-    } );
-    connect( backColorButton_, &QPushButton::clicked, this, [ this ] {
-        QColor color;
-        if ( HighlighterEdit::showColorPicker( backColor_, color ) ) {
-            colorsPicked_ = true;
-            setColors( foreColor_, color );
-        }
-    } );
+    connect( coloring_, &HighlighterColoring::changed, this, &HighlightThisDialog::updatePreview );
     connect( buttons_, &QDialogButtonBox::accepted, this, &HighlightThisDialog::accept );
     connect( buttons_, &QDialogButtonBox::rejected, this, &HighlightThisDialog::reject );
 
@@ -211,28 +145,16 @@ void HighlightThisDialog::setChosen()
 {
     const auto setId = chosenSetId();
     newSetName_->setEnabled( setId.isEmpty() );
-    if ( !colorsPicked_ ) {
-        const auto chosen
-            = std::find_if( sets_.cbegin(), sets_.cend(),
-                            [ &setId ]( const auto& set ) { return set.id() == setId; } );
-        const auto& preset
-            = presetForNewHighlighter( chosen != sets_.cend() ? chosen->highlighters().size() : 0 );
-        setColors( preset.foreColor, preset.backColor );
-    }
-}
-
-void HighlightThisDialog::setColors( const QColor& foreColor, const QColor& backColor )
-{
-    foreColor_ = foreColor;
-    backColor_ = backColor;
-    HighlighterEdit::updateIcon( foreColorButton_, foreColor_ );
-    HighlighterEdit::updateIcon( backColorButton_, backColor_ );
+    const auto chosen = std::find_if( sets_.cbegin(), sets_.cend(),
+                                      [ &setId ]( const auto& set ) { return set.id() == setId; } );
+    coloring_->followSet( chosen != sets_.cend() ? chosen->highlighters().size() : 0 );
     updatePreview();
 }
 
 Highlighter HighlightThisDialog::highlighter() const
 {
-    return Highlighter( pattern_->text(), false, onlyMatch_->isChecked(), foreColor_, backColor_ );
+    return Highlighter( pattern_->text(), false, coloring_->onlyMatch(), coloring_->foreColor(),
+                        coloring_->backColor() );
 }
 
 QString HighlightThisDialog::previewHtml() const
@@ -271,7 +193,8 @@ void HighlightThisDialog::updatePreview()
     QString html = QStringLiteral( "<span style=\"white-space: pre-wrap\">" );
     if ( matchType == HighlighterMatchType::LineMatch ) {
         html += QStringLiteral( "<span style=\"%1\">%2</span>" )
-                    .arg( colorStyle( foreColor_, backColor_ ), logLine_.toHtmlEscaped() );
+                    .arg( colorStyle( coloring_->foreColor(), coloring_->backColor() ),
+                          logLine_.toHtmlEscaped() );
     }
     else {
         std::sort( matches.begin(), matches.end(), []( const auto& a, const auto& b ) {

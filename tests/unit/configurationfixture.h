@@ -268,6 +268,8 @@ inline Configuration nonDefaultConfiguration()
     config.setCsvHeader( false );
     config.setLastFilterGroupId( QStringLiteral( "{a-filter-group}" ) );
     config.setLastNamingGroupId( QStringLiteral( "{a-naming-group}" ) );
+    config.setLastHighlighterSetId( QStringLiteral( "{a-highlighter-set}" ) );
+    config.setAddFilterAlsoHighlights( true );
 
     config.addRecentCommand( RecentCommand{ "journalctl -f", "/var/log", false } );
     config.addRecentCommand( RecentCommand{ "docker logs -f web", {}, true } );

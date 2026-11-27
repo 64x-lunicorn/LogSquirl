@@ -33,6 +33,7 @@
 #include "addtogrouplayout.h"
 #include "groupchooser.h"
 #include "groupedits.h"
+#include "highlightercoloring.h"
 #include "regularexpression.h"
 #include "valueproposal.h"
 
@@ -57,7 +58,25 @@ QStringList filterNamesOf( const PredefinedFilterSet& group )
     return names;
 }
 
+// What a Highlighter Set holds, as its tooltip lists it: the patterns of its
+// Highlighters, which have no names.
+QStringList highlighterPatternsOf( const HighlighterSet& set )
+{
+    QStringList patterns;
+    for ( const auto& highlighter : set.highlighters() ) {
+        patterns.append( highlighter.pattern() );
+    }
+    return patterns;
+}
+
 } // namespace
+
+QString AddPredefinedFilterDialog::highlighterPattern( const PredefinedFilter& filter )
+{
+    // Escaped as the Search escapes a pattern it reads as plain text
+    // (RegularExpressionPattern), so that both find the same text.
+    return filter.useRegex ? filter.pattern : QRegularExpression::escape( filter.pattern );
+}
 
 AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Reading reading,
                                                       QWidget* parent )
@@ -119,6 +138,30 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Re
     applyNow_->setToolTip( tr( "Replace the current search with the Predefined Filter" ) );
     layout_->addRow( Section::Where, QString{}, applyNow_ );
 
+    // Also highlight it (#986): the rows of Highlight This and the set the
+    // Highlighter goes into, shown only while it is checked.
+    alsoHighlight_ = new QCheckBox( tr( "Also highlight it" ), this );
+    alsoHighlight_->setObjectName( QStringLiteral( "alsoHighlight" ) );
+    alsoHighlight_->setToolTip( tr( "Also add a Highlighter with the same pattern, which colors "
+                                    "what the filter finds while it is not searched with" ) );
+    layout_->addRow( Section::Also, QString{}, alsoHighlight_ );
+    coloring_ = new HighlighterColoring( this );
+    layout_->addRow( Section::Also, tr( "Colors:" ), coloring_->colorsField() );
+    layout_->addRow( Section::Also, tr( "Highlight:" ), coloring_->highlightField() );
+    GroupChooser::Texts setTexts;
+    setTexts.ownSection = tr( "My Highlighter Sets" );
+    setTexts.teamSection = tr( "Team Highlighter Sets" );
+    setTexts.newGroup = tr( "New Highlighter Set..." );
+    setTexts.newTeamGroup = tr( "New Team Highlighter Set..." );
+    setTexts.newGroupName = tr( "New Highlighter Set" );
+    setTexts.teamHint = tr( "OK shares this Highlighter Set with the team." );
+    setTexts.nameEmpty = tr( "The new Highlighter Set has no name." );
+    setTexts.nameTaken = tr( "A Highlighter Set named \"%1\" exists already." );
+    highlighterSet_ = new GroupChooser( setTexts, this );
+    highlighterSet_->setObjectName( QStringLiteral( "highlighterSet" ) );
+    layout_->addRow( Section::Also, tr( "Highlighter Set:" ), highlighterSet_ );
+    alsoHighlightToggled( false );
+
     layout_->preview()->setRemark( tr( "No Log File to search in." ) );
 
     connect( name_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
@@ -128,11 +171,27 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& pattern, Re
              &AddPredefinedFilterDialog::updateUnkeptNote );
     connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
     connect( group_, &GroupChooser::choiceChanged, this, &AddPredefinedFilterDialog::groupChanged );
+    connect( alsoHighlight_, &QCheckBox::toggled, this,
+             &AddPredefinedFilterDialog::alsoHighlightToggled );
+    connect( highlighterSet_, &GroupChooser::choiceChanged, this,
+             &AddPredefinedFilterDialog::highlighterSetChanged );
+    connect( coloring_, &HighlighterColoring::changed, this, [ this ] {
+        if ( previewSearch_ ) {
+            showPreview();
+        }
+    } );
 
     groups_ = std::make_unique<ChooserGroups<PredefinedFilterSet>>(
         group_, PredefinedFiltersCollection::getSynced().filterSets(), filterNamesOf,
         [ this ]( const QString& id ) { proposeGroup( id ); } );
     groups_->offer( defaultFilterSetId() );
+
+    // The Team's and the plugins' sets are not among these: the Team's come
+    // with showTeamHighlighterSets(), the plugins' are read-only.
+    highlighterSets_ = std::make_unique<ChooserGroups<HighlighterSet>>(
+        highlighterSet_, HighlighterSetCollection::getSynced().highlighterSets(),
+        highlighterPatternsOf, [ this ]( const QString& id ) { proposeHighlighterSet( id ); } );
+    highlighterSets_->offer( QString{} );
 
     name_->setFocus();
     name_->selectAll();
@@ -230,7 +289,16 @@ void AddPredefinedFilterDialog::showPreview()
             marks.append( LinePreview::Mark{ match.capturedStart(), match.capturedLength() } );
         }
     }
-    preview->setLine( result.firstLine, marks, LinePreview::MarkStyle::Highlight );
+    // As the Highlighter will color it, while Also highlight it is checked.
+    if ( alsoHighlights() ) {
+        preview->setColoredLine( result.firstLine, marks,
+                                 LinePreview::Coloring{ coloring_->foreColor(),
+                                                        coloring_->backColor(),
+                                                        !coloring_->onlyMatch() } );
+    }
+    else {
+        preview->setLine( result.firstLine, marks, LinePreview::MarkStyle::Highlight );
+    }
 }
 
 void AddPredefinedFilterDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
@@ -263,6 +331,75 @@ QStringList AddPredefinedFilterDialog::chosenGroupNames() const
 bool AddPredefinedFilterDialog::applyNow() const
 {
     return applyNow_->isChecked();
+}
+
+void AddPredefinedFilterDialog::setAlsoHighlight( bool alsoHighlight )
+{
+    alsoHighlight_->setChecked( alsoHighlight );
+}
+
+bool AddPredefinedFilterDialog::alsoHighlights() const
+{
+    return alsoHighlight_->isChecked();
+}
+
+void AddPredefinedFilterDialog::showTeamHighlighterSets( const QList<HighlighterSet>& sets,
+                                                         bool editable,
+                                                         const QHash<QString, QString>& revisions )
+{
+    highlighterSets_->showTeam( sets, editable, revisions );
+}
+
+void AddPredefinedFilterDialog::proposeHighlighterSet( const QString& setId )
+{
+    highlighterSet_->choose( setId, QString{} );
+}
+
+Highlighter AddPredefinedFilterDialog::highlighter() const
+{
+    return Highlighter( highlighterPattern( filter() ), !searchFlags_.matchCase,
+                        coloring_->onlyMatch(), coloring_->foreColor(), coloring_->backColor() );
+}
+
+QString AddPredefinedFilterDialog::chosenHighlighterSetId() const
+{
+    return highlighterSets_->chosenId();
+}
+
+void AddPredefinedFilterDialog::alsoHighlightToggled( bool alsoHighlight )
+{
+    auto* form = layout_->form();
+    form->setRowVisible( coloring_->colorsField(), alsoHighlight );
+    form->setRowVisible( coloring_->highlightField(), alsoHighlight );
+    form->setRowVisible( highlighterSet_, alsoHighlight );
+    // The rows shown, the dialog grows to show them whole.
+    if ( isVisible() && height() < sizeHint().height() ) {
+        resize( width(), sizeHint().height() );
+    }
+    updateState();
+    if ( previewSearch_ ) {
+        showPreview();
+    }
+}
+
+void AddPredefinedFilterDialog::highlighterSetChanged()
+{
+    const auto* chosen = highlighterSets_->chosen();
+    coloring_->followSet( chosen != nullptr ? chosen->highlighters().size() : 0 );
+    updateState();
+}
+
+QString AddPredefinedFilterDialog::highlighterWarning() const
+{
+    if ( !alsoHighlights() ) {
+        return {};
+    }
+    // A filter with Field Terms finds by the fields of a Log Line, which a
+    // Highlighter does not know of.
+    if ( hasFieldTerms( pattern_->text() ) ) {
+        return tr( "A pattern with Field Terms cannot be highlighted." );
+    }
+    return highlighterSet_->warning();
 }
 
 QString AddPredefinedFilterDialog::warning() const
@@ -345,8 +482,11 @@ void AddPredefinedFilterDialog::updateState()
     else if ( chosenGroupNames().contains( name ) ) {
         warning = tr( "The Filter Group already has a filter named \"%1\"." ).arg( name );
     }
-    else {
+    else if ( !group_->warning().isEmpty() ) {
         warning = group_->warning();
+    }
+    else {
+        warning = highlighterWarning();
     }
     layout_->setWarning( warning );
     layout_->buttons()
@@ -361,16 +501,19 @@ void AddPredefinedFilterDialog::accept()
     const auto* before = groups_->chosen();
     auto group = before != nullptr ? *before : PredefinedFilterSet::createNewSet( chosen.name );
     group.addFilter( added );
-    const auto requests = groups_->put( group );
-
-    if ( chosen.section == GroupChooser::Section::Team ) {
-        // Published as the Predefined Filters dialog publishes a Team group:
-        // what changed against the group as given, based on its revision.
-        if ( !requests.isEmpty() ) {
-            Q_EMIT publishRequested( requests );
-        }
+    auto requests = groups_->put( group );
+    // The Highlighter is added as Highlight This adds one; a Team set goes to
+    // the team with the filter's Team group.
+    if ( alsoHighlights() ) {
+        requests.append( addHighlighter() );
     }
-    else {
+
+    // Published as the Predefined Filters dialog publishes a Team group:
+    // what changed against the group as given, based on its revision.
+    if ( !requests.isEmpty() ) {
+        Q_EMIT publishRequested( requests );
+    }
+    if ( chosen.section != GroupChooser::Section::Team ) {
         auto& collection = PredefinedFiltersCollection::get();
         if ( chosen.isNew() ) {
             auto groups = collection.filterSets();
@@ -383,4 +526,43 @@ void AddPredefinedFilterDialog::accept()
         collection.save();
     }
     QDialog::accept();
+}
+
+QList<logsquirl::teamfolder::PublishRequest> AddPredefinedFilterDialog::addHighlighter()
+{
+    const auto chosen = highlighterSet_->choice();
+    const auto* before = highlighterSets_->chosen();
+    auto set = before != nullptr ? *before : HighlighterSet::createNewSet( chosen.name );
+    set.addHighlighter( highlighter() );
+    const auto requests = highlighterSets_->put( set );
+
+    auto& collection = HighlighterSetCollection::get();
+    if ( chosen.section == GroupChooser::Section::Team ) {
+        // The Team Folder has the set once it is published and synced; until
+        // then the collection has it as the dialog made it, so that it colors
+        // at once and can be active. The next sync replaces it.
+        collection.setTeamHighlighterSets( highlighterSets_->editableTeam(), false );
+    }
+    else {
+        // The sets as stored now, not as read when the dialog opened: the
+        // Highlighter is added to the set as it is. A set that has gone
+        // meanwhile is made again, so that the Highlighter is not lost.
+        auto sets = collection.highlighterSets();
+        const auto stored = std::find_if( sets.begin(), sets.end(), [ &set ]( const auto& other ) {
+            return other.id() == set.id();
+        } );
+        if ( stored != sets.end() ) {
+            stored->addHighlighter( highlighter() );
+        }
+        else {
+            sets.append( set );
+        }
+        collection.setHighlighterSets( sets );
+    }
+    // What is added shows at once: the set is active.
+    if ( !collection.activeSetIds().contains( set.id() ) ) {
+        collection.activateSet( set.id() );
+    }
+    collection.save();
+    return requests;
 }

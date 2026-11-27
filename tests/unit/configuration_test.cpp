@@ -196,6 +196,12 @@ SCENARIO( "Configuration default values", "[configuration]" )
         {
             REQUIRE( config.lastNamingGroupId().isEmpty() );
         }
+
+        THEN( "No Highlighter Set was chosen last, and Also highlight it is unchecked" )
+        {
+            REQUIRE( config.lastHighlighterSetId().isEmpty() );
+            REQUIRE_FALSE( config.addFilterAlsoHighlights() );
+        }
     }
 }
 
@@ -332,6 +338,8 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setCsvHeader( false );
         config.setLastFilterGroupId( "{a-filter-group}" );
         config.setLastNamingGroupId( "{a-naming-group}" );
+        config.setLastHighlighterSetId( "{a-highlighter-set}" );
+        config.setAddFilterAlsoHighlights( true );
 
         WHEN( "Saved to QSettings and restored" )
         {
@@ -419,6 +427,13 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
             THEN( "The Naming Group Name This Value chose last is preserved" )
             {
                 REQUIRE( restored.lastNamingGroupId() == "{a-naming-group}" );
+            }
+
+            THEN( "Also highlight it of Add as Predefined Filter, and its Highlighter Set, are "
+                  "preserved" )
+            {
+                REQUIRE( restored.lastHighlighterSetId() == "{a-highlighter-set}" );
+                REQUIRE( restored.addFilterAlsoHighlights() );
             }
         }
     }
@@ -651,6 +666,7 @@ namespace {
 // ("dark") are only stored when there are some; the settings file test and
 // the dark palette scenario cover them.
 const QStringList StoredSettingNames = {
+    "addPredefinedFilter.alsoHighlight",
     "archives.decompressionBudgetMb",
     "archives.extract",
     "archives.extractAlways",
@@ -675,6 +691,7 @@ const QStringList StoredSettingNames = {
     "filewatch.useNative",
     "filewatch.usePolling",
     "groupChooser.lastFilterGroup",
+    "groupChooser.lastHighlighterSet",
     "groupChooser.lastNamingGroup",
     "logformat.autoDetect",
     "logformat.autoShowTable",
@@ -832,6 +849,8 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.csvHeader() == expected.csvHeader() );
     CHECK( actual.lastFilterGroupId() == expected.lastFilterGroupId() );
     CHECK( actual.lastNamingGroupId() == expected.lastNamingGroupId() );
+    CHECK( actual.lastHighlighterSetId() == expected.lastHighlighterSetId() );
+    CHECK( actual.addFilterAlsoHighlights() == expected.addFilterAlsoHighlights() );
     CHECK( actual.recentCommands() == expected.recentCommands() );
     CHECK( actual.darkPalette() == expected.darkPalette() );
 }
@@ -1071,7 +1090,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "fileAssociations.chosenTypes", "fileAssociations.dismissed",
                         "fileAssociations.confirmed", "archives.decompressionBudgetMb",
                         "plugins.chosen", "groupChooser.lastFilterGroup",
-                        "groupChooser.lastNamingGroup" } ) {
+                        "groupChooser.lastNamingGroup", "groupChooser.lastHighlighterSet",
+                        "addPredefinedFilter.alsoHighlight" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );
