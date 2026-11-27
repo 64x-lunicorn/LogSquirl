@@ -463,3 +463,78 @@ SCENARIO( "A Search's pattern and flags are kept as the Session keeps them",
         }
     }
 }
+
+// The checks a tab made in the Filters panel are saved with it and come back
+// with it (#985).
+SCENARIO( "A tab's filter checks survive being saved and read back", "[viewstatecodec][session]" )
+{
+    const auto policy = policyReadingSearchesAs( SearchRegexpType::FixedString );
+
+    GIVEN( "a view state with filter checks of several groups, one with any text" )
+    {
+        auto state = everyFieldSet();
+        state.filterChecks
+            = { "group-a/ERROR", "group-b/took ms", QString::fromUtf8( "team:x/Grüße 東京" ) };
+
+        WHEN( "it is encoded and decoded again" )
+        {
+            const auto decoded = decodeViewState( encodeViewState( state ), policy );
+
+            THEN( "the checks come back in their order" )
+            {
+                REQUIRE( decoded.filterChecks == state.filterChecks );
+                REQUIRE( decoded == state );
+            }
+        }
+    }
+
+    GIVEN( "a view state without filter checks" )
+    {
+        const auto state = everyFieldSet();
+
+        THEN( "its text holds no checks, as a view state saved before them" )
+        {
+            REQUIRE_FALSE( encodeViewState( state ).contains( "\"FC\"" ) );
+        }
+    }
+
+    GIVEN( "the JSON text of a release before the checks were saved" )
+    {
+        const auto state = decodeViewState( SavedByTheCurrentRelease, policy );
+
+        THEN( "the tab has no checks, and every other field as saved" )
+        {
+            REQUIRE( state.filterChecks.isEmpty() );
+            REQUIRE( state.sizes == QList<int>{ 400, 125 } );
+        }
+    }
+
+    GIVEN( "the legacy text glogg saved" )
+    {
+        THEN( "the tab has no checks" )
+        {
+            REQUIRE( decodeViewState( "S512:88:IC1:AR0:FF1", policy ).filterChecks.isEmpty() );
+        }
+    }
+
+    GIVEN( "saved checks of which some are not text" )
+    {
+        const auto state
+            = decodeViewState( R"({"S":[1,2],"FC":["g/A",3,{"x":1},"","g/B"]})", policy );
+
+        THEN( "only the ones that are text are kept" )
+        {
+            REQUIRE( state.filterChecks == QStringList{ "g/A", "g/B" } );
+        }
+    }
+
+    GIVEN( "saved checks that are no list" )
+    {
+        const auto state = decodeViewState( R"({"S":[1,2],"FC":"g/A"})", policy );
+
+        THEN( "the tab has no checks" )
+        {
+            REQUIRE( state.filterChecks.isEmpty() );
+        }
+    }
+}

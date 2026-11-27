@@ -674,6 +674,10 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
         chartPanel_->show();
     }
 
+    // The checks of the Filters panel the Search was built with: the panel
+    // shows them once the tab is in front, and runs no Search for them (#985).
+    filterChecks_ = context.filterChecks;
+
     restoreSearches( context );
 }
 
@@ -763,6 +767,8 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
         state.searches.append( keptSearchStateOf( pattern ) );
     }
     state.currentSearch = static_cast<qsizetype>( requested.current );
+
+    state.filterChecks = filterChecks_;
 
     return std::make_shared<const ViewStateContext>( std::move( state ) );
 }

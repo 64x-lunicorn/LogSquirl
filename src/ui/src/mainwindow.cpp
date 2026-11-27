@@ -2122,12 +2122,21 @@ void MainWindow::applyHighlighterSetChange()
 void MainWindow::applyPredefinedFiltersChange()
 {
     filtersPanel_.refreshFilters();
+    keepFilterChecksShown();
 }
 
 void MainWindow::applyTeamFilterGroupsChange()
 {
     if ( const auto teamFolder = session_.teamFolder() ) {
         filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+        keepFilterChecksShown();
+    }
+}
+
+void MainWindow::keepFilterChecksShown()
+{
+    if ( auto* crawler = currentCrawlerWidget() ) {
+        crawler->setFilterChecks( filtersPanel_.checkedKeys() );
     }
 }
 
@@ -3038,9 +3047,13 @@ void MainWindow::currentTabChanged( int index )
 
         // The Filters panel shows the checks made in this tab, and runs no
         // Search for them: the tab's Search already is what they built (#984).
-        // The checks of filters gone meanwhile are dropped from the tab.
+        // The checks of filters gone meanwhile are dropped from the tab, but
+        // not while a restore adds its tabs: a Plugin's groups come only
+        // after it, and the tab keeps the checks of their filters (#985).
         filtersPanel_.showChecks( crawler_widget->filterChecks() );
-        crawler_widget->setFilterChecks( filtersPanel_.checkedKeys() );
+        if ( !restoringSession_ ) {
+            keepFilterChecksShown();
+        }
 
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).

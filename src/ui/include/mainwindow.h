@@ -410,6 +410,10 @@ Q_SIGNALS:
     void exitRequested();
 
 private:
+    // The tab in front keeps the checks the Filters panel shows of it: those
+    // of filters gone are dropped, those of a group that came late, a
+    // Plugin's or a Team group, are kept (#985).
+    void keepFilterChecksShown();
     // The tab in front as the Regex Lab's sample source; none without a tab.
     RegexLabSampleSource tabInFrontAsRegexLabSample();
     // What the editors open the Regex Lab with (#660).

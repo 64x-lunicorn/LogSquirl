@@ -22,7 +22,8 @@
 // Search (#538), the tab a restored Session opens on (#542) and where its Log
 // Files stand (#559), a Log File restored from its archive (#596), the
 // loading progress of the tab in front (#541), its follow and the actions
-// reaching it alone (#635), and its selected Log Line (#692).
+// reaching it alone (#635), its selected Log Line (#692), and the filter
+// checks a restored tab brings back (#985).
 // Unlike mainwindow_test.cpp these run on every platform.
 
 #include <catch2/catch_test_macros.hpp>
@@ -44,6 +45,9 @@
 #include <QTreeWidget>
 
 #include <kcompressiondevice.h>
+
+#include <algorithm>
+#include <array>
 
 #include "applicationplugins.h"
 #include "archivemember.h"
@@ -514,6 +518,210 @@ SCENARIO( "Each tab keeps its own checks of the Filters panel", "[ui][search][fi
 
 // A window restored from the Session shows the tab that was in front when the
 // Session was saved, not the last one (#542).
+// The checks of the Filters panel are saved with their tab in the Session and
+// come back with it: the panel shows them once the tab is in front, without
+// a Search of their own, as the restored Search already is what they built.
+// A check whose filter is gone is dropped; one of a Plugin's group, which
+// comes only after the restore, is checked once it comes (#985).
+SCENARIO( "A restored window shows each tab's own filter checks without a Search for them",
+          "[ui][session][filterspanel]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_985" );
+    const KeepsPredefinedFilters keepsFilters;
+
+    auto own = PredefinedFilterSet::createNewSet( "Restored" );
+    own.setFilters( { { "X", "alpha", false }, { "Y", "beta", false } } );
+    {
+        auto& collection = PredefinedFiltersCollection::getSynced();
+        collection.setFilterSets( { own } );
+        collection.save();
+    }
+    auto shipped = PredefinedFilterSet::createNewSet( "Shipped" );
+    shipped.setFilters( { { "P", "gamma", false } } );
+    // No plugin's group is there before the plugins load.
+    PredefinedFiltersCollection::get().setPluginFilterGroups( {} );
+    struct DropsPluginGroups {
+        ~DropsPluginGroups()
+        {
+            PredefinedFiltersCollection::get().setPluginFilterGroups( {} );
+        }
+    } dropsPluginGroups;
+
+    const auto keyX = own.id() + QStringLiteral( "/X" );
+    const auto keyY = own.id() + QStringLiteral( "/Y" );
+    const auto keyGone = own.id() + QStringLiteral( "/Deleted" );
+    const auto keyP = shipped.id() + QStringLiteral( "/P" );
+    const auto sorted = []( QStringList keys ) {
+        keys.sort();
+        return keys;
+    };
+
+    QTemporaryFile files[ 3 ]
+        = { QTemporaryFile{ QDir::temp().filePath( "mainwindow_checks_first_XXXXXX" ) },
+            QTemporaryFile{ QDir::temp().filePath( "mainwindow_checks_second_XXXXXX" ) },
+            QTemporaryFile{ QDir::temp().filePath( "mainwindow_checks_third_XXXXXX" ) } };
+    for ( auto& file : files ) {
+        REQUIRE( file.open() );
+        file.write( "alpha Log Line\nbeta Log Line\ngamma Log Line\n" );
+        file.flush();
+    }
+
+    ViewState first;
+    first.searches = { KeptSearchState{ .pattern = "alpha|gamma", .useRegexp = true } };
+    first.filterChecks = { keyX, keyGone, keyP };
+    ViewState second;
+    second.searches = { KeptSearchState{ .pattern = "beta" } };
+    second.filterChecks = { keyY };
+    // The third saved by a release before the checks were kept.
+    const auto older = QStringLiteral( R"({"S":[400,125],"KS":[{"P":"alpha"}],"KC":0})" );
+
+    auto policies = testSettingsPolicies();
+    policies.quickFind.autoRunSearchOnPatternChange = true;
+    auto appSession = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+    const StoredSessionWindow stored{
+        windowId,
+        { { QFileInfo( files[ 0 ] ).absoluteFilePath(), encodeViewState( first ) },
+          { QFileInfo( files[ 1 ] ).absoluteFilePath(), encodeViewState( second ) },
+          { QFileInfo( files[ 2 ] ).absoluteFilePath(), older } },
+        0
+    };
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    showUntilExposed( *mainWindow );
+
+    mainWindow->reloadSession();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* filtersPanel = mainWindow->findChild<FiltersPanel*>();
+    REQUIRE( filtersPanel != nullptr );
+    std::vector<CrawlerWidget*> crawlers;
+    for ( auto& file : files ) {
+        const auto path = QFileInfo( file ).absoluteFilePath();
+        for ( auto* crawler : tabArea->findChildren<CrawlerWidget*>() ) {
+            if ( windowSession.getFilename( crawler ) == path ) {
+                crawlers.push_back( crawler );
+            }
+        }
+    }
+    REQUIRE( crawlers.size() == 3 );
+    REQUIRE( tabArea->currentWidget() == crawlers[ 0 ] );
+
+    // How many Searches each tab started.
+    std::array<int, 3> searches{};
+    for ( std::size_t tab = 0; tab < crawlers.size(); ++tab ) {
+        QObject::connect(
+            &openLogFileOf( *appSession, *crawlers[ tab ] ), &OpenLogFile::searchUpdated,
+            mainWindow.get(),
+            [ &searches, tab, idle = true ]( const SearchSessionState& state ) mutable {
+                const auto nowIdle = state.phase == SearchSession::Phase::Idle;
+                if ( idle && !nowIdle ) {
+                    ++searches[ tab ];
+                }
+                idle = nowIdle;
+            } );
+    }
+    // Every restored Search has run once, and nothing else follows.
+    REQUIRE( waitUiState(
+        [ & ] { return std::ranges::all_of( searches, []( int n ) { return n == 1; } ); },
+        10000 ) );
+    QTest::qWait( 300 );
+    const auto restoredSearches = searches;
+    REQUIRE( restoredSearches == std::array<int, 3>{ 1, 1, 1 } );
+
+    const auto savedChecks = []( const CrawlerWidget& crawler ) {
+        return decodeViewState( crawler.context()->toString(), QuickFindPolicy{} ).filterChecks;
+    };
+    const auto bringToFront = [ & ]( CrawlerWidget* crawler ) {
+        tabArea->setCurrentWidget( crawler );
+        QTest::qWait( 300 );
+    };
+
+    THEN( "the tab in front shows its check of a filter there, and keeps the Plugin's" )
+    {
+        REQUIRE( filtersPanel->checkedKeys() == QStringList{ keyX } );
+        REQUIRE( savedChecks( *crawlers[ 0 ] ).contains( keyP ) );
+    }
+
+    WHEN( "the Plugin's group comes" )
+    {
+        PredefinedFiltersCollection::get().setPluginFilterGroups( { { shipped, "Some Plugin" } } );
+        appSession->applyChange( Changed::PredefinedFilters );
+        QTest::qWait( 300 );
+
+        THEN( "its filter is checked too, and no Search runs" )
+        {
+            REQUIRE( sorted( filtersPanel->checkedKeys() ) == sorted( { keyX, keyP } ) );
+            REQUIRE( searches == restoredSearches );
+            REQUIRE( LoadAccess::searchLine( *crawlers[ 0 ] ).currentText() == "alpha|gamma" );
+        }
+
+        THEN( "the tab saves the checks shown, without the one of the deleted filter" )
+        {
+            REQUIRE( sorted( savedChecks( *crawlers[ 0 ] ) ) == sorted( { keyX, keyP } ) );
+        }
+    }
+
+    WHEN( "the other tabs come to the front" )
+    {
+        bringToFront( crawlers[ 1 ] );
+        const auto checksOfSecond = filtersPanel->checkedKeys();
+        bringToFront( crawlers[ 2 ] );
+        const auto checksOfThird = filtersPanel->checkedKeys();
+
+        THEN( "each shows its own checks, the older one none, and no Search runs" )
+        {
+            REQUIRE( checksOfSecond == QStringList{ keyY } );
+            REQUIRE( checksOfThird.isEmpty() );
+            REQUIRE( savedChecks( *crawlers[ 2 ] ).isEmpty() );
+            REQUIRE( searches == restoredSearches );
+            REQUIRE( LoadAccess::searchLine( *crawlers[ 1 ] ).currentText() == "beta" );
+            REQUIRE( LoadAccess::searchLine( *crawlers[ 2 ] ).currentText() == "alpha" );
+        }
+
+        AND_WHEN( "the first comes back to the front" )
+        {
+            bringToFront( crawlers[ 0 ] );
+
+            THEN( "it shows its check again, and drops that of the deleted filter" )
+            {
+                REQUIRE( filtersPanel->checkedKeys() == QStringList{ keyX } );
+                REQUIRE_FALSE( savedChecks( *crawlers[ 0 ] ).contains( keyGone ) );
+                REQUIRE( searches == restoredSearches );
+            }
+        }
+    }
+
+    WHEN( "a filter is checked in the second tab" )
+    {
+        bringToFront( crawlers[ 1 ] );
+        auto* tree = filtersPanel->findChild<QTreeWidget*>();
+        REQUIRE( tree != nullptr );
+        QTreeWidgetItem* group = nullptr;
+        for ( int g = 0; g < tree->topLevelItemCount(); ++g ) {
+            if ( tree->topLevelItem( g )->text( 0 ) == QStringLiteral( "Restored" ) ) {
+                group = tree->topLevelItem( g );
+            }
+        }
+        REQUIRE( group != nullptr );
+        group->child( 0 )->setCheckState( 0, Qt::Checked );
+        QTest::qWait( 300 );
+
+        THEN( "the tab saves both its checks with the Session" )
+        {
+            REQUIRE( sorted( savedChecks( *crawlers[ 1 ] ) ) == sorted( { keyX, keyY } ) );
+        }
+    }
+
+    mainWindow.reset();
+}
+
 SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
 {
     const auto windowId = QStringLiteral( "mainwindow_load_test_window_542" );

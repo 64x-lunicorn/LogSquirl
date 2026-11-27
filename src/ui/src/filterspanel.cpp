@@ -42,6 +42,9 @@ FiltersPanel::FiltersPanel( QWidget* parent )
 
 void FiltersPanel::refreshFilters()
 {
+    // The checked filters as the Search of the tab in front was told of them.
+    const auto toldBefore = checkedFilters();
+
     auto& collection = PredefinedFiltersCollection::getSynced();
     allFilterSets_ = collection.filterSets();
     pluginFilterGroups_ = collection.pluginFilterGroups();
@@ -52,13 +55,36 @@ void FiltersPanel::refreshFilters()
     rebuildFilterIndex();
     setGroups( shownGroups() );
 
-    // Tell the Search of the tab in front of its checked filters, which may
-    // have changed or gone. With none checked before or now, the Search is
-    // left as it is: refilling the tree after a filter was added replaced it
-    // with an empty one (#897). The other tabs hear nothing (#984).
-    if ( !checkedFilterKeys_.isEmpty() ) {
-        emitCurrentSelection();
+    // Tell the Search of the tab in front of its checked filters only when
+    // one of them has changed or gone: otherwise the Search already is what
+    // they build. With none checked before or now, the Search is left as it
+    // is: refilling the tree after a filter was added replaced it with an
+    // empty one (#897). A check whose group came only now, a Plugin's or a
+    // Team group after a restore, is shown without a Search: the restored
+    // Search was built with it (#985). The other tabs hear nothing (#984).
+    const auto toldNow = checkedFilters();
+    const auto unchanged = []( const PredefinedFilter& a, const PredefinedFilter& b ) {
+        return a.pattern == b.pattern && a.useRegex == b.useRegex;
+    };
+    for ( auto it = toldBefore.cbegin(); it != toldBefore.cend(); ++it ) {
+        const auto now = toldNow.constFind( it.key() );
+        if ( now == toldNow.cend() || !unchanged( *now, *it ) ) {
+            emitCurrentSelection();
+            return;
+        }
     }
+}
+
+QHash<QString, PredefinedFilter> FiltersPanel::checkedFilters() const
+{
+    QHash<QString, PredefinedFilter> checked;
+    for ( const auto& key : checkedFilterKeys_ ) {
+        const auto it = filterIndex_.constFind( key );
+        if ( it != filterIndex_.cend() ) {
+            checked.insert( key, *it );
+        }
+    }
+    return checked;
 }
 
 void FiltersPanel::showChecks( const QStringList& keys )
