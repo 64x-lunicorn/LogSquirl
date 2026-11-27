@@ -84,6 +84,13 @@
   leaves it out and the images install that lock with `--no-deps`. LogSquirl
   itself never contained it.
 
+## Documentation
+
+- **The website's feature cards name what 26.12 can do**: the landing page's
+  Team Folder line names Naming Groups beside Filter Groups and Highlighter
+  Sets, *Understand* has a line for Value Names and one for the Table View's
+  Sort Order and Column Layout, and *Search fast* one for Field Terms. (#988)
+
 # v26.12.0-beta3 (2026-11-13)
 
 ## Changes
