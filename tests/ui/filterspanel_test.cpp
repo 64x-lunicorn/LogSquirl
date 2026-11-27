@@ -22,11 +22,12 @@
 #include <QAction>
 #include <QApplication>
 #include <QLineEdit>
-#include <QMap>
 #include <QMenu>
 #include <QMetaObject>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTreeWidget>
 #include <QVariant>
 
@@ -90,28 +91,11 @@ static void setCheckedSilently( QTreeWidgetItem* group, Qt::CheckState state )
     tree->blockSignals( false );
 }
 
-// Clear pinned filter state so tests start with a clean slate.
-static void clearPinnedFilters()
-{
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( "PinnedFilters" );
-    settings.remove( "" );
-    settings.endGroup();
-    settings.sync();
-}
-
 class FiltersPanelTestStateGuard {
 public:
     FiltersPanelTestStateGuard()
         : originalSets_( PredefinedFiltersCollection::getSynced().filterSets() )
     {
-        auto& settings = PersistentInfo::getSettings( app_settings{} );
-        settings.beginGroup( "PinnedFilters" );
-        const auto keys = settings.allKeys();
-        for ( const auto& key : keys ) {
-            pinnedState_.insert( key, settings.value( key ) );
-        }
-        settings.endGroup();
     }
 
     ~FiltersPanelTestStateGuard()
@@ -119,27 +103,15 @@ public:
         auto& collection = PredefinedFiltersCollection::getSynced();
         collection.setFilterSets( originalSets_ );
         collection.save();
-
-        auto& settings = PersistentInfo::getSettings( app_settings{} );
-        settings.beginGroup( "PinnedFilters" );
-        settings.remove( "" );
-        for ( auto it = pinnedState_.cbegin(); it != pinnedState_.cend(); ++it ) {
-            settings.setValue( it.key(), it.value() );
-        }
-        settings.endGroup();
-        settings.sync();
     }
 
 private:
     QList<PredefinedFilterSet> originalSets_;
-    QMap<QString, QVariant> pinnedState_;
 };
 
 // Set up two filter groups with known test data.
 static void setupTestFilters()
 {
-    clearPinnedFilters();
-
     auto groupA = PredefinedFilterSet::createNewSet( "GroupA" );
     groupA.setFilters(
         { { "Error", "ERROR", true }, { "Warning", "WARN", true }, { "Info", "INFO", true } } );
@@ -280,62 +252,166 @@ SCENARIO( "Double-click emits filtersChanged with correct selection",
     }
 }
 
-SCENARIO( "Pinned state survives panel recreation after flush", "[filterspanel][persistence]" )
+SCENARIO( "The Filters tab shows the checks of the tab in front without telling its Search",
+          "[filterspanel][pertab]" )
 {
+    // #984: the checks belong to the tab they were made in; the window hands
+    // the panel those of the tab that comes to the front.
     FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
-    GIVEN( "a panel where one filter is solo-activated and flushed" )
+    FiltersPanel panel;
+    auto* tree = findTree( &panel );
+    REQUIRE( tree != nullptr );
+    auto* errorItem = findGroup( tree, "GroupA" )->child( 0 );
+    errorItem->setCheckState( 0, Qt::Checked );
+    QCoreApplication::processEvents();
+    const auto errorChecked = panel.checkedKeys();
+    REQUIRE( errorChecked.size() == 1 );
+
+    QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+
+    WHEN( "the checks of a tab without any are shown" )
     {
+        panel.showChecks( {} );
+        QCoreApplication::processEvents();
+
+        THEN( "no filter is checked, and the Search is not told" )
         {
-            FiltersPanel panel;
-            auto* tree = findTree( &panel );
-            REQUIRE( tree != nullptr );
+            REQUIRE( countChecked( tree ) == 0 );
+            REQUIRE( spy.isEmpty() );
+        }
 
-            auto* groupA = findGroup( tree, "GroupA" );
-            REQUIRE( groupA != nullptr );
-
-            invokeDoubleClick( &panel, groupA->child( 2 ) ); // "Info"
-            panel.flushPendingSaves();
-        } // panel destroyed — timer is dead, but save already flushed.
-
-        WHEN( "a new panel is created" )
+        AND_WHEN( "the checks of the first tab are shown again" )
         {
-            FiltersPanel panel2;
-            auto* tree2 = findTree( &panel2 );
-            REQUIRE( tree2 != nullptr );
+            panel.showChecks( errorChecked );
+            QCoreApplication::processEvents();
 
-            THEN( "the previously pinned filter is restored" )
+            THEN( "Error is checked again, and the Search is not told" )
             {
-                REQUIRE( countChecked( tree2 ) == 1 );
-
-                auto* groupA2 = findGroup( tree2, "GroupA" );
-                REQUIRE( groupA2 != nullptr );
-                REQUIRE( groupA2->child( 2 )->checkState( 0 ) == Qt::Checked );
+                tree = findTree( &panel );
+                REQUIRE( countChecked( tree ) == 1 );
+                REQUIRE( findGroup( tree, "GroupA" )->child( 0 )->checkState( 0 ) == Qt::Checked );
+                REQUIRE( spy.isEmpty() );
             }
+        }
+
+        AND_WHEN( "Debug is checked" )
+        {
+            findGroup( findTree( &panel ), "GroupB" )->child( 0 )->setCheckState( 0, Qt::Checked );
+            QCoreApplication::processEvents();
+
+            THEN( "the Search is told of Debug only" )
+            {
+                REQUIRE( spy.count() == 1 );
+                const auto filters = spy.last().at( 0 ).value<QList<PredefinedFilter>>();
+                REQUIRE( filters.size() == 1 );
+                REQUIRE( filters[ 0 ].name == "Debug" );
+            }
+        }
+
+        AND_WHEN( "the filter list is refreshed" )
+        {
+            panel.refreshFilters();
+
+            THEN( "still no filter is checked, and the Search is not told" )
+            {
+                REQUIRE( countChecked( findTree( &panel ) ) == 0 );
+                REQUIRE( spy.isEmpty() );
+            }
+        }
+    }
+
+    WHEN( "checks of a filter that no longer exists are shown" )
+    {
+        panel.showChecks( { QStringLiteral( "gone/Gone" ) } );
+
+        THEN( "no filter is checked" )
+        {
+            REQUIRE( countChecked( findTree( &panel ) ) == 0 );
+            REQUIRE( spy.isEmpty() );
         }
     }
 }
 
-SCENARIO( "flushPendingSaves is a no-op when nothing is pending", "[filterspanel][persistence]" )
+SCENARIO( "Restore previous selection brings back no checks of another tab",
+          "[filterspanel][pertab][soloselection]" )
 {
+    // #984: the checks from before "Show only this" are those of the tab it
+    // was used in.
     FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
-    GIVEN( "a freshly constructed panel with no user interaction" )
+    FiltersPanel panel;
+    auto* tree = findTree( &panel );
+    REQUIRE( tree != nullptr );
+    findGroup( tree, "GroupA" )->setCheckState( 0, Qt::Checked );
+    QCoreApplication::processEvents();
+    invokeDoubleClick( &panel, findGroup( tree, "GroupB" )->child( 0 ) );
+    auto* solo = panel.findChild<SoloSelection*>();
+    REQUIRE( solo != nullptr );
+    REQUIRE( solo->canRestore() );
+
+    WHEN( "the checks of another tab are shown" )
     {
-        FiltersPanel panel;
+        panel.showChecks( {} );
 
-        WHEN( "flushPendingSaves is called" )
+        THEN( "there is nothing to restore" )
         {
-            // Must not crash or write unexpected state.
-            panel.flushPendingSaves();
+            REQUIRE_FALSE( solo->canRestore() );
+        }
+    }
+}
 
-            THEN( "no filters are pinned" )
+SCENARIO( "A new Filters tab checks nothing, whatever an older version kept in the settings",
+          "[filterspanel][pertab]" )
+{
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+    const auto errorKey = QStringLiteral( "%1/Error" )
+                              .arg( PredefinedFiltersCollection::get().filterSets().front().id() );
+
+    auto& settings = PersistentInfo::getSettings( app_settings{} );
+    settings.beginGroup( "PinnedFilters" );
+    settings.setValue( "count", 1 );
+    settings.setValue( "filter0", errorKey );
+    settings.endGroup();
+
+    FiltersPanel panel;
+
+    THEN( "no filter is checked" )
+    {
+        REQUIRE( countChecked( findTree( &panel ) ) == 0 );
+    }
+
+    settings.remove( "PinnedFilters" );
+}
+
+SCENARIO( "The settings migration removes the window-wide filter checks", "[filterspanel][pertab]" )
+{
+    GIVEN( "settings that hold the checks of an older version" )
+    {
+        QTemporaryDir directory;
+        REQUIRE( directory.isValid() );
+        QSettings appSettings( directory.filePath( QStringLiteral( "logsquirl.conf" ) ),
+                               QSettings::IniFormat );
+        QSettings sessionSettings( directory.filePath( QStringLiteral( "logsquirl_session.conf" ) ),
+                                   QSettings::IniFormat );
+        appSettings.setValue( QStringLiteral( "version" ), 1 );
+        appSettings.setValue( QStringLiteral( "PinnedFilters/count" ), 1 );
+        appSettings.setValue( QStringLiteral( "PinnedFilters/filter0" ), QStringLiteral( "a/b" ) );
+        appSettings.setValue( QStringLiteral( "geometry" ), QStringLiteral( "kept" ) );
+
+        WHEN( "the settings are migrated" )
+        {
+            PersistentInfo::updateSettings( appSettings, sessionSettings );
+
+            THEN( "the checks are gone, and the rest is kept" )
             {
-                auto* tree = findTree( &panel );
-                REQUIRE( tree != nullptr );
-                REQUIRE( countChecked( tree ) == 0 );
+                REQUIRE( appSettings.childGroups().count( QStringLiteral( "PinnedFilters" ) )
+                         == 0 );
+                REQUIRE( appSettings.value( QStringLiteral( "geometry" ) )
+                         == QStringLiteral( "kept" ) );
             }
         }
     }
@@ -553,7 +629,6 @@ SCENARIO( "Refreshing the Filters tab tells the Search of the checked filters on
         auto* groupA = findGroup( tree, "GroupA" );
         REQUIRE( groupA != nullptr );
         invokeDoubleClick( &panel, groupA->child( 0 ) ); // "Error"
-        panel.flushPendingSaves();
         QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
 
         WHEN( "the panel is refreshed" )

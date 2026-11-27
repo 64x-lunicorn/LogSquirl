@@ -107,6 +107,11 @@ SidebarTab::SidebarTab( const QString& searchPlaceholder, QWidget* parent )
     connect( editButton_, &QPushButton::clicked, this, &SidebarTab::editRequested );
 }
 
+void SidebarTab::forgetPreviousSelection()
+{
+    solo_->forget();
+}
+
 void SidebarTab::setGroups( const QList<Group>& groups )
 {
     checksTimer_->stop();

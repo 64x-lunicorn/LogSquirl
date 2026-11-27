@@ -113,6 +113,10 @@ Q_SIGNALS:
 protected:
     void showEvent( QShowEvent* event ) override;
 
+    // Forgets what "Restore previous selection" would bring back: the checks
+    // shown are of something else now (#984).
+    void forgetPreviousSelection();
+
 private Q_SLOTS:
     void onItemChanged( QTreeWidgetItem* item, int column );
     void onItemDoubleClicked( QTreeWidgetItem* item, int column );

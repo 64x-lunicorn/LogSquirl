@@ -21,6 +21,15 @@
   it says the filter searches for the pattern as one string and will not
   find what the Search Line found; OK stays enabled. Opened for a selection,
   it says nothing of the sort. (#983)
+- **Each tab keeps its own checks in the Filters panel**: the Predefined
+  Filters checked in the sidebar's Filters panel belong to the tab they were
+  checked in, as its Search Line does. A tab brought to the front shows its
+  own checks, and the switch runs no Search; a new tab and the dashboard
+  show none. The panel held one set of checks for the whole window and kept
+  it after a restart: a tab showed filters as checked it never searched
+  with, and the next check added them to its Search. Checked filters no
+  longer come back after a restart; they will, per tab, with a later
+  change. (#984)
 
 ## Bug fixes
 

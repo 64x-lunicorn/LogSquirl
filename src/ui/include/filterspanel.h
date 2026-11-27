@@ -23,17 +23,17 @@
 #include <QList>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 
 #include "plugingroup.h"
 #include "predefinedfilters.h"
 #include "sidebartab.h"
 
-class QTimer;
-
 // The sidebar's Filters tab: all Predefined Filters grouped into expandable
 // tree items, built on the SidebarTab (#923). Users can check/uncheck
-// individual filters or entire groups (tri-state). Checked ("pinned") filters
-// persist across sessions. Selected filters are emitted via signal.
+// individual filters or entire groups (tri-state). The checks are those of
+// the tab in front, which the window hands over with showChecks() as a tab
+// comes to the front (#984). Selected filters are emitted via signal.
 // A double-click on a filter or group, or "Show only this" of its context
 // menu, checks only it; "Restore previous selection" brings back the checks
 // from before (#889).
@@ -56,13 +56,13 @@ public:
     // The Team groups to list after the user's own groups and the plugins'
     // groups, alphabetically as
     // the Team Folder hands them over, and marked as Team groups. Usable like
-    // the user's own: checked, pinned and searched the same way.
+    // the user's own: checked and searched the same way.
     void setTeamGroups( const QList<PredefinedFilterSet>& groups );
 
-    // Flush any pending debounced save to disk immediately.
-    // Call before destroying the panel when the pinned state must be persisted,
-    // or in tests to force a synchronous write.
-    void flushPendingSaves();
+    // Shows these checks, the keys checkedKeys() gave in the tab now in
+    // front, and tells its Search nothing: the Search already is what they
+    // built. Keys of filters that are gone check nothing (#984).
+    void showChecks( const QStringList& keys );
 
 Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
@@ -73,24 +73,19 @@ Q_SIGNALS:
 
 private:
     // The groups of allFilterSets_ as the SidebarTab shows them, with the
-    // pinned filters checked.
+    // checks of the tab in front.
     QList<SidebarTab::Group> shownGroups() const;
     void rebuildFilterIndex();
     void emitCurrentSelection();
-    void savePinnedFilters();
-    void savePinnedFiltersNow();
-    void loadPinnedFilters();
 
     QList<PredefinedFilterSet> allFilterSets_;
     QList<PredefinedFilterSet> teamFilterSets_;
     // The plugins' groups, between the user's own and the Team groups in
     // allFilterSets_: the Predefined Filters Collection holds them (#865).
     QList<PluginGroup<PredefinedFilterSet>> pluginFilterGroups_;
-    QSet<QString> pinnedFilterKeys_;
+    // The checks of the tab in front.
+    QSet<QString> checkedFilterKeys_;
 
-    // Fast lookup: pinKey(groupId, filterName) → PredefinedFilter.
+    // Fast lookup: checkKey(groupId, filterName) → PredefinedFilter.
     QHash<QString, PredefinedFilter> filterIndex_;
-
-    // Debounce timer for persisting pinned filters to disk.
-    QTimer* saveTimer_{ nullptr };
 };

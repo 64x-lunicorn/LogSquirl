@@ -19,16 +19,10 @@
 
 #include "filterspanel.h"
 
-#include <QSettings>
-#include <QTimer>
-
 #include "containers.h"
-#include "persistentinfo.h"
 
-static constexpr const char* PinnedSettingsKey = "PinnedFilters";
-
-// Composite key for pinning: "groupId/filterName".
-static QString pinKey( const QString& groupId, const QString& filterName )
+// The key of a filter's check: "groupId/filterName".
+static QString checkKey( const QString& groupId, const QString& filterName )
 {
     return groupId + QStringLiteral( "/" ) + filterName;
 }
@@ -36,21 +30,13 @@ static QString pinKey( const QString& groupId, const QString& filterName )
 FiltersPanel::FiltersPanel( QWidget* parent )
     : SidebarTab( tr( "Search filters..." ), parent )
 {
-    // A check the user changed: the Search's filters follow, and are saved.
+    // A check the user changed: the Search's filters follow.
     // The search of the tab only shows other filters and keeps the checks:
     // the Search is not told again, which re-set its pattern on every key
     // (#928).
     connect( this, &SidebarTab::checksChanged, this, &FiltersPanel::emitCurrentSelection );
     connect( this, &SidebarTab::editRequested, this, &FiltersPanel::editFiltersRequested );
 
-    // Debounce timer for persisting pinned filters — avoids synchronous disk
-    // writes on every checkbox click.
-    saveTimer_ = new QTimer( this );
-    saveTimer_->setSingleShot( true );
-    saveTimer_->setInterval( 500 );
-    connect( saveTimer_, &QTimer::timeout, this, &FiltersPanel::savePinnedFiltersNow );
-
-    loadPinnedFilters();
     refreshFilters();
 }
 
@@ -66,13 +52,21 @@ void FiltersPanel::refreshFilters()
     rebuildFilterIndex();
     setGroups( shownGroups() );
 
-    // Emit current selection if any pinned filters were auto-checked, or
-    // one that was has gone. With none checked before or now, the Search is
+    // Tell the Search of the tab in front of its checked filters, which may
+    // have changed or gone. With none checked before or now, the Search is
     // left as it is: refilling the tree after a filter was added replaced it
-    // with an empty one (#897).
-    if ( !pinnedFilterKeys_.isEmpty() ) {
+    // with an empty one (#897). The other tabs hear nothing (#984).
+    if ( !checkedFilterKeys_.isEmpty() ) {
         emitCurrentSelection();
     }
+}
+
+void FiltersPanel::showChecks( const QStringList& keys )
+{
+    checkedFilterKeys_ = QSet<QString>( keys.cbegin(), keys.cend() );
+    setGroups( shownGroups() );
+    // What Restore previous selection brought back was of the tab shown before.
+    forgetPreviousSelection();
 }
 
 void FiltersPanel::setTeamGroups( const QList<PredefinedFilterSet>& groups )
@@ -102,11 +96,11 @@ QList<SidebarTab::Group> FiltersPanel::shownGroups() const
         }
         // A Filter Group without filters is no check of its own: no key.
         for ( const auto& filter : set.filters() ) {
-            const auto key = pinKey( set.id(), filter.name );
+            const auto key = checkKey( set.id(), filter.name );
             group.entries.append( { .key = key,
                                     .name = filter.name,
                                     .pattern = filter.pattern,
-                                    .checked = pinnedFilterKeys_.contains( key ) } );
+                                    .checked = checkedFilterKeys_.contains( key ) } );
         }
         groups.append( std::move( group ) );
     }
@@ -119,7 +113,7 @@ void FiltersPanel::rebuildFilterIndex()
     filterIndex_.reserve( 64 );
     for ( const auto& set : allFilterSets_ ) {
         for ( const auto& filter : set.filters() ) {
-            filterIndex_.insert( pinKey( set.id(), filter.name ), filter );
+            filterIndex_.insert( checkKey( set.id(), filter.name ), filter );
         }
     }
 }
@@ -139,54 +133,7 @@ void FiltersPanel::emitCurrentSelection()
         }
     }
 
-    pinnedFilterKeys_ = std::move( checkedKeys );
-    savePinnedFilters();
+    checkedFilterKeys_ = std::move( checkedKeys );
 
     Q_EMIT filtersChanged( selected );
-}
-void FiltersPanel::savePinnedFilters()
-{
-    // Schedule a debounced write instead of flushing to disk immediately.
-    saveTimer_->start();
-}
-
-void FiltersPanel::flushPendingSaves()
-{
-    if ( saveTimer_->isActive() ) {
-        saveTimer_->stop();
-        savePinnedFiltersNow();
-    }
-}
-
-void FiltersPanel::savePinnedFiltersNow()
-{
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( PinnedSettingsKey );
-    settings.remove( "" );
-    settings.setValue( "count", pinnedFilterKeys_.size() );
-
-    int index = 0;
-    for ( const auto& key : pinnedFilterKeys_ ) {
-        settings.setValue( QString( "filter%1" ).arg( index ), key );
-        index++;
-    }
-
-    settings.endGroup();
-    settings.sync();
-}
-
-void FiltersPanel::loadPinnedFilters()
-{
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( PinnedSettingsKey );
-
-    const auto count = settings.value( "count", 0 ).toInt();
-    for ( int i = 0; i < count; ++i ) {
-        const auto key = settings.value( QString( "filter%1" ).arg( i ) ).toString();
-        if ( !key.isEmpty() ) {
-            pinnedFilterKeys_.insert( key );
-        }
-    }
-
-    settings.endGroup();
 }

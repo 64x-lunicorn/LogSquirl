@@ -1442,8 +1442,10 @@ and both are in the Command Palette.
 The Filters Panel is a right sidebar dock that provides quick access to filters
 and the Scratchpad. It contains three tabs:
 
-*   **Filters tab** -- allows pinning frequently used search filters that persist
-    across sessions. Toggling a pinned filter automatically triggers a search.
+*   **Filters tab** -- checks Predefined Filters to search the tab in front
+    with. Each tab keeps its own checks: a tab brought to the front shows the
+    filters checked in it, and a new tab shows none. Toggling a filter changes
+    the Search Line of the tab in front.
 *   **Scratchpad tab** -- the same Scratchpad tool described below, accessible
     from the sidebar for convenience.
 *   **Value Names tab** -- checks the Naming Rules and Naming Groups of Value
